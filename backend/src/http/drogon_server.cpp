@@ -35,6 +35,19 @@ std::string assetStatusToString(domain::AssetStatus status) {
     return "unknown";
 }
 
+
+ domain::AssetStatus assetStatusFromString(const std::string& status) {
+    if (status == "inactive") {
+        return domain::AssetStatus::Inactive;
+    }
+    if (status == "maintenance") {
+        return domain::AssetStatus::Maintenance;
+    }
+    if (status == "retired") {
+        return domain::AssetStatus::Retired;
+    }
+    return domain::AssetStatus::Active;
+}
 std::string alertSeverityToString(domain::AlertSeverity severity) {
     switch (severity) {
         case domain::AlertSeverity::Info:
@@ -189,6 +202,19 @@ std::optional<modules::SessionInfo> requireSession(
     }
     return session;
 }
+
+bool requirePermission(
+    const std::shared_ptr<modules::IdentityService>& identity,
+    const modules::SessionInfo& session,
+    const std::string& permission,
+    const std::function<void(const drogon::HttpResponsePtr&)>& callback) {
+    const auto permissions = identity->permissionsForRoles(session.user.roles);
+    if (!identity->hasPermission(permissions, permission)) {
+        callback(jsonResponse(responseEnvelope(false, "AUTHORIZATION_DENIED", "permission denied"), drogon::k403Forbidden));
+        return false;
+    }
+    return true;
+}
 void registerRoutes(
     const std::shared_ptr<app::Application>& application,
     const std::shared_ptr<modules::IdentityService>& identity,
@@ -252,7 +278,8 @@ void registerRoutes(
     }, {drogon::Post});
 
     server.registerHandler("/api/v1/assets", [identity, assets](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
-        if (!requireSession(identity, request, callback)) {
+        const auto session = requireSession(identity, request, callback);
+        if (!session || !requirePermission(identity, *session, "asset:read", callback)) {
             return;
         }
         Json::Value rows(Json::arrayValue);
@@ -262,8 +289,30 @@ void registerRoutes(
         callback(jsonResponse(responseEnvelope(true, "OK", "assets returned", rows)));
     }, {drogon::Get});
 
+
+    server.registerHandler("/api/v1/assets", [identity, assets](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+        const auto session = requireSession(identity, request, callback);
+        if (!session || !requirePermission(identity, *session, "asset:write", callback)) {
+            return;
+        }
+        const auto payload = request->getJsonObject();
+        if (!payload || !payload->isMember("id") || !payload->isMember("name")) {
+            callback(jsonResponse(responseEnvelope(false, "INVALID_REQUEST", "id and name are required"), drogon::k400BadRequest));
+            return;
+        }
+        const auto asset = assets->create(domain::EquipmentAsset{
+            (*payload)["id"].asString(),
+            (*payload)["name"].asString(),
+            payload->isMember("type") ? (*payload)["type"].asString() : "equipment",
+            payload->isMember("factory") ? (*payload)["factory"].asString() : "default-factory",
+            payload->isMember("workshop") ? (*payload)["workshop"].asString() : "default-workshop",
+            payload->isMember("productionLine") ? (*payload)["productionLine"].asString() : "default-line",
+            payload->isMember("status") ? assetStatusFromString((*payload)["status"].asString()) : domain::AssetStatus::Active});
+        callback(jsonResponse(responseEnvelope(true, "OK", "asset created", assetToJson(asset))));
+    }, {drogon::Post});
     server.registerHandler("/api/v1/monitoring/states", [identity, monitoring](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
-        if (!requireSession(identity, request, callback)) {
+        const auto session = requireSession(identity, request, callback);
+        if (!session || !requirePermission(identity, *session, "asset:read", callback)) {
             return;
         }
         Json::Value data;
@@ -277,7 +326,8 @@ void registerRoutes(
     }, {drogon::Get});
 
     server.registerHandler("/api/v1/alerts", [identity, alerts](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
-        if (!requireSession(identity, request, callback)) {
+        const auto session = requireSession(identity, request, callback);
+        if (!session || !requirePermission(identity, *session, "alert:read", callback)) {
             return;
         }
         Json::Value rows(Json::arrayValue);
@@ -288,7 +338,8 @@ void registerRoutes(
     }, {drogon::Get});
 
     server.registerHandler("/api/v1/work-orders", [identity, maintenance](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
-        if (!requireSession(identity, request, callback)) {
+        const auto session = requireSession(identity, request, callback);
+        if (!session || !requirePermission(identity, *session, "work-order:read", callback)) {
             return;
         }
         Json::Value rows(Json::arrayValue);
@@ -299,7 +350,8 @@ void registerRoutes(
     }, {drogon::Get});
 
     server.registerHandler("/api/v1/ai/status", [identity, ai](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
-        if (!requireSession(identity, request, callback)) {
+        const auto session = requireSession(identity, request, callback);
+        if (!session || !requirePermission(identity, *session, "ai:use", callback)) {
             return;
         }
         const auto status = ai->status();

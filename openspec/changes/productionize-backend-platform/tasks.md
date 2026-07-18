@@ -19,7 +19,7 @@
 ## 4. Security and API Guardrails
 
 - [x] 4.1 Add authentication middleware that validates session tokens before protected operations.
-- [ ] 4.2 Add permission checks to protected API routes and return consistent denial responses.
+- [x] 4.2 Add permission checks to protected API routes and return consistent denial responses.
 - [ ] 4.3 Add request validation and consistent error mapping for malformed input and missing resources.
 
 ## 5. Observability and Verification
