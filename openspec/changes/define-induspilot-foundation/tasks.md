@@ -53,7 +53,7 @@
 
 ## 8. Verification and Documentation
 
-- [ ] 8.1 Add unit or integration tests for backend configuration, health checks, authentication, and core API conventions.
-- [ ] 8.2 Add basic API tests for assets, alerts, work orders, and AI unavailable fallback behavior.
-- [ ] 8.3 Document local development startup steps for client, backend, MySQL, Redis, and MongoDB.
-- [ ] 8.4 Document the foundation scope and future expansion modules such as protocol adapters, edge gateway, rule engine, reports, and digital twin.
+- [x] 8.1 Add unit or integration tests for backend configuration, health checks, authentication, and core API conventions.
+- [x] 8.2 Add basic API tests for assets, alerts, work orders, and AI unavailable fallback behavior.
+- [x] 8.3 Document local development startup steps for client, backend, MySQL, Redis, and MongoDB.
+- [x] 8.4 Document the foundation scope and future expansion modules such as protocol adapters, edge gateway, rule engine, reports, and digital twin.
