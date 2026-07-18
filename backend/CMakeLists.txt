@@ -5,6 +5,7 @@ set(INDUSPILOT_BACKEND_CORE_SOURCES
   src/api/api_types.cpp
   src/api/router.cpp
   src/data/data_connectors.cpp
+  src/data/in_memory_repositories.cpp
   src/modules/ai_service.cpp
   src/modules/alert_service.cpp
   src/modules/asset_service.cpp

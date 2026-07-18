@@ -2,6 +2,7 @@
 #include "induspilot/app/application.hpp"
 #include "induspilot/app/config.hpp"
 #include "induspilot/data/repositories.hpp"
+#include "induspilot/data/in_memory_repositories.hpp"
 #ifdef INDUSPILOT_WITH_DROGON
 #include "induspilot/data/mysql_repositories.hpp"
 #endif
@@ -77,6 +78,13 @@ int main() {
     assert(expiringLogin.success);
     assert(expiringLogin.session.has_value());
     assert(!expiringIdentity.validateSession(expiringLogin.session->token).has_value());
+
+    induspilot::data::InMemoryUserRepository users;
+    assert(users.findByUsername("admin").has_value());
+    induspilot::data::InMemoryPermissionRepository permissionStore;
+    assert(!permissionStore.permissionsForRoles({"admin"}).empty());
+    induspilot::data::InMemoryAssetRepository assetStore;
+    assert(assetStore.findById("asset-001").has_value());
 
     induspilot::modules::AssetService assets;
     assert(!assets.list().empty());
