@@ -6,7 +6,7 @@
 
 ## 2. Configuration and Dependencies
 
-- [ ] 2.1 Replace lightweight config parsing with a structured config loader and environment variable overrides.
+- [x] 2.1 Replace lightweight config parsing with a structured config loader and environment variable overrides.
 - [ ] 2.2 Wire Redis session storage from backend config, including URI, key prefix, and TTL.
 - [ ] 2.3 Add dependency probes for MySQL, Redis, MongoDB, and AI adapter availability.
 

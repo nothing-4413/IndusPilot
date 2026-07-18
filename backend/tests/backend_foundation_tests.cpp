@@ -13,6 +13,29 @@
 #include <memory>
 
 int main() {
+#ifdef _WIN32
+    _putenv_s("INDUSPILOT_SERVER_PORT", "18080");
+    _putenv_s("INDUSPILOT_REDIS_SESSION_TTL_SECONDS", "60");
+    _putenv_s("INDUSPILOT_REDIS_SESSION_KEY_PREFIX", "test:session:");
+#else
+    setenv("INDUSPILOT_SERVER_PORT", "18080", 1);
+    setenv("INDUSPILOT_REDIS_SESSION_TTL_SECONDS", "60", 1);
+    setenv("INDUSPILOT_REDIS_SESSION_KEY_PREFIX", "test:session:", 1);
+#endif
+    const auto loadedConfig = induspilot::app::loadConfig("config/backend.example.yaml");
+    assert(loadedConfig.port == 18080);
+    assert(loadedConfig.redis.sessionTtlSeconds == 60);
+    assert(loadedConfig.redis.sessionKeyPrefix == "test:session:");
+#ifdef _WIN32
+    _putenv_s("INDUSPILOT_SERVER_PORT", "");
+    _putenv_s("INDUSPILOT_REDIS_SESSION_TTL_SECONDS", "");
+    _putenv_s("INDUSPILOT_REDIS_SESSION_KEY_PREFIX", "");
+#else
+    unsetenv("INDUSPILOT_SERVER_PORT");
+    unsetenv("INDUSPILOT_REDIS_SESSION_TTL_SECONDS");
+    unsetenv("INDUSPILOT_REDIS_SESSION_KEY_PREFIX");
+#endif
+
     induspilot::app::Application app(induspilot::app::AppConfig{});
     app.start();
     assert(app.isRunning());
