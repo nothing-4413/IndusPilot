@@ -26,6 +26,10 @@ target_compile_options(induspilot_backend_core PRIVATE
   $<$<CXX_COMPILER_ID:MSVC>:/utf-8 /EHsc>
 )
 
+if(WIN32)
+  target_link_libraries(induspilot_backend_core PUBLIC Ws2_32)
+endif()
+
 if(INDUSPILOT_WITH_REDIS)
   find_package(redis++ CONFIG REQUIRED)
   target_compile_definitions(induspilot_backend_core PRIVATE INDUSPILOT_WITH_REDIS)

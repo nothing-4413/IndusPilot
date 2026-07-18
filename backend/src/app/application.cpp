@@ -11,7 +11,7 @@ Application::Application(AppConfig config) : config_(std::move(config)) {
 }
 
 void Application::start() {
-    dependencies_ = data::DataConnectors{}.probe();
+    dependencies_ = data::DataConnectors{config_}.probe();
     running_ = true;
 }
 
