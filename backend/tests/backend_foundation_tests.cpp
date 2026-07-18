@@ -14,7 +14,14 @@ int main() {
     assert(!app.router().handle("GET", "/missing").success);
 
     induspilot::modules::IdentityService identity;
-    assert(identity.authenticate("admin", "admin123"));
+    const auto login = identity.login({"admin", "admin123"});
+    assert(login.success);
+    assert(login.session.has_value());
+    const auto permissions = identity.permissionsForRoles(login.session->user.roles);
+    assert(identity.hasPermission(permissions, "asset:write"));
+    assert(identity.validateSession(login.session->token).has_value());
+    assert(identity.logout(login.session->token));
+    assert(!identity.validateSession(login.session->token).has_value());
 
     induspilot::modules::AiService ai;
     assert(!ai.explainAlert("温度异常").available);

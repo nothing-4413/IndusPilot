@@ -22,10 +22,10 @@
 
 ## 4. Identity and Access
 
-- [ ] 4.1 Implement user authentication flow with password-based login and logout.
+- [x] 4.1 Implement user authentication flow with password-based login and logout.
 - [ ] 4.2 Implement session creation, validation, expiration, and Redis-backed session storage.
-- [ ] 4.3 Implement role and permission checks for protected API operations.
-- [ ] 4.4 Add initial admin/operator/maintainer role seed data.
+- [x] 4.3 Implement role and permission checks for protected API operations.
+- [x] 4.4 Add initial admin/operator/maintainer role seed data.
 
 ## 5. Industrial Core Modules
 
