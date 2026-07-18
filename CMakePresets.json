@@ -24,6 +24,20 @@
         "INDUSPILOT_BUILD_TESTS": "ON",
         "INDUSPILOT_WITH_REDIS": "ON"
       }
+    },
+    {
+      "name": "dev-http",
+      "displayName": "IndusPilot Dev HTTP",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/dev-http",
+      "toolchainFile": "C:/Users/20106/vcpkg/scripts/buildsystems/vcpkg.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "INDUSPILOT_BUILD_CLIENT": "OFF",
+        "INDUSPILOT_BUILD_TESTS": "ON",
+        "INDUSPILOT_WITH_REDIS": "ON",
+        "INDUSPILOT_WITH_DROGON": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -34,6 +48,10 @@
     {
       "name": "dev-redis",
       "configurePreset": "dev-redis"
+    },
+    {
+      "name": "dev-http",
+      "configurePreset": "dev-http"
     }
   ],
   "testPresets": [
@@ -47,6 +65,16 @@
     {
       "name": "dev-redis",
       "configurePreset": "dev-redis",
+      "output": {
+        "outputOnFailure": true
+      },
+      "environment": {
+        "PATH": "C:/Users/20106/vcpkg/installed/x64-windows/debug/bin;C:/Users/20106/vcpkg/installed/x64-windows/bin;$penv{PATH}"
+      }
+    },
+    {
+      "name": "dev-http",
+      "configurePreset": "dev-http",
       "output": {
         "outputOnFailure": true
       },

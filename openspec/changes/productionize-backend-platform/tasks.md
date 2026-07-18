@@ -1,8 +1,8 @@
 ## 1. Service Runtime
 
-- [ ] 1.1 Select and document the C++ HTTP framework or gateway approach for the production backend.
-- [ ] 1.2 Implement backend service startup with configurable bind address, port, graceful shutdown, and health endpoints.
-- [ ] 1.3 Expose typed HTTP endpoints for authentication, assets, monitoring, alerts, work orders, and AI assistance.
+- [x] 1.1 Select and document the C++ HTTP framework or gateway approach for the production backend.
+- [x] 1.2 Implement backend service startup with configurable bind address, port, graceful shutdown, and health endpoints.
+- [x] 1.3 Expose typed HTTP endpoints for authentication, assets, monitoring, alerts, work orders, and AI assistance.
 
 ## 2. Configuration and Dependencies
 

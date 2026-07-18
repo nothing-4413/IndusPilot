@@ -3,7 +3,7 @@
 namespace induspilot::modules {
 
 ServiceStatus MaintenanceService::status() const {
-    return ServiceStatus{"maintenance-workflow", true, "维护工单模块占位就绪"};
+    return ServiceStatus{"maintenance-workflow", true, "缁存姢宸ュ崟妯″潡鍗犱綅灏辩华"};
 }
 
 domain::WorkOrder MaintenanceService::create(domain::WorkOrder order) {
@@ -53,6 +53,13 @@ std::optional<domain::WorkOrder> MaintenanceService::close(const std::string& id
     return it->second;
 }
 
+std::vector<domain::WorkOrder> MaintenanceService::list() const {
+    std::vector<domain::WorkOrder> result;
+    for (const auto& item : orders_) {
+        result.push_back(item.second);
+    }
+    return result;
+}
 std::vector<domain::WorkOrder> MaintenanceService::historyForAsset(const std::string& assetId) const {
     std::vector<domain::WorkOrder> result;
     for (const auto& item : orders_) {

@@ -19,6 +19,7 @@ public:
     std::optional<domain::WorkOrder> startProcessing(const std::string& id);
     std::optional<domain::WorkOrder> complete(const std::string& id, const std::string& result);
     std::optional<domain::WorkOrder> close(const std::string& id);
+    std::vector<domain::WorkOrder> list() const;
     std::vector<domain::WorkOrder> historyForAsset(const std::string& assetId) const;
 
 private:
