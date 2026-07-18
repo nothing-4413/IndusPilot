@@ -77,6 +77,15 @@ try {
 
     $session = Invoke-RestMethod -Uri "$BaseUrl/api/v1/auth/session" -Method Get -Headers $operatorHeaders -TimeoutSec 10
     Assert-True $session.success "Session validation failed."
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/monitoring/states" -Method Post -Status 401 -Body '{"assetId":"asset-it-001","state":"online"}'
+
+    $emptyMonitoring = Invoke-RestMethod -Uri "$BaseUrl/api/v1/monitoring/states" -Method Get -Headers $operatorHeaders -TimeoutSec 10
+    Assert-True $emptyMonitoring.success "Monitoring state list failed."
+    Assert-True ($null -ne $emptyMonitoring.data.summary.states.online) "Monitoring state summary was not returned."
+
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/monitoring/states" -Method Post -Status 400 -Headers $operatorHeaders -Body '{"assetId":"asset-it-001"}'
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/monitoring/states" -Method Post -Status 400 -Headers $operatorHeaders -Body '{"assetId":"asset-it-001","state":"invalid"}'
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/monitoring/states" -Method Post -Status 400 -Headers $operatorHeaders -Body '{"assetId":"asset-it-001","state":"online","severity":"invalid"}'
 
     $assets = Invoke-RestMethod -Uri "$BaseUrl/api/v1/assets" -Method Get -Headers $operatorHeaders -TimeoutSec 10
     Assert-True $assets.success "Protected asset read failed."
@@ -113,6 +122,28 @@ try {
     $maintenanceAssets = Invoke-RestMethod -Uri "$BaseUrl/api/v1/assets?status=maintenance" -Method Get -Headers $adminHeaders -TimeoutSec 10
     $maintenanceMatch = @($maintenanceAssets.data) | Where-Object { $_.id -eq "asset-it-001" }
     Assert-True (@($maintenanceMatch).Count -eq 1) "Asset status filter failed."
+    $runtimeBody = '{"assetId":"asset-it-001","state":"critical","metricSummary":"temperature high","severity":"critical"}'
+    $runtime = Invoke-RestMethod -Uri "$BaseUrl/api/v1/monitoring/states" -Method Post -Headers $operatorHeaders -ContentType "application/json" -Body $runtimeBody -TimeoutSec 10
+    Assert-True $runtime.success "Runtime state update failed."
+    Assert-True ($runtime.data.assetId -eq "asset-it-001") "Runtime state asset id was not returned."
+    Assert-True ($runtime.data.state -eq "critical") "Runtime state value was not returned."
+    Assert-True ($runtime.data.severity -eq "critical") "Runtime severity was not returned."
+    Assert-True (-not [string]::IsNullOrWhiteSpace($runtime.data.updatedAt)) "Runtime updatedAt was not generated."
+
+    $runtimeDetail = Invoke-RestMethod -Uri "$BaseUrl/api/v1/monitoring/states/asset-it-001" -Method Get -Headers $operatorHeaders -TimeoutSec 10
+    Assert-True $runtimeDetail.success "Runtime state detail failed."
+    Assert-True ($runtimeDetail.data.metricSummary -eq "temperature high") "Runtime state detail did not match."
+
+    $monitoringList = Invoke-RestMethod -Uri "$BaseUrl/api/v1/monitoring/states" -Method Get -Headers $operatorHeaders -TimeoutSec 10
+    Assert-True ($monitoringList.data.summary.states.critical -ge 1) "Runtime state summary did not include critical state."
+    Assert-True ($monitoringList.data.summary.severity.critical -ge 1) "Runtime severity summary did not include critical severity."
+
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/monitoring/states/not-exist" -Method Get -Status 404 -Headers $operatorHeaders
+
+    $maintainerLogin = Invoke-RestMethod -Uri "$BaseUrl/api/v1/auth/login" -Method Post -ContentType "application/json" -Body '{"username":"maintainer","password":"maintainer123"}' -TimeoutSec 10
+    Assert-True $maintainerLogin.success "Maintainer login failed."
+    $maintainerHeaders = @{ Authorization = "Bearer $($maintainerLogin.data.token)"; "X-Trace-Id" = "trace-it-maintainer" }
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/monitoring/states" -Method Post -Status 403 -Headers $maintainerHeaders -Body '{"assetId":"asset-it-001","state":"online"}'
 } finally {
     if ($proc -and -not $proc.HasExited) {
         Stop-Process -Id $proc.Id -Force
