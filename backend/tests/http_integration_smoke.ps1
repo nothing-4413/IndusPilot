@@ -90,8 +90,29 @@ try {
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/assets" -Method Post -Status 400 -Headers $adminHeaders -Body '{"name":"missing id"}'
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/assets/not-exist" -Method Get -Status 404 -Headers $adminHeaders
 
-    $created = Invoke-RestMethod -Uri "$BaseUrl/api/v1/assets" -Method Post -Headers $adminHeaders -ContentType "application/json" -Body '{"id":"asset-it-001","name":"integration asset"}' -TimeoutSec 10
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/assets?status=unknown" -Method Get -Status 400 -Headers $adminHeaders
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/assets" -Method Post -Status 400 -Headers $adminHeaders -Body '{"id":"asset-it-bad","name":"bad","status":"unknown"}'
+
+    $assetBody = '{"id":"asset-it-001","name":"integration asset","type":"pump","factory":"factory-it","workshop":"workshop-it","productionLine":"line-it","status":"active"}'
+    $created = Invoke-RestMethod -Uri "$BaseUrl/api/v1/assets" -Method Post -Headers $adminHeaders -ContentType "application/json" -Body $assetBody -TimeoutSec 10
     Assert-True $created.success "Admin asset creation failed."
+    Assert-True ($created.data.status -eq "active") "Created asset status was not returned."
+
+    $filtered = Invoke-RestMethod -Uri "$BaseUrl/api/v1/assets?factory=factory-it&workshop=workshop-it&productionLine=line-it&status=active" -Method Get -Headers $adminHeaders -TimeoutSec 10
+    $matched = @($filtered.data) | Where-Object { $_.id -eq "asset-it-001" }
+    Assert-True (@($matched).Count -eq 1) "Asset hierarchy filter failed."
+
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/assets/asset-it-001/status" -Method Patch -Status 403 -Headers $operatorHeaders -Body '{"status":"maintenance"}'
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/assets/asset-it-001/status" -Method Patch -Status 400 -Headers $adminHeaders -Body '{"status":"unknown"}'
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/assets/not-exist/status" -Method Patch -Status 404 -Headers $adminHeaders -Body '{"status":"maintenance"}'
+
+    $updated = Invoke-RestMethod -Uri "$BaseUrl/api/v1/assets/asset-it-001/status" -Method Patch -Headers $adminHeaders -ContentType "application/json" -Body '{"status":"maintenance"}' -TimeoutSec 10
+    Assert-True $updated.success "Asset lifecycle update failed."
+    Assert-True ($updated.data.status -eq "maintenance") "Asset lifecycle status was not updated."
+
+    $maintenanceAssets = Invoke-RestMethod -Uri "$BaseUrl/api/v1/assets?status=maintenance" -Method Get -Headers $adminHeaders -TimeoutSec 10
+    $maintenanceMatch = @($maintenanceAssets.data) | Where-Object { $_.id -eq "asset-it-001" }
+    Assert-True (@($maintenanceMatch).Count -eq 1) "Asset status filter failed."
 } finally {
     if ($proc -and -not $proc.HasExited) {
         Stop-Process -Id $proc.Id -Force

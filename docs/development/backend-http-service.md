@@ -24,9 +24,10 @@ ctest --preset dev-http
 - `POST /api/v1/auth/login`：使用 JSON 请求体登录，字段为 `username` 和 `password`。
 - `GET /api/v1/auth/session`：使用 `Authorization: Bearer <token>` 验证会话。
 - `POST /api/v1/auth/logout`：使用 `Authorization: Bearer <token>` 退出会话。
-- `GET /api/v1/assets`：需要 `asset:read` 权限，返回资产列表。
+- `GET /api/v1/assets`：需要 `asset:read` 权限，返回资产列表；支持 `factory`、`workshop`、`productionLine`、`status` 查询参数。
 - `GET /api/v1/assets/{id}`：需要 `asset:read` 权限，返回单个资产；不存在时返回 `RESOURCE_NOT_FOUND`。
-- `POST /api/v1/assets`：需要 `asset:write` 权限，创建或更新资产。
+- `POST /api/v1/assets`：需要 `asset:write` 权限，创建或更新资产。`status` 可取 `active`、`inactive`、`maintenance`、`retired`。
+- `PATCH /api/v1/assets/{id}/status`：需要 `asset:write` 权限，仅更新资产生命周期状态，不改变资产层级和身份字段。
 - `GET /api/v1/monitoring/states`：需要 `asset:read` 权限，返回运行状态汇总。
 - `GET /api/v1/alerts`：需要 `alert:read` 权限，返回告警列表。
 - `GET /api/v1/work-orders`：需要 `work-order:read` 权限，返回工单列表。
@@ -36,7 +37,8 @@ ctest --preset dev-http
 
 ## 后续约束
 
-当前 HTTP 层是生产化入口的第一步，仍保留内存业务服务用于演示和测试。后续需要继续接入配置化 Redis session、MySQL 仓储、认证中间件、权限守卫和请求校验。
+当前 HTTP 层已经接入会话守卫、权限守卫、统一错误响应和资产仓储边界。资产服务默认使用内存仓储，便于离线演示和集成测试；后续可以增加配置项切换到 MySQL 仓储，并继续接入告警、工单和 AI 诊断的写接口。
+
 ## 错误响应
 
 - INVALID_REQUEST：请求体缺少必要字段或格式无效。
@@ -46,7 +48,7 @@ ctest --preset dev-http
 
 ## 集成测试
 
-`dev-http` preset 会在 Windows 下注册 `induspilot-http-integration-smoke` CTest。该测试会启动本地后端，覆盖健康检查、登录、受保护路由、权限拒绝、请求校验和资源不存在错误。
+`dev-http` preset 会在 Windows 下注册 `induspilot-http-integration-smoke` CTest。该测试会启动本地后端，覆盖健康检查、登录、受保护路由、权限拒绝、请求校验、资源不存在错误、资产层级筛选和资产生命周期状态变更。
 
 手动运行：
 
