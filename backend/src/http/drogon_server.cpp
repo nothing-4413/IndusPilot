@@ -36,7 +36,10 @@ std::string assetStatusToString(domain::AssetStatus status) {
 }
 
 
- domain::AssetStatus assetStatusFromString(const std::string& status) {
+std::optional<domain::AssetStatus> tryAssetStatusFromString(const std::string& status) {
+    if (status == "active") {
+        return domain::AssetStatus::Active;
+    }
     if (status == "inactive") {
         return domain::AssetStatus::Inactive;
     }
@@ -46,7 +49,11 @@ std::string assetStatusToString(domain::AssetStatus status) {
     if (status == "retired") {
         return domain::AssetStatus::Retired;
     }
-    return domain::AssetStatus::Active;
+    return std::nullopt;
+}
+
+domain::AssetStatus assetStatusFromString(const std::string& status) {
+    return tryAssetStatusFromString(status).value_or(domain::AssetStatus::Active);
 }
 std::string alertSeverityToString(domain::AlertSeverity severity) {
     switch (severity) {
@@ -122,6 +129,32 @@ Json::Value assetToJson(const domain::EquipmentAsset& asset) {
     return value;
 }
 
+std::optional<modules::AssetQuery> assetQueryFromRequest(const drogon::HttpRequestPtr& request, std::string& error) {
+    modules::AssetQuery query;
+    const auto factory = request->getParameter("factory");
+    const auto workshop = request->getParameter("workshop");
+    const auto productionLine = request->getParameter("productionLine");
+    const auto status = request->getParameter("status");
+
+    if (!factory.empty()) {
+        query.factory = factory;
+    }
+    if (!workshop.empty()) {
+        query.workshop = workshop;
+    }
+    if (!productionLine.empty()) {
+        query.productionLine = productionLine;
+    }
+    if (!status.empty()) {
+        const auto parsed = tryAssetStatusFromString(status);
+        if (!parsed) {
+            error = "unsupported asset status";
+            return std::nullopt;
+        }
+        query.status = *parsed;
+    }
+    return query;
+}
 Json::Value runtimeStateToJson(const modules::RuntimeState& state) {
     Json::Value value;
     value["assetId"] = state.assetId;
@@ -337,8 +370,14 @@ void registerRoutes(
             return;
         }
         writeRequestLog(request, session);
+        std::string queryError;
+        const auto query = assetQueryFromRequest(request, queryError);
+        if (!query) {
+            callback(invalidRequest(queryError));
+            return;
+        }
         Json::Value rows(Json::arrayValue);
-        for (const auto& asset : assets->list()) {
+        for (const auto& asset : assets->list(*query)) {
             rows.append(assetToJson(asset));
         }
         callback(jsonResponse(responseEnvelope(true, "OK", "assets returned", rows)));
@@ -350,11 +389,20 @@ void registerRoutes(
         if (!session || !requirePermission(identity, *session, "asset:write", callback)) {
             return;
         }
-        writeRequestLog(request);
+        writeRequestLog(request, session);
         const auto payload = request->getJsonObject();
         if (!payload || !payload->isMember("id") || !payload->isMember("name")) {
             callback(invalidRequest("id and name are required"));
             return;
+        }
+        auto status = domain::AssetStatus::Active;
+        if (payload->isMember("status")) {
+            const auto parsed = tryAssetStatusFromString((*payload)["status"].asString());
+            if (!parsed) {
+                callback(invalidRequest("unsupported asset status"));
+                return;
+            }
+            status = *parsed;
         }
         const auto asset = assets->create(domain::EquipmentAsset{
             (*payload)["id"].asString(),
@@ -363,9 +411,33 @@ void registerRoutes(
             payload->isMember("factory") ? (*payload)["factory"].asString() : "default-factory",
             payload->isMember("workshop") ? (*payload)["workshop"].asString() : "default-workshop",
             payload->isMember("productionLine") ? (*payload)["productionLine"].asString() : "default-line",
-            payload->isMember("status") ? assetStatusFromString((*payload)["status"].asString()) : domain::AssetStatus::Active});
+            status});
         callback(jsonResponse(responseEnvelope(true, "OK", "asset created", assetToJson(asset))));
     }, {drogon::Post});
+
+    server.registerHandler("/api/v1/assets/{1}/status", [identity, assets](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback, const std::string& assetId) {
+        const auto session = requireSession(identity, request, callback);
+        if (!session || !requirePermission(identity, *session, "asset:write", callback)) {
+            return;
+        }
+        writeRequestLog(request, session);
+        const auto payload = request->getJsonObject();
+        if (!payload || !payload->isMember("status")) {
+            callback(invalidRequest("status is required"));
+            return;
+        }
+        const auto parsed = tryAssetStatusFromString((*payload)["status"].asString());
+        if (!parsed) {
+            callback(invalidRequest("unsupported asset status"));
+            return;
+        }
+        if (!assets->updateLifecycleStatus(assetId, *parsed)) {
+            callback(notFound("asset not found"));
+            return;
+        }
+        const auto asset = assets->findById(assetId);
+        callback(jsonResponse(responseEnvelope(true, "OK", "asset status updated", assetToJson(*asset))));
+    }, {drogon::Patch});
     server.registerHandler("/api/v1/monitoring/states", [identity, monitoring](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
         const auto session = requireSession(identity, request, callback);
         if (!session || !requirePermission(identity, *session, "asset:read", callback)) {
