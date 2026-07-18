@@ -170,6 +170,22 @@ drogon::HttpResponsePtr jsonResponse(const Json::Value& value, drogon::HttpStatu
     return response;
 }
 
+
+drogon::HttpResponsePtr invalidRequest(const std::string& message) {
+    return jsonResponse(responseEnvelope(false, "INVALID_REQUEST", message), drogon::k400BadRequest);
+}
+
+drogon::HttpResponsePtr notFound(const std::string& message) {
+    return jsonResponse(responseEnvelope(false, "RESOURCE_NOT_FOUND", message), drogon::k404NotFound);
+}
+
+drogon::HttpResponsePtr unauthorized() {
+    return jsonResponse(responseEnvelope(false, "AUTHENTICATION_REQUIRED", "session is missing or expired"), drogon::k401Unauthorized);
+}
+
+drogon::HttpResponsePtr forbidden() {
+    return jsonResponse(responseEnvelope(false, "AUTHORIZATION_DENIED", "permission denied"), drogon::k403Forbidden);
+}
 std::string bearerToken(const drogon::HttpRequestPtr& request) {
     const auto authorization = request->getHeader("Authorization");
     const std::string prefix = "Bearer ";
@@ -197,7 +213,7 @@ std::optional<modules::SessionInfo> requireSession(
     const std::function<void(const drogon::HttpResponsePtr&)>& callback) {
     const auto session = identity->validateSession(bearerToken(request));
     if (!session) {
-        callback(jsonResponse(responseEnvelope(false, "AUTHENTICATION_REQUIRED", "session is missing or expired"), drogon::k401Unauthorized));
+        callback(unauthorized());
         return std::nullopt;
     }
     return session;
@@ -210,7 +226,7 @@ bool requirePermission(
     const std::function<void(const drogon::HttpResponsePtr&)>& callback) {
     const auto permissions = identity->permissionsForRoles(session.user.roles);
     if (!identity->hasPermission(permissions, permission)) {
-        callback(jsonResponse(responseEnvelope(false, "AUTHORIZATION_DENIED", "permission denied"), drogon::k403Forbidden));
+        callback(forbidden());
         return false;
     }
     return true;
@@ -247,7 +263,7 @@ void registerRoutes(
     server.registerHandler("/api/v1/auth/login", [identity](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
         const auto payload = request->getJsonObject();
         if (!payload || !payload->isMember("username") || !payload->isMember("password")) {
-            callback(jsonResponse(responseEnvelope(false, "INVALID_REQUEST", "username and password are required"), drogon::k400BadRequest));
+            callback(invalidRequest("username and password are required"));
             return;
         }
 
@@ -263,7 +279,7 @@ void registerRoutes(
     server.registerHandler("/api/v1/auth/session", [identity](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
         const auto session = identity->validateSession(bearerToken(request));
         if (!session) {
-            callback(jsonResponse(responseEnvelope(false, "AUTHENTICATION_REQUIRED", "session is missing or expired"), drogon::k401Unauthorized));
+            callback(unauthorized());
             return;
         }
         callback(jsonResponse(responseEnvelope(true, "OK", "session is valid", sessionToJson(*session))));
@@ -271,12 +287,25 @@ void registerRoutes(
 
     server.registerHandler("/api/v1/auth/logout", [identity](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
         if (!identity->logout(bearerToken(request))) {
-            callback(jsonResponse(responseEnvelope(false, "AUTHENTICATION_REQUIRED", "session is missing or expired"), drogon::k401Unauthorized));
+            callback(unauthorized());
             return;
         }
         callback(jsonResponse(responseEnvelope(true, "OK", "logout succeeded")));
     }, {drogon::Post});
 
+
+    server.registerHandler("/api/v1/assets/{1}", [identity, assets](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback, const std::string& assetId) {
+        const auto session = requireSession(identity, request, callback);
+        if (!session || !requirePermission(identity, *session, "asset:read", callback)) {
+            return;
+        }
+        const auto asset = assets->findById(assetId);
+        if (!asset) {
+            callback(notFound("asset not found"));
+            return;
+        }
+        callback(jsonResponse(responseEnvelope(true, "OK", "asset returned", assetToJson(*asset))));
+    }, {drogon::Get});
     server.registerHandler("/api/v1/assets", [identity, assets](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
         const auto session = requireSession(identity, request, callback);
         if (!session || !requirePermission(identity, *session, "asset:read", callback)) {
@@ -297,7 +326,7 @@ void registerRoutes(
         }
         const auto payload = request->getJsonObject();
         if (!payload || !payload->isMember("id") || !payload->isMember("name")) {
-            callback(jsonResponse(responseEnvelope(false, "INVALID_REQUEST", "id and name are required"), drogon::k400BadRequest));
+            callback(invalidRequest("id and name are required"));
             return;
         }
         const auto asset = assets->create(domain::EquipmentAsset{

@@ -25,6 +25,7 @@ ctest --preset dev-http
 - `GET /api/v1/auth/session`：使用 `Authorization: Bearer <token>` 验证会话。
 - `POST /api/v1/auth/logout`：使用 `Authorization: Bearer <token>` 退出会话。
 - `GET /api/v1/assets`：需要 `asset:read` 权限，返回资产列表。
+- `GET /api/v1/assets/{id}`：需要 `asset:read` 权限，返回单个资产；不存在时返回 `RESOURCE_NOT_FOUND`。
 - `POST /api/v1/assets`：需要 `asset:write` 权限，创建或更新资产。
 - `GET /api/v1/monitoring/states`：需要 `asset:read` 权限，返回运行状态汇总。
 - `GET /api/v1/alerts`：需要 `alert:read` 权限，返回告警列表。
@@ -36,3 +37,9 @@ ctest --preset dev-http
 ## 后续约束
 
 当前 HTTP 层是生产化入口的第一步，仍保留内存业务服务用于演示和测试。后续需要继续接入配置化 Redis session、MySQL 仓储、认证中间件、权限守卫和请求校验。
+## 错误响应
+
+- INVALID_REQUEST：请求体缺少必要字段或格式无效。
+- AUTHENTICATION_REQUIRED：缺少有效会话或会话已过期。
+- AUTHORIZATION_DENIED：用户缺少当前接口所需权限。
+- RESOURCE_NOT_FOUND：目标资源不存在。
