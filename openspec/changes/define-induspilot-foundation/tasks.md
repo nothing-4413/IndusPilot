@@ -46,10 +46,10 @@
 
 ## 7. AI Assistance Baseline
 
-- [ ] 7.1 Define AI service interface for alert explanation, troubleshooting suggestion, and log summarization requests.
-- [ ] 7.2 Implement backend AI adapter boundary with unavailable-state fallback behavior.
-- [ ] 7.3 Store AI interaction records with inputs, outputs, timestamps, and related alert, asset, or work order references.
-- [ ] 7.4 Add Qt AI assistant panel placeholder for alert explanation and troubleshooting suggestions.
+- [x] 7.1 Define AI service interface for alert explanation, troubleshooting suggestion, and log summarization requests.
+- [x] 7.2 Implement backend AI adapter boundary with unavailable-state fallback behavior.
+- [x] 7.3 Store AI interaction records with inputs, outputs, timestamps, and related alert, asset, or work order references.
+- [x] 7.4 Add Qt AI assistant panel placeholder for alert explanation and troubleshooting suggestions.
 
 ## 8. Verification and Documentation
 

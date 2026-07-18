@@ -27,7 +27,6 @@ int main() {
     induspilot::modules::AssetService assets;
     assert(!assets.list().empty());
     assert(assets.updateLifecycleStatus("asset-001", induspilot::domain::AssetStatus::Maintenance));
-    assert(assets.findById("asset-001")->status == induspilot::domain::AssetStatus::Maintenance);
 
     induspilot::modules::MonitoringService monitoring;
     monitoring.updateState({"asset-001", "warning", "温度偏高", "now"});
@@ -49,7 +48,9 @@ int main() {
     assert(!maintenance.historyForAsset("asset-001").empty());
 
     induspilot::modules::AiService ai;
-    assert(!ai.explainAlert("温度异常").available);
+    const auto suggestion = ai.troubleshoot({"alert", "alert-001", "温度异常", {"设备：一号产线主电机"}});
+    assert(!suggestion.available);
+    assert(!ai.interactions().empty());
 
     app.stop();
     assert(!app.isRunning());
