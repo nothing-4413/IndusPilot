@@ -1,11 +1,23 @@
 #include "induspilot/modules/identity_service.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <sstream>
+#include <utility>
 
 namespace induspilot::modules {
 
-IdentityService::IdentityService() {
+IdentityService::IdentityService() : IdentityService(std::make_shared<InMemorySessionStore>(), std::chrono::hours(8)) {}
+
+IdentityService::IdentityService(std::shared_ptr<SessionStore> sessionStore, std::chrono::seconds sessionTtl)
+    : sessionStore_(std::move(sessionStore)), sessionTtl_(sessionTtl) {
+    if (!sessionStore_) {
+        sessionStore_ = std::make_shared<InMemorySessionStore>();
+    }
+    initializeSeedData();
+}
+
+void IdentityService::initializeSeedData() {
     users_["admin"] = domain::User{"user-admin", "admin", {"admin"}};
     users_["operator"] = domain::User{"user-operator", "operator", {"operator"}};
     users_["maintainer"] = domain::User{"user-maintainer", "maintainer", {"maintainer"}};
@@ -21,7 +33,7 @@ IdentityService::IdentityService() {
 }
 
 ServiceStatus IdentityService::status() const {
-    return ServiceStatus{"identity-access", true, "身份认证、会话和权限模块占位就绪"};
+    return ServiceStatus{"identity-access", true, "身份认证、会话和权限模块已接入可替换会话存储"};
 }
 
 AuthResult IdentityService::login(const LoginRequest& request) {
@@ -31,25 +43,25 @@ AuthResult IdentityService::login(const LoginRequest& request) {
 
     const auto token = issueToken(request.username);
     auto session = SessionInfo{token, users_.at(request.username), true};
-    sessions_[token] = session;
+    if (!sessionStore_->save(session, sessionTtl_)) {
+        return AuthResult{false, "会话创建失败", std::nullopt};
+    }
+
     return AuthResult{true, "登录成功", session};
 }
 
 bool IdentityService::logout(const std::string& token) {
-    const auto it = sessions_.find(token);
-    if (it == sessions_.end()) {
+    if (token.empty()) {
         return false;
     }
-    it->second.active = false;
-    return true;
+    return sessionStore_->remove(token);
 }
 
 std::optional<SessionInfo> IdentityService::validateSession(const std::string& token) const {
-    const auto it = sessions_.find(token);
-    if (it == sessions_.end() || !it->second.active) {
+    if (token.empty()) {
         return std::nullopt;
     }
-    return it->second;
+    return sessionStore_->find(token);
 }
 
 bool IdentityService::authenticate(const std::string& username, const std::string& password) const {
@@ -75,9 +87,12 @@ std::vector<std::string> IdentityService::permissionsForRoles(const std::vector<
     return permissions;
 }
 
-std::string IdentityService::issueToken(const std::string& username) const {
+std::string IdentityService::issueToken(const std::string& username) {
+    const auto now = std::chrono::system_clock::now().time_since_epoch();
+    const auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(now).count();
+
     std::ostringstream token;
-    token << "dev-session-" << username << "-" << sessions_.size() + 1;
+    token << "session-" << username << '-' << millis << '-' << ++issuedSessions_;
     return token.str();
 }
 

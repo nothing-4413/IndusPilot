@@ -11,6 +11,7 @@ add_library(induspilot_backend_core
   src/modules/identity_service.cpp
   src/modules/maintenance_service.cpp
   src/modules/monitoring_service.cpp
+  src/modules/session_store.cpp
 )
 
 target_include_directories(induspilot_backend_core PUBLIC include)
@@ -18,6 +19,12 @@ target_include_directories(induspilot_backend_core PUBLIC include)
 target_compile_options(induspilot_backend_core PRIVATE
   $<$<CXX_COMPILER_ID:MSVC>:/utf-8 /EHsc>
 )
+
+if(INDUSPILOT_WITH_REDIS)
+  find_package(redis++ CONFIG REQUIRED)
+  target_compile_definitions(induspilot_backend_core PRIVATE INDUSPILOT_WITH_REDIS)
+  target_link_libraries(induspilot_backend_core PUBLIC redis++::redis++)
+endif()
 
 add_executable(induspilot-backend src/main.cpp)
 target_link_libraries(induspilot-backend PRIVATE induspilot_backend_core)

@@ -8,6 +8,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(INDUSPILOT_BUILD_CLIENT "Build Qt desktop client" ON)
 option(INDUSPILOT_BUILD_TESTS "Build backend tests" ON)
+option(INDUSPILOT_WITH_REDIS "Enable Redis-backed session storage through redis-plus-plus" OFF)
 
 if(INDUSPILOT_BUILD_TESTS)
   enable_testing()

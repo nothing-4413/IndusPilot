@@ -9,6 +9,8 @@
 #include "induspilot/modules/monitoring_service.hpp"
 
 #include <cassert>
+#include <chrono>
+#include <memory>
 
 int main() {
     induspilot::app::Application app(induspilot::app::AppConfig{});
@@ -21,8 +23,17 @@ int main() {
     const auto login = identity.login({"admin", "admin123"});
     assert(login.success);
     assert(login.session.has_value());
+    assert(identity.validateSession(login.session->token).has_value());
     const auto permissions = identity.permissionsForRoles(login.session->user.roles);
     assert(identity.hasPermission(permissions, "asset:write"));
+    assert(identity.logout(login.session->token));
+    assert(!identity.validateSession(login.session->token).has_value());
+
+    induspilot::modules::IdentityService expiringIdentity(std::make_shared<induspilot::modules::InMemorySessionStore>(), std::chrono::seconds(0));
+    const auto expiringLogin = expiringIdentity.login({"operator", "operator123"});
+    assert(expiringLogin.success);
+    assert(expiringLogin.session.has_value());
+    assert(!expiringIdentity.validateSession(expiringLogin.session->token).has_value());
 
     induspilot::modules::AssetService assets;
     assert(!assets.list().empty());
