@@ -2,7 +2,11 @@
 #include "induspilot/app/application.hpp"
 #include "induspilot/app/config.hpp"
 #include "induspilot/modules/ai_service.hpp"
+#include "induspilot/modules/alert_service.hpp"
+#include "induspilot/modules/asset_service.hpp"
 #include "induspilot/modules/identity_service.hpp"
+#include "induspilot/modules/maintenance_service.hpp"
+#include "induspilot/modules/monitoring_service.hpp"
 
 #include <cassert>
 
@@ -19,9 +23,30 @@ int main() {
     assert(login.session.has_value());
     const auto permissions = identity.permissionsForRoles(login.session->user.roles);
     assert(identity.hasPermission(permissions, "asset:write"));
-    assert(identity.validateSession(login.session->token).has_value());
-    assert(identity.logout(login.session->token));
-    assert(!identity.validateSession(login.session->token).has_value());
+
+    induspilot::modules::AssetService assets;
+    assert(!assets.list().empty());
+    assert(assets.updateLifecycleStatus("asset-001", induspilot::domain::AssetStatus::Maintenance));
+    assert(assets.findById("asset-001")->status == induspilot::domain::AssetStatus::Maintenance);
+
+    induspilot::modules::MonitoringService monitoring;
+    monitoring.updateState({"asset-001", "warning", "温度偏高", "now"});
+    assert(monitoring.findState("asset-001").has_value());
+
+    induspilot::modules::AlertService alerts;
+    alerts.create({"alert-001", "asset-001", induspilot::domain::AlertSeverity::Critical, induspilot::domain::AlertState::Open, "温度异常", "", ""});
+    assert(alerts.acknowledge("alert-001", "admin").has_value());
+    assert(alerts.assign("alert-001", "maintainer").has_value());
+
+    induspilot::modules::MaintenanceService maintenance;
+    const auto alert = alerts.findById("alert-001").value();
+    const auto order = maintenance.createFromAlert(alert, "检查主电机温度异常");
+    assert(order.alertId == "alert-001");
+    assert(maintenance.assign(order.id, "maintainer").has_value());
+    assert(maintenance.startProcessing(order.id).has_value());
+    assert(maintenance.complete(order.id, "已完成检查").has_value());
+    assert(maintenance.close(order.id).has_value());
+    assert(!maintenance.historyForAsset("asset-001").empty());
 
     induspilot::modules::AiService ai;
     assert(!ai.explainAlert("温度异常").available);

@@ -33,6 +33,7 @@ struct Alert {
     AlertState state{AlertState::Open};
     std::string title;
     std::string acknowledgedBy;
+    std::string assignedTo;
 };
 
 struct WorkOrder {
@@ -42,6 +43,7 @@ struct WorkOrder {
     WorkOrderState state{WorkOrderState::Created};
     std::string assignee;
     std::string summary;
+    std::string result;
 };
 
 struct AiInteraction {

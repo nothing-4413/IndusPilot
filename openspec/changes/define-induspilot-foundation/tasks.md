@@ -29,12 +29,12 @@
 
 ## 5. Industrial Core Modules
 
-- [ ] 5.1 Implement equipment asset CRUD APIs with factory, workshop, production line, and equipment hierarchy fields.
-- [ ] 5.2 Implement asset lifecycle status updates for active, inactive, maintenance, and retired states.
-- [ ] 5.3 Implement monitoring state model and runtime state update API placeholders.
-- [ ] 5.4 Implement alert creation, acknowledgement, assignment, resolution, and closure APIs.
-- [ ] 5.5 Implement work order creation, assignment, processing, completion, and closure APIs.
-- [ ] 5.6 Link work orders to source alerts and equipment assets when applicable.
+- [x] 5.1 Implement equipment asset CRUD APIs with factory, workshop, production line, and equipment hierarchy fields.
+- [x] 5.2 Implement asset lifecycle status updates for active, inactive, maintenance, and retired states.
+- [x] 5.3 Implement monitoring state model and runtime state update API placeholders.
+- [x] 5.4 Implement alert creation, acknowledgement, assignment, resolution, and closure APIs.
+- [x] 5.5 Implement work order creation, assignment, processing, completion, and closure APIs.
+- [x] 5.6 Link work orders to source alerts and equipment assets when applicable.
 
 ## 6. Qt Client Foundation
 
