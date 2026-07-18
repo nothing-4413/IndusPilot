@@ -177,6 +177,33 @@ Json::Value alertToJson(const domain::Alert& alert) {
     return value;
 }
 
+std::optional<modules::AlertQuery> alertQueryFromRequest(const drogon::HttpRequestPtr& request, std::string& error) {
+    modules::AlertQuery query;
+    const auto assetId = request->getParameter("assetId");
+    const auto severity = request->getParameter("severity");
+    const auto state = request->getParameter("state");
+
+    if (!assetId.empty()) {
+        query.assetId = assetId;
+    }
+    if (!severity.empty()) {
+        const auto parsed = modules::alertSeverityFromString(severity);
+        if (!parsed) {
+            error = "unsupported alert severity";
+            return std::nullopt;
+        }
+        query.severity = *parsed;
+    }
+    if (!state.empty()) {
+        const auto parsed = modules::alertStateFromString(state);
+        if (!parsed) {
+            error = "unsupported alert state";
+            return std::nullopt;
+        }
+        query.state = *parsed;
+    }
+    return query;
+}
 Json::Value workOrderToJson(const domain::WorkOrder& order) {
     Json::Value value;
     value["id"] = order.id;
@@ -514,13 +541,129 @@ void registerRoutes(
             return;
         }
         writeRequestLog(request, session);
+        std::string queryError;
+        const auto query = alertQueryFromRequest(request, queryError);
+        if (!query) {
+            callback(invalidRequest(queryError));
+            return;
+        }
         Json::Value rows(Json::arrayValue);
-        for (const auto& alert : alerts->list()) {
+        for (const auto& alert : alerts->list(*query)) {
             rows.append(alertToJson(alert));
         }
         callback(jsonResponse(responseEnvelope(true, "OK", "alerts returned", rows)));
     }, {drogon::Get});
 
+    server.registerHandler("/api/v1/alerts/{1}", [identity, alerts](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback, const std::string& alertId) {
+        const auto session = requireSession(identity, request, callback);
+        if (!session || !requirePermission(identity, *session, "alert:read", callback)) {
+            return;
+        }
+        writeRequestLog(request, session);
+        const auto alert = alerts->findById(alertId);
+        if (!alert) {
+            callback(notFound("alert not found"));
+            return;
+        }
+        callback(jsonResponse(responseEnvelope(true, "OK", "alert returned", alertToJson(*alert))));
+    }, {drogon::Get});
+
+    server.registerHandler("/api/v1/alerts", [identity, alerts](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+        const auto session = requireSession(identity, request, callback);
+        if (!session || !requirePermission(identity, *session, "alert:write", callback)) {
+            return;
+        }
+        writeRequestLog(request, session);
+        const auto payload = request->getJsonObject();
+        if (!payload || !payload->isMember("id") || !payload->isMember("assetId") || !payload->isMember("severity") || !payload->isMember("title")) {
+            callback(invalidRequest("id, assetId, severity and title are required"));
+            return;
+        }
+        const auto severity = modules::alertSeverityFromString((*payload)["severity"].asString());
+        if (!severity) {
+            callback(invalidRequest("unsupported alert severity"));
+            return;
+        }
+        auto state = domain::AlertState::Open;
+        if (payload->isMember("state")) {
+            const auto parsed = modules::alertStateFromString((*payload)["state"].asString());
+            if (!parsed) {
+                callback(invalidRequest("unsupported alert state"));
+                return;
+            }
+            state = *parsed;
+        }
+        const auto alert = alerts->create(domain::Alert{
+            (*payload)["id"].asString(),
+            (*payload)["assetId"].asString(),
+            *severity,
+            state,
+            (*payload)["title"].asString(),
+            "",
+            payload->isMember("assignedTo") ? (*payload)["assignedTo"].asString() : ""});
+        callback(jsonResponse(responseEnvelope(true, "OK", "alert created", alertToJson(alert))));
+    }, {drogon::Post});
+
+    server.registerHandler("/api/v1/alerts/{1}/acknowledge", [identity, alerts](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback, const std::string& alertId) {
+        const auto session = requireSession(identity, request, callback);
+        if (!session || !requirePermission(identity, *session, "alert:write", callback)) {
+            return;
+        }
+        writeRequestLog(request, session);
+        const auto alert = alerts->acknowledge(alertId, session->user.username);
+        if (!alert) {
+            callback(notFound("alert not found"));
+            return;
+        }
+        callback(jsonResponse(responseEnvelope(true, "OK", "alert acknowledged", alertToJson(*alert))));
+    }, {drogon::Post});
+
+    server.registerHandler("/api/v1/alerts/{1}/assign", [identity, alerts](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback, const std::string& alertId) {
+        const auto session = requireSession(identity, request, callback);
+        if (!session || !requirePermission(identity, *session, "alert:write", callback)) {
+            return;
+        }
+        writeRequestLog(request, session);
+        const auto payload = request->getJsonObject();
+        if (!payload || !payload->isMember("assignee")) {
+            callback(invalidRequest("assignee is required"));
+            return;
+        }
+        const auto alert = alerts->assign(alertId, (*payload)["assignee"].asString());
+        if (!alert) {
+            callback(notFound("alert not found"));
+            return;
+        }
+        callback(jsonResponse(responseEnvelope(true, "OK", "alert assigned", alertToJson(*alert))));
+    }, {drogon::Post});
+
+    server.registerHandler("/api/v1/alerts/{1}/resolve", [identity, alerts](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback, const std::string& alertId) {
+        const auto session = requireSession(identity, request, callback);
+        if (!session || !requirePermission(identity, *session, "alert:write", callback)) {
+            return;
+        }
+        writeRequestLog(request, session);
+        const auto alert = alerts->resolve(alertId);
+        if (!alert) {
+            callback(notFound("alert not found"));
+            return;
+        }
+        callback(jsonResponse(responseEnvelope(true, "OK", "alert resolved", alertToJson(*alert))));
+    }, {drogon::Post});
+
+    server.registerHandler("/api/v1/alerts/{1}/close", [identity, alerts](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback, const std::string& alertId) {
+        const auto session = requireSession(identity, request, callback);
+        if (!session || !requirePermission(identity, *session, "alert:write", callback)) {
+            return;
+        }
+        writeRequestLog(request, session);
+        const auto alert = alerts->close(alertId);
+        if (!alert) {
+            callback(notFound("alert not found"));
+            return;
+        }
+        callback(jsonResponse(responseEnvelope(true, "OK", "alert closed", alertToJson(*alert))));
+    }, {drogon::Post});
     server.registerHandler("/api/v1/work-orders", [identity, maintenance](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
         const auto session = requireSession(identity, request, callback);
         if (!session || !requirePermission(identity, *session, "work-order:read", callback)) {
