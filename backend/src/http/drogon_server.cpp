@@ -177,6 +177,18 @@ std::shared_ptr<modules::IdentityService> createIdentityService(const app::AppCo
 #endif
     return std::make_shared<modules::IdentityService>(std::make_shared<modules::InMemorySessionStore>(), ttl);
 }
+
+std::optional<modules::SessionInfo> requireSession(
+    const std::shared_ptr<modules::IdentityService>& identity,
+    const drogon::HttpRequestPtr& request,
+    const std::function<void(const drogon::HttpResponsePtr&)>& callback) {
+    const auto session = identity->validateSession(bearerToken(request));
+    if (!session) {
+        callback(jsonResponse(responseEnvelope(false, "AUTHENTICATION_REQUIRED", "session is missing or expired"), drogon::k401Unauthorized));
+        return std::nullopt;
+    }
+    return session;
+}
 void registerRoutes(
     const std::shared_ptr<app::Application>& application,
     const std::shared_ptr<modules::IdentityService>& identity,
@@ -239,7 +251,10 @@ void registerRoutes(
         callback(jsonResponse(responseEnvelope(true, "OK", "logout succeeded")));
     }, {drogon::Post});
 
-    server.registerHandler("/api/v1/assets", [assets](const drogon::HttpRequestPtr&, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+    server.registerHandler("/api/v1/assets", [identity, assets](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+        if (!requireSession(identity, request, callback)) {
+            return;
+        }
         Json::Value rows(Json::arrayValue);
         for (const auto& asset : assets->list()) {
             rows.append(assetToJson(asset));
@@ -247,7 +262,10 @@ void registerRoutes(
         callback(jsonResponse(responseEnvelope(true, "OK", "assets returned", rows)));
     }, {drogon::Get});
 
-    server.registerHandler("/api/v1/monitoring/states", [monitoring](const drogon::HttpRequestPtr&, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+    server.registerHandler("/api/v1/monitoring/states", [identity, monitoring](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+        if (!requireSession(identity, request, callback)) {
+            return;
+        }
         Json::Value data;
         const auto summary = monitoring->summarizeStates();
         Json::Value summaryJson;
@@ -258,7 +276,10 @@ void registerRoutes(
         callback(jsonResponse(responseEnvelope(true, "OK", "monitoring summary returned", data)));
     }, {drogon::Get});
 
-    server.registerHandler("/api/v1/alerts", [alerts](const drogon::HttpRequestPtr&, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+    server.registerHandler("/api/v1/alerts", [identity, alerts](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+        if (!requireSession(identity, request, callback)) {
+            return;
+        }
         Json::Value rows(Json::arrayValue);
         for (const auto& alert : alerts->list()) {
             rows.append(alertToJson(alert));
@@ -266,7 +287,10 @@ void registerRoutes(
         callback(jsonResponse(responseEnvelope(true, "OK", "alerts returned", rows)));
     }, {drogon::Get});
 
-    server.registerHandler("/api/v1/work-orders", [maintenance](const drogon::HttpRequestPtr&, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+    server.registerHandler("/api/v1/work-orders", [identity, maintenance](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+        if (!requireSession(identity, request, callback)) {
+            return;
+        }
         Json::Value rows(Json::arrayValue);
         for (const auto& order : maintenance->list()) {
             rows.append(workOrderToJson(order));
@@ -274,7 +298,10 @@ void registerRoutes(
         callback(jsonResponse(responseEnvelope(true, "OK", "work orders returned", rows)));
     }, {drogon::Get});
 
-    server.registerHandler("/api/v1/ai/status", [ai](const drogon::HttpRequestPtr&, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+    server.registerHandler("/api/v1/ai/status", [identity, ai](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+        if (!requireSession(identity, request, callback)) {
+            return;
+        }
         const auto status = ai->status();
         Json::Value data;
         data["module"] = status.name;
