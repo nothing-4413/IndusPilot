@@ -1,17 +1,17 @@
 ## 1. Repository and Build Foundation
 
-- [ ] 1.1 Decide initial backend framework, Qt UI approach, build system, and dependency management strategy.
-- [ ] 1.2 Create repository structure for client, backend, shared contracts, deployment, database, and documentation areas.
+- [x] 1.1 Decide initial backend framework, Qt UI approach, build system, and dependency management strategy.
+- [x] 1.2 Create repository structure for client, backend, shared contracts, deployment, database, and documentation areas.
 - [ ] 1.3 Add base C++ build configuration and verify a minimal backend executable can build locally.
 - [ ] 1.4 Add base Qt application skeleton and verify the desktop client can launch locally.
-- [ ] 1.5 Add development configuration templates for backend services, database connections, logging, and AI integration settings.
+- [x] 1.5 Add development configuration templates for backend services, database connections, logging, and AI integration settings.
 
 ## 2. Backend Platform Skeleton
 
-- [ ] 2.1 Implement backend application startup, configuration loading, structured logging, and graceful shutdown.
-- [ ] 2.2 Add health-check endpoint that reports backend availability and dependency status placeholders.
-- [ ] 2.3 Define API response, error, pagination, and authentication conventions.
-- [ ] 2.4 Add placeholder module boundaries for identity, assets, monitoring, alerts, maintenance workflow, and AI assistance.
+- [x] 2.1 Implement backend application startup, configuration loading, structured logging, and graceful shutdown.
+- [x] 2.2 Add health-check endpoint that reports backend availability and dependency status placeholders.
+- [x] 2.3 Define API response, error, pagination, and authentication conventions.
+- [x] 2.4 Add placeholder module boundaries for identity, assets, monitoring, alerts, maintenance workflow, and AI assistance.
 
 ## 3. Data Foundation
 

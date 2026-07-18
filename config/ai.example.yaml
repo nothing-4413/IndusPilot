@@ -1,0 +1,4 @@
+provider: "disabled"
+timeoutMs: 15000
+maxContextItems: 20
+storeInteractionRecords: true

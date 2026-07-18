@@ -1,0 +1,5 @@
+{
+  "apiBaseUrl": "http://127.0.0.1:8080",
+  "wsBaseUrl": "ws://127.0.0.1:8080",
+  "theme": "industrial-dark"
+}

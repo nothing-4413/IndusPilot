@@ -1,0 +1,15 @@
+﻿build/
+out/
+*.user
+*.suo
+*.ncb
+*.obj
+*.pdb
+*.ilk
+*.exe
+*.dll
+*.log
+.env
+.vscode/
+.idea/
+deployment/data/
