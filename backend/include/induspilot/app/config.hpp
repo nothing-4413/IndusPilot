@@ -21,6 +21,7 @@ struct RedisConfig {
     std::string uri{"tcp://127.0.0.1:6379"};
     std::string sessionKeyPrefix{"induspilot:session:"};
     int sessionTtlSeconds{28800};
+    std::string sessionStore{"memory"};
 };
 
 struct AiConfig {

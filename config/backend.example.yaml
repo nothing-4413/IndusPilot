@@ -18,6 +18,7 @@ redis:
   uri: "tcp://127.0.0.1:6379"
   session_key_prefix: "induspilot:session:"
   session_ttl_seconds: 28800
+  session_store: "memory"
 
 mongodb:
   uri: "mongodb://127.0.0.1:27017"

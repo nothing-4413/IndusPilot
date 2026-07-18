@@ -166,6 +166,17 @@ std::string bearerToken(const drogon::HttpRequestPtr& request) {
     return authorization.substr(prefix.size());
 }
 
+
+std::shared_ptr<modules::IdentityService> createIdentityService(const app::AppConfig& config) {
+    auto ttl = std::chrono::seconds(config.redis.sessionTtlSeconds > 0 ? config.redis.sessionTtlSeconds : 28800);
+#ifdef INDUSPILOT_WITH_REDIS
+    if (config.redis.sessionStore == "redis") {
+        return std::make_shared<modules::IdentityService>(
+            modules::makeRedisSessionStore(config.redis.uri, config.redis.sessionKeyPrefix), ttl);
+    }
+#endif
+    return std::make_shared<modules::IdentityService>(std::make_shared<modules::InMemorySessionStore>(), ttl);
+}
 void registerRoutes(
     const std::shared_ptr<app::Application>& application,
     const std::shared_ptr<modules::IdentityService>& identity,
@@ -277,7 +288,7 @@ void registerRoutes(
 
 int runDrogonServer(const app::AppConfig& config) {
     auto application = std::make_shared<app::Application>(config);
-    auto identity = std::make_shared<modules::IdentityService>();
+    auto identity = createIdentityService(config);
     auto assets = std::make_shared<modules::AssetService>();
     auto monitoring = std::make_shared<modules::MonitoringService>();
     auto alerts = std::make_shared<modules::AlertService>();

@@ -17,23 +17,28 @@ int main() {
     _putenv_s("INDUSPILOT_SERVER_PORT", "18080");
     _putenv_s("INDUSPILOT_REDIS_SESSION_TTL_SECONDS", "60");
     _putenv_s("INDUSPILOT_REDIS_SESSION_KEY_PREFIX", "test:session:");
+    _putenv_s("INDUSPILOT_REDIS_SESSION_STORE", "redis");
 #else
     setenv("INDUSPILOT_SERVER_PORT", "18080", 1);
     setenv("INDUSPILOT_REDIS_SESSION_TTL_SECONDS", "60", 1);
     setenv("INDUSPILOT_REDIS_SESSION_KEY_PREFIX", "test:session:", 1);
+    setenv("INDUSPILOT_REDIS_SESSION_STORE", "redis", 1);
 #endif
     const auto loadedConfig = induspilot::app::loadConfig("config/backend.example.yaml");
     assert(loadedConfig.port == 18080);
     assert(loadedConfig.redis.sessionTtlSeconds == 60);
     assert(loadedConfig.redis.sessionKeyPrefix == "test:session:");
+    assert(loadedConfig.redis.sessionStore == "redis");
 #ifdef _WIN32
     _putenv_s("INDUSPILOT_SERVER_PORT", "");
     _putenv_s("INDUSPILOT_REDIS_SESSION_TTL_SECONDS", "");
     _putenv_s("INDUSPILOT_REDIS_SESSION_KEY_PREFIX", "");
+    _putenv_s("INDUSPILOT_REDIS_SESSION_STORE", "");
 #else
     unsetenv("INDUSPILOT_SERVER_PORT");
     unsetenv("INDUSPILOT_REDIS_SESSION_TTL_SECONDS");
     unsetenv("INDUSPILOT_REDIS_SESSION_KEY_PREFIX");
+    unsetenv("INDUSPILOT_REDIS_SESSION_STORE");
 #endif
 
     induspilot::app::Application app(induspilot::app::AppConfig{});

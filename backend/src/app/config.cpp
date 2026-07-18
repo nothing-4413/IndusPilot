@@ -107,6 +107,8 @@ void applyConfigValue(AppConfig& config, const std::string& section, const std::
         config.redis.sessionKeyPrefix = value;
     } else if (section == "redis" && key == "session_ttl_seconds") {
         config.redis.sessionTtlSeconds = parseInt(value, config.redis.sessionTtlSeconds);
+    } else if (section == "redis" && key == "session_store") {
+        config.redis.sessionStore = value;
     } else if (section == "mongodb" && key == "host") {
         config.mongodb.host = value;
     } else if (section == "mongodb" && key == "port") {
@@ -141,6 +143,7 @@ void applyEnvironmentOverrides(AppConfig& config) {
     applyStringEnv("INDUSPILOT_REDIS_URI", config.redis.uri);
     applyStringEnv("INDUSPILOT_REDIS_SESSION_KEY_PREFIX", config.redis.sessionKeyPrefix);
     applyIntEnv("INDUSPILOT_REDIS_SESSION_TTL_SECONDS", config.redis.sessionTtlSeconds);
+    applyStringEnv("INDUSPILOT_REDIS_SESSION_STORE", config.redis.sessionStore);
 
     applyStringEnv("INDUSPILOT_MONGODB_HOST", config.mongodb.host);
     applyIntEnv("INDUSPILOT_MONGODB_PORT", config.mongodb.port);
