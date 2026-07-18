@@ -43,3 +43,17 @@ ctest --preset dev-http
 - AUTHENTICATION_REQUIRED：缺少有效会话或会话已过期。
 - AUTHORIZATION_DENIED：用户缺少当前接口所需权限。
 - RESOURCE_NOT_FOUND：目标资源不存在。
+
+## 集成测试
+
+`dev-http` preset 会在 Windows 下注册 `induspilot-http-integration-smoke` CTest。该测试会启动本地后端，覆盖健康检查、登录、受保护路由、权限拒绝、请求校验和资源不存在错误。
+
+手动运行：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File backend/tests/http_integration_smoke.ps1 `
+  -BackendExe build/dev-http/backend/induspilot-backend.exe `
+  -ConfigPath config/backend.example.yaml
+```
+
+如果已经启动 Redis，可额外传入 `-SessionStore redis` 验证 Redis-backed session。

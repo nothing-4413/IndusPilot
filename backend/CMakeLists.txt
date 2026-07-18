@@ -60,4 +60,11 @@ if(INDUSPILOT_BUILD_TESTS)
     $<$<CXX_COMPILER_ID:MSVC>:/utf-8 /EHsc>
   )
   add_test(NAME induspilot-backend-tests COMMAND induspilot-backend-tests)
+
+  if(INDUSPILOT_WITH_DROGON AND WIN32)
+    add_test(NAME induspilot-http-integration-smoke
+      COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/tests/http_integration_smoke.ps1
+        -BackendExe $<TARGET_FILE:induspilot-backend>
+        -ConfigPath ${CMAKE_SOURCE_DIR}/config/backend.example.yaml)
+  endif()
 endif()
