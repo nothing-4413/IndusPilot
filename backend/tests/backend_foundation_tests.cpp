@@ -2,6 +2,9 @@
 #include "induspilot/app/application.hpp"
 #include "induspilot/app/config.hpp"
 #include "induspilot/data/repositories.hpp"
+#ifdef INDUSPILOT_WITH_DROGON
+#include "induspilot/data/mysql_repositories.hpp"
+#endif
 #include "induspilot/modules/ai_service.hpp"
 #include "induspilot/modules/alert_service.hpp"
 #include "induspilot/modules/asset_service.hpp"
@@ -19,6 +22,10 @@ static_assert(std::has_virtual_destructor_v<induspilot::data::AssetRepository>);
 static_assert(std::has_virtual_destructor_v<induspilot::data::AlertRepository>);
 static_assert(std::has_virtual_destructor_v<induspilot::data::WorkOrderRepository>);
 static_assert(std::has_virtual_destructor_v<induspilot::data::AiInteractionRepository>);
+#ifdef INDUSPILOT_WITH_DROGON
+static_assert(std::is_base_of_v<induspilot::data::UserRepository, induspilot::data::MySqlUserRepository>);
+static_assert(std::is_base_of_v<induspilot::data::AssetRepository, induspilot::data::MySqlAssetRepository>);
+#endif
 
 int main() {
 #ifdef _WIN32

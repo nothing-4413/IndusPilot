@@ -13,7 +13,7 @@
 ## 3. Persistence Boundary
 
 - [x] 3.1 Introduce repository interfaces for users, roles, permissions, assets, alerts, work orders, and AI interactions.
-- [ ] 3.2 Implement initial MySQL repositories for identity and asset read/write flows.
+- [x] 3.2 Implement initial MySQL repositories for identity and asset read/write flows.
 - [ ] 3.3 Keep in-memory repositories available for tests and offline demos.
 
 ## 4. Security and API Guardrails
