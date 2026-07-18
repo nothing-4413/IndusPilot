@@ -24,6 +24,6 @@
 
 ## 5. Observability and Verification
 
-- [ ] 5.1 Add structured request logs with trace IDs and user context when available.
+- [x] 5.1 Add structured request logs with trace IDs and user context when available.
 - [ ] 5.2 Add integration tests for login, protected routes, Redis session validation, and dependency health reporting.
 - [ ] 5.3 Update local startup and deployment documentation for productionized backend mode.

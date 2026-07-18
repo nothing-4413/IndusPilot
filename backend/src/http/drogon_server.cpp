@@ -186,6 +186,26 @@ drogon::HttpResponsePtr unauthorized() {
 drogon::HttpResponsePtr forbidden() {
     return jsonResponse(responseEnvelope(false, "AUTHORIZATION_DENIED", "permission denied"), drogon::k403Forbidden);
 }
+
+std::string traceIdFor(const drogon::HttpRequestPtr& request) {
+    const auto incoming = request->getHeader("X-Trace-Id");
+    if (!incoming.empty()) {
+        return incoming;
+    }
+    static std::atomic<unsigned long long> sequence{0};
+    const auto now = std::chrono::system_clock::now().time_since_epoch();
+    const auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(now).count();
+    return "trace-" + std::to_string(millis) + '-' + std::to_string(++sequence);
+}
+
+void writeRequestLog(const drogon::HttpRequestPtr& request, const std::optional<modules::SessionInfo>& session = std::nullopt) {
+    std::cout << "{\"event\":\"http_request\","
+              << "\"traceId\":\"" << traceIdFor(request) << "\","
+              << "\"method\":\"" << request->methodString() << "\","
+              << "\"path\":\"" << request->path() << "\","
+              << "\"user\":\"" << (session ? session->user.username : "anonymous") << "\"}"
+              << std::endl;
+}
 std::string bearerToken(const drogon::HttpRequestPtr& request) {
     const auto authorization = request->getHeader("Authorization");
     const std::string prefix = "Bearer ";
@@ -241,7 +261,8 @@ void registerRoutes(
     const std::shared_ptr<modules::AiService>& ai) {
     auto& server = drogon::app();
 
-    server.registerHandler("/health", [application](const drogon::HttpRequestPtr&, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+    server.registerHandler("/health", [application](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+        writeRequestLog(request);
         const auto health = application->health();
         Json::Value dependencies;
         for (const auto& item : health.dependencies) {
@@ -261,6 +282,7 @@ void registerRoutes(
     }, {drogon::Get});
 
     server.registerHandler("/api/v1/auth/login", [identity](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+        writeRequestLog(request);
         const auto payload = request->getJsonObject();
         if (!payload || !payload->isMember("username") || !payload->isMember("password")) {
             callback(invalidRequest("username and password are required"));
@@ -273,6 +295,7 @@ void registerRoutes(
             return;
         }
 
+        writeRequestLog(request, result.session);
         callback(jsonResponse(responseEnvelope(true, "OK", "login succeeded", sessionToJson(*result.session))));
     }, {drogon::Post});
 
@@ -282,6 +305,7 @@ void registerRoutes(
             callback(unauthorized());
             return;
         }
+        writeRequestLog(request, session);
         callback(jsonResponse(responseEnvelope(true, "OK", "session is valid", sessionToJson(*session))));
     }, {drogon::Get});
 
@@ -290,6 +314,7 @@ void registerRoutes(
             callback(unauthorized());
             return;
         }
+        writeRequestLog(request);
         callback(jsonResponse(responseEnvelope(true, "OK", "logout succeeded")));
     }, {drogon::Post});
 
@@ -311,6 +336,7 @@ void registerRoutes(
         if (!session || !requirePermission(identity, *session, "asset:read", callback)) {
             return;
         }
+        writeRequestLog(request, session);
         Json::Value rows(Json::arrayValue);
         for (const auto& asset : assets->list()) {
             rows.append(assetToJson(asset));
@@ -324,6 +350,7 @@ void registerRoutes(
         if (!session || !requirePermission(identity, *session, "asset:write", callback)) {
             return;
         }
+        writeRequestLog(request);
         const auto payload = request->getJsonObject();
         if (!payload || !payload->isMember("id") || !payload->isMember("name")) {
             callback(invalidRequest("id and name are required"));
@@ -344,6 +371,7 @@ void registerRoutes(
         if (!session || !requirePermission(identity, *session, "asset:read", callback)) {
             return;
         }
+        writeRequestLog(request, session);
         Json::Value data;
         const auto summary = monitoring->summarizeStates();
         Json::Value summaryJson;
@@ -359,6 +387,7 @@ void registerRoutes(
         if (!session || !requirePermission(identity, *session, "alert:read", callback)) {
             return;
         }
+        writeRequestLog(request, session);
         Json::Value rows(Json::arrayValue);
         for (const auto& alert : alerts->list()) {
             rows.append(alertToJson(alert));
@@ -371,6 +400,7 @@ void registerRoutes(
         if (!session || !requirePermission(identity, *session, "work-order:read", callback)) {
             return;
         }
+        writeRequestLog(request, session);
         Json::Value rows(Json::arrayValue);
         for (const auto& order : maintenance->list()) {
             rows.append(workOrderToJson(order));
@@ -383,6 +413,7 @@ void registerRoutes(
         if (!session || !requirePermission(identity, *session, "ai:use", callback)) {
             return;
         }
+        writeRequestLog(request, session);
         const auto status = ai->status();
         Json::Value data;
         data["module"] = status.name;
