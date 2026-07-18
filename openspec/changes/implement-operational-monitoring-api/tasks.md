@@ -5,9 +5,9 @@
 
 ## 2. 后端服务实现
 
-- [ ] 2.1 扩展 `MonitoringService` 支持列表和状态查询
-- [ ] 2.2 增加运行态写入校验和更新时间默认值
-- [ ] 2.3 增加 `monitoring:write` 权限种子
+- [x] 2.1 扩展 `MonitoringService` 支持列表和状态查询
+- [x] 2.2 增加运行态写入校验和更新时间默认值
+- [x] 2.3 增加 `monitoring:write` 权限种子
 
 ## 3. HTTP API
 

@@ -27,8 +27,8 @@ void IdentityService::initializeSeedData() {
     passwordHashes_["operator"] = "operator123";
     passwordHashes_["maintainer"] = "maintainer123";
 
-    rolePermissions_["admin"] = {"asset:read", "asset:write", "alert:read", "alert:write", "work-order:read", "work-order:write", "ai:use"};
-    rolePermissions_["operator"] = {"asset:read", "alert:read", "alert:write", "work-order:read", "ai:use"};
+    rolePermissions_["admin"] = {"asset:read", "asset:write", "monitoring:write", "alert:read", "alert:write", "work-order:read", "work-order:write", "ai:use"};
+    rolePermissions_["operator"] = {"asset:read", "monitoring:write", "alert:read", "alert:write", "work-order:read", "ai:use"};
     rolePermissions_["maintainer"] = {"asset:read", "alert:read", "work-order:read", "work-order:write", "ai:use"};
 }
 

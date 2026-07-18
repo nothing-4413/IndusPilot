@@ -70,6 +70,7 @@ int main() {
     assert(identity.validateSession(login.session->token).has_value());
     const auto permissions = identity.permissionsForRoles(login.session->user.roles);
     assert(identity.hasPermission(permissions, "asset:write"));
+    assert(identity.hasPermission(permissions, "monitoring:write"));
     assert(identity.logout(login.session->token));
     assert(!identity.validateSession(login.session->token).has_value());
 
@@ -91,8 +92,13 @@ int main() {
     assert(assets.updateLifecycleStatus("asset-001", induspilot::domain::AssetStatus::Maintenance));
 
     induspilot::modules::MonitoringService monitoring;
-    monitoring.updateState({"asset-001", "warning", "温度偏高", "now"});
+    const auto runtime = monitoring.updateState({"asset-001", "warning", "温度偏高", ""});
+    assert(!runtime.updatedAt.empty());
     assert(monitoring.findState("asset-001").has_value());
+    assert(!monitoring.listStates().empty());
+    assert(monitoring.summarizeSeverity()["info"] == 1);
+    assert(induspilot::modules::isSupportedRuntimeState("online"));
+    assert(!induspilot::modules::isSupportedRuntimeState("invalid"));
 
     induspilot::modules::AlertService alerts;
     alerts.create({"alert-001", "asset-001", induspilot::domain::AlertSeverity::Critical, induspilot::domain::AlertState::Open, "温度异常", "", ""});

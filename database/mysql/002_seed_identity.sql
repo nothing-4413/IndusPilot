@@ -9,6 +9,7 @@ ON DUPLICATE KEY UPDATE name = VALUES(name), description = VALUES(description);
 INSERT INTO permissions(code, name) VALUES
   ('asset:read', '查看设备资产'),
   ('asset:write', '维护设备资产'),
+  ('monitoring:write', '写入运行监控状态'),
   ('alert:read', '查看告警'),
   ('alert:write', '处理告警'),
   ('work-order:read', '查看工单'),
