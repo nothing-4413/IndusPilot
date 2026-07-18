@@ -16,3 +16,6 @@ add_executable(induspilot-client
 
 target_include_directories(induspilot-client PRIVATE src)
 target_link_libraries(induspilot-client PRIVATE ${INDUSPILOT_QT_PACKAGE}::Widgets)
+target_compile_options(induspilot-client PRIVATE
+  $<$<CXX_COMPILER_ID:MSVC>:/utf-8 /EHsc>
+)

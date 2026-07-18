@@ -1,4 +1,4 @@
-﻿build/
+build/
 out/
 *.user
 *.suo
@@ -13,3 +13,4 @@ out/
 .vscode/
 .idea/
 deployment/data/
+.qmake.stash

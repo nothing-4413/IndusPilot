@@ -2,8 +2,8 @@
 
 - [x] 1.1 Decide initial backend framework, Qt UI approach, build system, and dependency management strategy.
 - [x] 1.2 Create repository structure for client, backend, shared contracts, deployment, database, and documentation areas.
-- [ ] 1.3 Add base C++ build configuration and verify a minimal backend executable can build locally.
-- [ ] 1.4 Add base Qt application skeleton and verify the desktop client can launch locally.
+- [x] 1.3 Add base C++ build configuration and verify a minimal backend executable can build locally.
+- [x] 1.4 Add base Qt application skeleton and verify the desktop client can launch locally.
 - [x] 1.5 Add development configuration templates for backend services, database connections, logging, and AI integration settings.
 
 ## 2. Backend Platform Skeleton

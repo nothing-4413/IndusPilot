@@ -4,6 +4,7 @@ CONFIG -= app_bundle
 
 TARGET = induspilot-backend
 INCLUDEPATH += include
+win32-msvc:QMAKE_CXXFLAGS += /utf-8 /EHsc
 
 SOURCES += \
     src/main.cpp \
