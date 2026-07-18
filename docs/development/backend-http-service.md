@@ -31,7 +31,13 @@ ctest --preset dev-http
 - `GET /api/v1/monitoring/states`：需要 `asset:read` 权限，返回运行状态列表、状态汇总和严重度汇总。
 - `GET /api/v1/monitoring/states/{assetId}`：需要 `asset:read` 权限，返回单个资产的当前运行状态。
 - `POST /api/v1/monitoring/states`：需要 `monitoring:write` 权限，写入短生命周期运行状态；`state` 可取 `online`、`warning`、`critical`、`offline`，`severity` 可取 `info`、`warning`、`critical`。
-- `GET /api/v1/alerts`：需要 `alert:read` 权限，返回告警列表。
+- `GET /api/v1/alerts`：需要 `alert:read` 权限，返回告警列表；支持 `assetId`、`severity`、`state` 查询参数。
+- `GET /api/v1/alerts/{id}`：需要 `alert:read` 权限，返回单个告警。
+- `POST /api/v1/alerts`：需要 `alert:write` 权限，创建告警；`severity` 可取 `info`、`warning`、`critical`。
+- `POST /api/v1/alerts/{id}/acknowledge`：需要 `alert:write` 权限，确认告警。
+- `POST /api/v1/alerts/{id}/assign`：需要 `alert:write` 权限，分派告警，字段为 `assignee`。
+- `POST /api/v1/alerts/{id}/resolve`：需要 `alert:write` 权限，解决告警。
+- `POST /api/v1/alerts/{id}/close`：需要 `alert:write` 权限，关闭告警。
 - `GET /api/v1/work-orders`：需要 `work-order:read` 权限，返回工单列表。
 - `GET /api/v1/ai/status`：需要 `ai:use` 权限，返回 AI 模块状态。
 
@@ -50,7 +56,7 @@ ctest --preset dev-http
 
 ## 集成测试
 
-`dev-http` preset 会在 Windows 下注册 `induspilot-http-integration-smoke` CTest。该测试会启动本地后端，覆盖健康检查、登录、受保护路由、权限拒绝、请求校验、资源不存在错误、资产层级筛选、资产生命周期状态变更、运行状态写入、运行状态详情和监控汇总。
+`dev-http` preset 会在 Windows 下注册 `induspilot-http-integration-smoke` CTest。该测试会启动本地后端，覆盖健康检查、登录、受保护路由、权限拒绝、请求校验、资源不存在错误、资产层级筛选、资产生命周期状态变更、运行状态写入、运行状态详情、监控汇总、告警创建、告警筛选和告警生命周期流转。
 
 手动运行：
 

@@ -144,6 +144,39 @@ try {
     Assert-True $maintainerLogin.success "Maintainer login failed."
     $maintainerHeaders = @{ Authorization = "Bearer $($maintainerLogin.data.token)"; "X-Trace-Id" = "trace-it-maintainer" }
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/monitoring/states" -Method Post -Status 403 -Headers $maintainerHeaders -Body '{"assetId":"asset-it-001","state":"online"}'
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/alerts" -Method Post -Status 403 -Headers $maintainerHeaders -Body '{"id":"alert-denied","assetId":"asset-it-001","severity":"warning","title":"denied"}'
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/alerts" -Method Post -Status 400 -Headers $operatorHeaders -Body '{"id":"alert-bad","assetId":"asset-it-001","severity":"bad","title":"bad"}'
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/alerts" -Method Post -Status 400 -Headers $operatorHeaders -Body '{"id":"alert-bad-state","assetId":"asset-it-001","severity":"warning","state":"bad","title":"bad"}'
+
+    $alertBody = '{"id":"alert-it-001","assetId":"asset-it-001","severity":"critical","title":"temperature critical"}'
+    $alert = Invoke-RestMethod -Uri "$BaseUrl/api/v1/alerts" -Method Post -Headers $operatorHeaders -ContentType "application/json" -Body $alertBody -TimeoutSec 10
+    Assert-True $alert.success "Alert creation failed."
+    Assert-True ($alert.data.state -eq "open") "Created alert was not open."
+
+    $alertDetail = Invoke-RestMethod -Uri "$BaseUrl/api/v1/alerts/alert-it-001" -Method Get -Headers $operatorHeaders -TimeoutSec 10
+    Assert-True $alertDetail.success "Alert detail failed."
+    Assert-True ($alertDetail.data.severity -eq "critical") "Alert severity did not match."
+
+    $criticalAlerts = Invoke-RestMethod -Uri "$BaseUrl/api/v1/alerts?assetId=asset-it-001&severity=critical&state=open" -Method Get -Headers $operatorHeaders -TimeoutSec 10
+    $criticalMatch = @($criticalAlerts.data) | Where-Object { $_.id -eq "alert-it-001" }
+    Assert-True (@($criticalMatch).Count -eq 1) "Alert filtering failed."
+
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/alerts/alert-it-001/assign" -Method Post -Status 400 -Headers $operatorHeaders -Body '{}'
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/alerts/not-exist/acknowledge" -Method Post -Status 404 -Headers $operatorHeaders
+
+    $acknowledged = Invoke-RestMethod -Uri "$BaseUrl/api/v1/alerts/alert-it-001/acknowledge" -Method Post -Headers $operatorHeaders -TimeoutSec 10
+    Assert-True ($acknowledged.data.state -eq "acknowledged") "Alert acknowledgement failed."
+    Assert-True ($acknowledged.data.acknowledgedBy -eq "operator") "Alert acknowledgement user did not match."
+
+    $assigned = Invoke-RestMethod -Uri "$BaseUrl/api/v1/alerts/alert-it-001/assign" -Method Post -Headers $operatorHeaders -ContentType "application/json" -Body '{"assignee":"maintainer"}' -TimeoutSec 10
+    Assert-True ($assigned.data.state -eq "assigned") "Alert assignment failed."
+    Assert-True ($assigned.data.assignedTo -eq "maintainer") "Alert assignee did not match."
+
+    $resolved = Invoke-RestMethod -Uri "$BaseUrl/api/v1/alerts/alert-it-001/resolve" -Method Post -Headers $operatorHeaders -TimeoutSec 10
+    Assert-True ($resolved.data.state -eq "resolved") "Alert resolve failed."
+
+    $closed = Invoke-RestMethod -Uri "$BaseUrl/api/v1/alerts/alert-it-001/close" -Method Post -Headers $operatorHeaders -TimeoutSec 10
+    Assert-True ($closed.data.state -eq "closed") "Alert close failed."
 } finally {
     if ($proc -and -not $proc.HasExited) {
         Stop-Process -Id $proc.Id -Force
