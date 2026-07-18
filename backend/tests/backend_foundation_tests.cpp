@@ -1,6 +1,7 @@
 #include "induspilot/api/router.hpp"
 #include "induspilot/app/application.hpp"
 #include "induspilot/app/config.hpp"
+#include "induspilot/data/repositories.hpp"
 #include "induspilot/modules/ai_service.hpp"
 #include "induspilot/modules/alert_service.hpp"
 #include "induspilot/modules/asset_service.hpp"
@@ -11,6 +12,13 @@
 #include <cassert>
 #include <chrono>
 #include <memory>
+#include <type_traits>
+
+static_assert(std::has_virtual_destructor_v<induspilot::data::UserRepository>);
+static_assert(std::has_virtual_destructor_v<induspilot::data::AssetRepository>);
+static_assert(std::has_virtual_destructor_v<induspilot::data::AlertRepository>);
+static_assert(std::has_virtual_destructor_v<induspilot::data::WorkOrderRepository>);
+static_assert(std::has_virtual_destructor_v<induspilot::data::AiInteractionRepository>);
 
 int main() {
 #ifdef _WIN32
