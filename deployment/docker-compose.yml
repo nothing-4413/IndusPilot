@@ -1,0 +1,31 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: induspilot-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: induspilot-root
+      MYSQL_DATABASE: induspilot
+      MYSQL_USER: induspilot
+      MYSQL_PASSWORD: induspilot
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+      - ../database/mysql:/docker-entrypoint-initdb.d:ro
+
+  redis:
+    image: redis:7
+    container_name: induspilot-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./data/redis:/data
+
+  mongodb:
+    image: mongo:7
+    container_name: induspilot-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./data/mongodb:/data/db
+      - ../database/mongodb/init_collections.js:/docker-entrypoint-initdb.d/init_collections.js:ro

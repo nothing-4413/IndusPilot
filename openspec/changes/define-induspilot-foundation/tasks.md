@@ -15,10 +15,10 @@
 
 ## 3. Data Foundation
 
-- [ ] 3.1 Add MySQL schema migration baseline for users, roles, permissions, assets, alerts, and work orders.
-- [ ] 3.2 Add Redis connection baseline for sessions, cache, queues, and runtime state placeholders.
-- [ ] 3.3 Add MongoDB connection baseline for logs, AI interactions, and unstructured diagnostic records.
-- [ ] 3.4 Add database startup documentation or Docker Compose baseline for local development.
+- [x] 3.1 Add MySQL schema migration baseline for users, roles, permissions, assets, alerts, and work orders.
+- [x] 3.2 Add Redis connection baseline for sessions, cache, queues, and runtime state placeholders.
+- [x] 3.3 Add MongoDB connection baseline for logs, AI interactions, and unstructured diagnostic records.
+- [x] 3.4 Add database startup documentation or Docker Compose baseline for local development.
 
 ## 4. Identity and Access
 
