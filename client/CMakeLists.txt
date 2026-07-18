@@ -11,6 +11,7 @@ set(CMAKE_AUTOMOC ON)
 add_executable(induspilot-client
   src/main.cpp
   src/main_window.cpp
+  src/api_client.cpp
 )
 
 target_include_directories(induspilot-client PRIVATE src)

@@ -6,7 +6,9 @@ TEMPLATE = app
 
 SOURCES += \
     src/main.cpp \
-    src/main_window.cpp
+    src/main_window.cpp \
+    src/api_client.cpp
 
 HEADERS += \
-    src/main_window.hpp
+    src/main_window.hpp \
+    src/api_client.hpp

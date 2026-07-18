@@ -38,11 +38,11 @@
 
 ## 6. Qt Client Foundation
 
-- [ ] 6.1 Implement login screen and authenticated main window shell.
-- [ ] 6.2 Implement navigation layout for dashboard, assets, monitoring, alerts, work orders, and AI assistant.
-- [ ] 6.3 Implement reusable UI patterns for tables, detail panels, forms, severity badges, empty states, and loading states.
-- [ ] 6.4 Connect client API layer to backend authentication and core module endpoints.
-- [ ] 6.5 Add initial dashboard, asset list, alert list, and work order list screens.
+- [x] 6.1 Implement login screen and authenticated main window shell.
+- [x] 6.2 Implement navigation layout for dashboard, assets, monitoring, alerts, work orders, and AI assistant.
+- [x] 6.3 Implement reusable UI patterns for tables, detail panels, forms, severity badges, empty states, and loading states.
+- [x] 6.4 Connect client API layer to backend authentication and core module endpoints.
+- [x] 6.5 Add initial dashboard, asset list, alert list, and work order list screens.
 
 ## 7. AI Assistance Baseline
 
