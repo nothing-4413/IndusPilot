@@ -177,22 +177,28 @@ QWidget* MainWindow::buildWorkOrderPage() {
     layout->addWidget(workOrderModeLabel_);
 
     workOrderTable_ = new QTableWidget(page);
-    fillTable(workOrderTable_, {"工单", "设备", "来源告警", "状态", "处理人", "摘要"}, api_.workOrders());
+    fillTable(workOrderTable_, {"工单", "设备", "来源告警", "状态", "处理人", "摘要", "结果"}, api_.workOrders());
     layout->addWidget(workOrderTable_);
 
     auto* actionRow = new QWidget(page);
     auto* actionLayout = new QHBoxLayout(actionRow);
     auto* createButton = new QPushButton("创建工单", actionRow);
+    auto* editButton = new QPushButton(QStringLiteral("编辑"), actionRow);
+    auto* attachmentButton = new QPushButton(QStringLiteral("附件"), actionRow);
     auto* assignButton = new QPushButton("分派", actionRow);
     auto* startButton = new QPushButton("开始处理", actionRow);
     auto* completeButton = new QPushButton("完成", actionRow);
     auto* closeButton = new QPushButton("关闭", actionRow);
     connect(createButton, &QPushButton::clicked, this, &MainWindow::handleCreateWorkOrder);
+    connect(editButton, &QPushButton::clicked, this, &MainWindow::handleEditWorkOrder);
+    connect(attachmentButton, &QPushButton::clicked, this, &MainWindow::handleWorkOrderAttachments);
     connect(assignButton, &QPushButton::clicked, this, &MainWindow::handleAssignWorkOrder);
     connect(startButton, &QPushButton::clicked, this, &MainWindow::handleStartWorkOrder);
     connect(completeButton, &QPushButton::clicked, this, &MainWindow::handleCompleteWorkOrder);
     connect(closeButton, &QPushButton::clicked, this, &MainWindow::handleCloseWorkOrder);
     actionLayout->addWidget(createButton);
+    actionLayout->addWidget(editButton);
+    actionLayout->addWidget(attachmentButton);
     actionLayout->addWidget(assignButton);
     actionLayout->addWidget(startButton);
     actionLayout->addWidget(completeButton);
@@ -365,7 +371,7 @@ void MainWindow::refreshAlertTable() {
 
 void MainWindow::refreshWorkOrderTable() {
     if (workOrderTable_) {
-        fillTable(workOrderTable_, {"工单", "设备", "来源告警", "状态", "处理人", "摘要"}, api_.workOrders());
+        fillTable(workOrderTable_, {"工单", "设备", "来源告警", "状态", "处理人", "摘要", "结果"}, api_.workOrders());
     }
 }
 
@@ -583,6 +589,83 @@ void MainWindow::handleCreateWorkOrder() {
     QMessageBox::information(this, "工单操作", api_.statusMessage());
 }
 
+void MainWindow::handleEditWorkOrder() {
+    const auto orderId = selectedWorkOrderId();
+    if (orderId.isEmpty()) {
+        api_.updateWorkOrder(orderId, QString{}, QString{}, QString{});
+        QMessageBox::information(this, QStringLiteral("工单操作"), api_.statusMessage());
+        return;
+    }
+
+    const auto row = workOrderTable_->currentRow();
+    auto cellText = [this, row](int column) {
+        const auto* item = workOrderTable_->item(row, column);
+        return item ? item->text() : QString{};
+    };
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(QStringLiteral("编辑维护工单"));
+    auto* layout = new QFormLayout(&dialog);
+    auto* assigneeInput = new QLineEdit(cellText(4), &dialog);
+    auto* summaryInput = new QTextEdit(&dialog);
+    summaryInput->setFixedHeight(84);
+    summaryInput->setPlainText(cellText(5));
+    auto* resultInput = new QTextEdit(&dialog);
+    resultInput->setFixedHeight(84);
+    resultInput->setPlainText(cellText(6));
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addRow(QStringLiteral("处理人"), assigneeInput);
+    layout->addRow(QStringLiteral("摘要"), summaryInput);
+    layout->addRow(QStringLiteral("结果"), resultInput);
+    layout->addRow(buttons);
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+    if (api_.updateWorkOrder(orderId, summaryInput->toPlainText(), assigneeInput->text(), resultInput->toPlainText())) {
+        refreshWorkOrderTable();
+    }
+    QMessageBox::information(this, QStringLiteral("工单操作"), api_.statusMessage());
+}
+
+void MainWindow::handleWorkOrderAttachments() {
+    const auto orderId = selectedWorkOrderId();
+    if (orderId.isEmpty()) {
+        QMessageBox::information(this, QStringLiteral("工单附件"), QStringLiteral("请先选择工单"));
+        return;
+    }
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(QStringLiteral("工单附件"));
+    auto* layout = new QVBoxLayout(&dialog);
+    auto* attachmentTable = new QTableWidget(&dialog);
+    fillTable(attachmentTable, {"编号", "文件名", "URI", "类型", "大小", "上传人"}, api_.workOrderAttachments(orderId));
+    layout->addWidget(attachmentTable);
+
+    auto* form = new QFormLayout();
+    auto* attachmentIdInput = new QLineEdit(QStringLiteral("att-") + QDateTime::currentDateTime().toString("yyyyMMddhhmmss"), &dialog);
+    auto* fileNameInput = new QLineEdit(QStringLiteral("现场照片.jpg"), &dialog);
+    auto* uriInput = new QLineEdit(QStringLiteral("file:///evidence/现场照片.jpg"), &dialog);
+    auto* contentTypeInput = new QLineEdit(QStringLiteral("image/jpeg"), &dialog);
+    auto* sizeInput = new QLineEdit(QStringLiteral("0"), &dialog);
+    form->addRow(QStringLiteral("附件编号"), attachmentIdInput);
+    form->addRow(QStringLiteral("文件名"), fileNameInput);
+    form->addRow(QStringLiteral("URI"), uriInput);
+    form->addRow(QStringLiteral("类型"), contentTypeInput);
+    form->addRow(QStringLiteral("大小"), sizeInput);
+    layout->addLayout(form);
+
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+    api_.addWorkOrderAttachment(orderId, attachmentIdInput->text(), fileNameInput->text(), uriInput->text(), contentTypeInput->text(), sizeInput->text());
+    QMessageBox::information(this, QStringLiteral("工单附件"), api_.statusMessage());
+}
 void MainWindow::handleAssignWorkOrder() {
     const auto orderId = selectedWorkOrderId();
     if (orderId.isEmpty()) {

@@ -222,6 +222,17 @@ Json::Value workOrderToJson(const domain::WorkOrder& order) {
     return value;
 }
 
+Json::Value workOrderAttachmentToJson(const domain::WorkOrderAttachment& attachment) {
+    Json::Value value;
+    value["id"] = attachment.id;
+    value["workOrderId"] = attachment.workOrderId;
+    value["fileName"] = attachment.fileName;
+    value["uri"] = attachment.uri;
+    value["contentType"] = attachment.contentType;
+    value["sizeBytes"] = static_cast<Json::UInt64>(attachment.sizeBytes);
+    value["uploadedBy"] = attachment.uploadedBy;
+    return value;
+}
 std::optional<modules::WorkOrderQuery> workOrderQueryFromRequest(const drogon::HttpRequestPtr& request, std::string& error) {
     modules::WorkOrderQuery query;
     const auto assetId = request->getParameter("assetId");
@@ -892,6 +903,77 @@ void registerRoutes(
         callback(jsonResponse(responseEnvelope(true, "OK", "work order returned", workOrderToJson(*order))));
     }, {drogon::Get});
 
+    server.registerHandler("/api/v1/work-orders/{1}", [identity, maintenance](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback, const std::string& orderId) {
+        const auto session = requireSession(identity, request, callback);
+        if (!session || !requirePermission(identity, *session, "work-order:write", callback)) {
+            return;
+        }
+        writeRequestLog(request, session);
+        const auto payload = request->getJsonObject();
+        if (!payload || (!payload->isMember("summary") && !payload->isMember("assignee") && !payload->isMember("result"))) {
+            callback(invalidRequest("summary, assignee or result is required"));
+            return;
+        }
+        modules::WorkOrderUpdate update;
+        if (payload->isMember("summary")) {
+            update.summary = (*payload)["summary"].asString();
+        }
+        if (payload->isMember("assignee")) {
+            update.assignee = (*payload)["assignee"].asString();
+        }
+        if (payload->isMember("result")) {
+            update.result = (*payload)["result"].asString();
+        }
+        const auto order = maintenance->update(orderId, update);
+        if (!order) {
+            callback(notFound("work order not found"));
+            return;
+        }
+        callback(jsonResponse(responseEnvelope(true, "OK", "work order updated", workOrderToJson(*order))));
+    }, {drogon::Patch});
+
+    server.registerHandler("/api/v1/work-orders/{1}/attachments", [identity, maintenance](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback, const std::string& orderId) {
+        const auto session = requireSession(identity, request, callback);
+        if (!session || !requirePermission(identity, *session, "work-order:read", callback)) {
+            return;
+        }
+        writeRequestLog(request, session);
+        if (!maintenance->findById(orderId)) {
+            callback(notFound("work order not found"));
+            return;
+        }
+        Json::Value rows(Json::arrayValue);
+        for (const auto& attachment : maintenance->attachmentsFor(orderId)) {
+            rows.append(workOrderAttachmentToJson(attachment));
+        }
+        callback(jsonResponse(responseEnvelope(true, "OK", "work order attachments returned", rows)));
+    }, {drogon::Get});
+
+    server.registerHandler("/api/v1/work-orders/{1}/attachments", [identity, maintenance](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback, const std::string& orderId) {
+        const auto session = requireSession(identity, request, callback);
+        if (!session || !requirePermission(identity, *session, "work-order:write", callback)) {
+            return;
+        }
+        writeRequestLog(request, session);
+        const auto payload = request->getJsonObject();
+        if (!payload || !payload->isMember("id") || !payload->isMember("fileName") || !payload->isMember("uri")) {
+            callback(invalidRequest("id, fileName and uri are required"));
+            return;
+        }
+        domain::WorkOrderAttachment attachment;
+        attachment.id = (*payload)["id"].asString();
+        attachment.fileName = (*payload)["fileName"].asString();
+        attachment.uri = (*payload)["uri"].asString();
+        attachment.contentType = payload->isMember("contentType") ? (*payload)["contentType"].asString() : "application/octet-stream";
+        attachment.sizeBytes = payload->isMember("sizeBytes") ? (*payload)["sizeBytes"].asUInt64() : 0;
+        attachment.uploadedBy = payload->isMember("uploadedBy") ? (*payload)["uploadedBy"].asString() : session->user.username;
+        const auto saved = maintenance->addAttachment(orderId, attachment);
+        if (!saved) {
+            callback(notFound("work order not found"));
+            return;
+        }
+        callback(jsonResponse(responseEnvelope(true, "OK", "work order attachment registered", workOrderAttachmentToJson(*saved))));
+    }, {drogon::Post});
     server.registerHandler("/api/v1/work-orders", [identity, maintenance](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
         const auto session = requireSession(identity, request, callback);
         if (!session || !requirePermission(identity, *session, "work-order:write", callback)) {

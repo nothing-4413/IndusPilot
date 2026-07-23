@@ -11,6 +11,12 @@
 
 namespace induspilot::modules {
 
+struct WorkOrderUpdate {
+    std::optional<std::string> summary;
+    std::optional<std::string> assignee;
+    std::optional<std::string> result;
+};
+
 struct WorkOrderQuery {
     std::optional<std::string> assetId;
     std::optional<std::string> alertId;
@@ -26,12 +32,15 @@ public:
     domain::WorkOrder create(domain::WorkOrder order);
     domain::WorkOrder createFromAlert(const domain::Alert& alert, const std::string& summary);
     std::optional<domain::WorkOrder> findById(const std::string& id) const;
+    std::optional<domain::WorkOrder> update(const std::string& id, const WorkOrderUpdate& update);
     std::optional<domain::WorkOrder> assign(const std::string& id, const std::string& assignee);
     std::optional<domain::WorkOrder> startProcessing(const std::string& id);
     std::optional<domain::WorkOrder> complete(const std::string& id, const std::string& result);
     std::optional<domain::WorkOrder> close(const std::string& id);
     std::vector<domain::WorkOrder> list(const WorkOrderQuery& query = {}) const;
     std::vector<domain::WorkOrder> historyForAsset(const std::string& assetId) const;
+    std::optional<domain::WorkOrderAttachment> addAttachment(const std::string& workOrderId, domain::WorkOrderAttachment attachment);
+    std::vector<domain::WorkOrderAttachment> attachmentsFor(const std::string& workOrderId) const;
 
 private:
     std::shared_ptr<data::WorkOrderRepository> repository_;

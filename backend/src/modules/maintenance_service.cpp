@@ -81,6 +81,25 @@ std::optional<domain::WorkOrder> MaintenanceService::findById(const std::string&
     return repository_->findById(id);
 }
 
+std::optional<domain::WorkOrder> MaintenanceService::update(const std::string& id, const WorkOrderUpdate& update) {
+    auto order = repository_->findById(id);
+    if (!order) {
+        return std::nullopt;
+    }
+    if (update.summary) {
+        order->summary = *update.summary;
+    }
+    if (update.assignee) {
+        order->assignee = *update.assignee;
+        if (!update.assignee->empty()) {
+            order->state = domain::WorkOrderState::Assigned;
+        }
+    }
+    if (update.result) {
+        order->result = *update.result;
+    }
+    return repository_->save(*order);
+}
 std::optional<domain::WorkOrder> MaintenanceService::assign(const std::string& id, const std::string& assignee) {
     auto order = repository_->findById(id);
     if (!order) {
@@ -133,4 +152,15 @@ std::vector<domain::WorkOrder> MaintenanceService::historyForAsset(const std::st
     return repository_->historyForAsset(assetId);
 }
 
+std::optional<domain::WorkOrderAttachment> MaintenanceService::addAttachment(const std::string& workOrderId, domain::WorkOrderAttachment attachment) {
+    if (!repository_->findById(workOrderId)) {
+        return std::nullopt;
+    }
+    attachment.workOrderId = workOrderId;
+    return repository_->saveAttachment(std::move(attachment));
+}
+
+std::vector<domain::WorkOrderAttachment> MaintenanceService::attachmentsFor(const std::string& workOrderId) const {
+    return repository_->listAttachments(workOrderId);
+}
 }  // namespace induspilot::modules

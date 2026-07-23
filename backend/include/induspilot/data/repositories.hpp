@@ -54,6 +54,8 @@ public:
     virtual std::vector<domain::WorkOrder> list() const = 0;
     virtual std::optional<domain::WorkOrder> findById(const std::string& id) const = 0;
     virtual std::vector<domain::WorkOrder> historyForAsset(const std::string& assetId) const = 0;
+    virtual domain::WorkOrderAttachment saveAttachment(domain::WorkOrderAttachment attachment) = 0;
+    virtual std::vector<domain::WorkOrderAttachment> listAttachments(const std::string& workOrderId) const = 0;
 };
 
 class RuntimeStateRepository {

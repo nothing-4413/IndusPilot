@@ -53,6 +53,8 @@ private:
     void handleCloseAlert();
     void handleCreateWorkOrderFromAlert();
     void handleCreateWorkOrder();
+    void handleEditWorkOrder();
+    void handleWorkOrderAttachments();
     void handleAssignWorkOrder();
     void handleStartWorkOrder();
     void handleCompleteWorkOrder();

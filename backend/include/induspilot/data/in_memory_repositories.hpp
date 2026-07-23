@@ -57,9 +57,12 @@ public:
     std::vector<domain::WorkOrder> list() const override;
     std::optional<domain::WorkOrder> findById(const std::string& id) const override;
     std::vector<domain::WorkOrder> historyForAsset(const std::string& assetId) const override;
+    domain::WorkOrderAttachment saveAttachment(domain::WorkOrderAttachment attachment) override;
+    std::vector<domain::WorkOrderAttachment> listAttachments(const std::string& workOrderId) const override;
 
 private:
     std::map<std::string, domain::WorkOrder> orders_;
+    std::map<std::string, domain::WorkOrderAttachment> attachments_;
 };
 
 class InMemoryRuntimeStateRepository final : public RuntimeStateRepository {

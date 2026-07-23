@@ -1,10 +1,10 @@
 ﻿param(
-    [string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path,
     [switch]$RequireDocker
 )
 
 $ErrorActionPreference = "Stop"
 $script:FailedChecks = 0
+$RepoRoot = Split-Path -Parent $PSScriptRoot
 
 function Write-CheckOk {
     param([string]$Message)
@@ -22,11 +22,16 @@ function Write-CheckFail {
     Write-Host "[FAIL] $Message" -ForegroundColor Red
 }
 
+function Get-RepoPath {
+    param([string]$RelativePath)
+    return Join-Path $RepoRoot $RelativePath
+}
+
 function Test-RequiredFile {
     param([string]$RelativePath)
-    $path = Join-Path $RepoRoot $RelativePath
-    if (Test-Path -LiteralPath $path -PathType Leaf) {
-        Write-CheckOk "文件存在：$RelativePath"
+    $path = Get-RepoPath $RelativePath
+    if (Test-Path -LiteralPath $path) {
+        Write-CheckOk "存在文件：$RelativePath"
         return $true
     }
     Write-CheckFail "缺少文件：$RelativePath"
@@ -35,8 +40,8 @@ function Test-RequiredFile {
 
 function Get-FileText {
     param([string]$RelativePath)
-    $path = Join-Path $RepoRoot $RelativePath
-    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+    $path = Get-RepoPath $RelativePath
+    if (-not (Test-Path -LiteralPath $path)) {
         return ""
     }
     return Get-Content -Encoding UTF8 -LiteralPath $path -Raw
@@ -51,6 +56,7 @@ $requiredFiles = @(
     "database/mysql/001_foundation_schema.sql",
     "database/mysql/002_seed_identity.sql",
     "database/mysql/003_runtime_persistence_schema.sql",
+    "database/mysql/004_work_order_attachments_schema.sql",
     "database/mongodb/init_collections.js"
 )
 
@@ -83,14 +89,21 @@ if ($schema1 -match "CREATE TABLE IF NOT EXISTS schema_migrations") {
     Write-CheckFail "MySQL schema 版本表未定义"
 }
 
+$schemaScripts = @(
+    "database/mysql/001_foundation_schema.sql",
+    "database/mysql/002_seed_identity.sql",
+    "database/mysql/003_runtime_persistence_schema.sql",
+    "database/mysql/004_work_order_attachments_schema.sql"
+)
 $expectedMigrations = @(
     "001_foundation_schema",
     "002_seed_identity",
-    "003_runtime_persistence_schema"
+    "003_runtime_persistence_schema",
+    "004_work_order_attachments_schema"
 )
 foreach ($migration in $expectedMigrations) {
     $found = $false
-    foreach ($scriptPath in @("database/mysql/001_foundation_schema.sql", "database/mysql/002_seed_identity.sql", "database/mysql/003_runtime_persistence_schema.sql")) {
+    foreach ($scriptPath in $schemaScripts) {
         if ((Get-FileText $scriptPath) -match [regex]::Escape($migration)) {
             $found = $true
             break

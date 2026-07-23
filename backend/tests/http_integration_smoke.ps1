@@ -202,7 +202,23 @@ try {
     Assert-True $workOrderDetail.success "Work order detail failed."
     Assert-True ($workOrderDetail.data.alertId -eq "alert-it-001") "Work order alert id did not match."
 
-    $filteredOrders = Invoke-RestMethod -Uri "$BaseUrl/api/v1/work-orders?assetId=asset-it-001&alertId=alert-it-001&state=created" -Method Get -Headers $maintainerHeaders -TimeoutSec 10
+    $updatedWorkOrder = Invoke-RestMethod -Uri "$BaseUrl/api/v1/work-orders/wo-it-001" -Method Patch -Headers $maintainerHeaders -ContentType "application/json" -Body '{"summary":"updated bearing inspection","assignee":"maintainer","result":"pending vibration check"}' -TimeoutSec 10
+    Assert-True $updatedWorkOrder.success "Work order update failed."
+    Assert-True ($updatedWorkOrder.data.summary -eq "updated bearing inspection") "Work order summary was not updated."
+    Assert-True ($updatedWorkOrder.data.assignee -eq "maintainer") "Work order assignee was not updated."
+    Assert-True ($updatedWorkOrder.data.result -eq "pending vibration check") "Work order result was not updated."
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/work-orders/wo-it-001" -Method Patch -Status 400 -Headers $maintainerHeaders -Body '{}'
+
+    $attachmentBody = '{"id":"work-order-attachment-it-001","fileName":"bearing-photo.jpg","uri":"file:///evidence/bearing-photo.jpg","contentType":"image/jpeg","sizeBytes":2048}'
+    $attachment = Invoke-RestMethod -Uri "$BaseUrl/api/v1/work-orders/wo-it-001/attachments" -Method Post -Headers $maintainerHeaders -ContentType "application/json" -Body $attachmentBody -TimeoutSec 10
+    Assert-True $attachment.success "Work order attachment registration failed."
+    Assert-True ($attachment.data.fileName -eq "bearing-photo.jpg") "Work order attachment file name did not match."
+    Assert-True ($attachment.data.uploadedBy -eq "maintainer") "Work order attachment uploader did not default to session user."
+    $attachments = Invoke-RestMethod -Uri "$BaseUrl/api/v1/work-orders/wo-it-001/attachments" -Method Get -Headers $operatorHeaders -TimeoutSec 10
+    $attachmentMatch = @($attachments.data) | Where-Object { $_.id -eq "work-order-attachment-it-001" }
+    Assert-True (@($attachmentMatch).Count -eq 1) "Work order attachment query failed."
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/work-orders/wo-it-001/attachments" -Method Post -Status 400 -Headers $maintainerHeaders -Body '{"id":"missing-uri","fileName":"missing.txt"}'
+    $filteredOrders = Invoke-RestMethod -Uri "$BaseUrl/api/v1/work-orders?assetId=asset-it-001&alertId=alert-it-001&state=assigned" -Method Get -Headers $maintainerHeaders -TimeoutSec 10
     $filteredOrderMatch = @($filteredOrders.data) | Where-Object { $_.id -eq "wo-it-001" }
     Assert-True (@($filteredOrderMatch).Count -eq 1) "Work order filtering failed."
 

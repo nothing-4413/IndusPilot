@@ -18,6 +18,10 @@ QString stringValue(const QJsonObject& object, const QString& key) {
     return object.value(key).toString();
 }
 
+QString workOrderPath(const QString& orderId) {
+    return "/api/v1/work-orders/" + QString::fromUtf8(QUrl::toPercentEncoding(orderId));
+}
+
 QString workOrderActionPath(const QString& orderId, const QString& action) {
     return "/api/v1/work-orders/" + QString::fromUtf8(QUrl::toPercentEncoding(orderId)) + "/" + action;
 }
@@ -382,7 +386,8 @@ QVector<TableRow> ApiClient::workOrders() {
             stringValue(order, "alertId"),
             stringValue(order, "state"),
             stringValue(order, "assignee"),
-            stringValue(order, "summary")}});
+            stringValue(order, "summary"),
+            stringValue(order, "result")}});
     }
     return rows;
 }
@@ -436,6 +441,71 @@ bool ApiClient::createWorkOrderFromAlert(const QString& alertId, const QString& 
     payload["alertId"] = normalizedAlertId;
     payload["summary"] = normalizedSummary;
     return !postEnvelope("/api/v1/work-orders/from-alert", payload, QJsonValue::Object, QStringLiteral("已从告警生成维护工单"), QStringLiteral("从告警生成工单失败")).isEmpty();
+}
+bool ApiClient::updateWorkOrder(const QString& orderId, const QString& summary, const QString& assignee, const QString& result) {
+    const auto normalizedOrderId = orderId.trimmed();
+    if (token_.isEmpty() || normalizedOrderId.isEmpty()) {
+        statusMessage_ = QStringLiteral("请先连接后端并选择工单");
+        return false;
+    }
+
+    QJsonObject payload;
+    payload["summary"] = summary.trimmed();
+    payload["assignee"] = assignee.trimmed();
+    payload["result"] = result.trimmed();
+    return !postEnvelope(workOrderPath(normalizedOrderId), payload, QJsonValue::Object, QStringLiteral("工单编辑成功"), QStringLiteral("工单编辑失败"), QStringLiteral("PATCH")).isEmpty();
+}
+
+QVector<TableRow> ApiClient::workOrderAttachments(const QString& orderId) {
+    const auto normalizedOrderId = orderId.trimmed();
+    if (token_.isEmpty() || normalizedOrderId.isEmpty()) {
+        statusMessage_ = QStringLiteral("请先连接后端并选择工单");
+        return {};
+    }
+
+    const auto envelope = responseEnvelope(workOrderPath(normalizedOrderId) + QStringLiteral("/attachments"), QJsonValue::Array);
+    if (envelope.isEmpty()) {
+        statusMessage_ = QStringLiteral("工单附件同步失败");
+        return {};
+    }
+
+    QVector<TableRow> rows;
+    const auto attachments = envelope.value("data").toArray();
+    for (const auto& value : attachments) {
+        const auto attachment = value.toObject();
+        rows.push_back(TableRow{{
+            stringValue(attachment, "id"),
+            stringValue(attachment, "fileName"),
+            stringValue(attachment, "uri"),
+            stringValue(attachment, "contentType"),
+            QString::number(attachment.value("sizeBytes").toVariant().toULongLong()),
+            stringValue(attachment, "uploadedBy")}});
+    }
+    statusMessage_ = rows.isEmpty() ? QStringLiteral("当前工单暂无附件") : QStringLiteral("工单附件已同步");
+    return rows;
+}
+
+bool ApiClient::addWorkOrderAttachment(const QString& orderId, const QString& attachmentId, const QString& fileName, const QString& uri, const QString& contentType, const QString& sizeBytes) {
+    const auto normalizedOrderId = orderId.trimmed();
+    const auto normalizedAttachmentId = attachmentId.trimmed();
+    const auto normalizedFileName = fileName.trimmed();
+    const auto normalizedUri = uri.trimmed();
+    if (token_.isEmpty() || normalizedOrderId.isEmpty()) {
+        statusMessage_ = QStringLiteral("请先连接后端并选择工单");
+        return false;
+    }
+    if (normalizedAttachmentId.isEmpty() || normalizedFileName.isEmpty() || normalizedUri.isEmpty()) {
+        statusMessage_ = QStringLiteral("登记附件需要填写附件编号、文件名和 URI");
+        return false;
+    }
+
+    QJsonObject payload;
+    payload["id"] = normalizedAttachmentId;
+    payload["fileName"] = normalizedFileName;
+    payload["uri"] = normalizedUri;
+    payload["contentType"] = contentType.trimmed().isEmpty() ? QStringLiteral("application/octet-stream") : contentType.trimmed();
+    payload["sizeBytes"] = static_cast<qint64>(sizeBytes.trimmed().toLongLong());
+    return !postEnvelope(workOrderPath(normalizedOrderId) + QStringLiteral("/attachments"), payload, QJsonValue::Object, QStringLiteral("工单附件登记成功"), QStringLiteral("工单附件登记失败")).isEmpty();
 }
 bool ApiClient::assignWorkOrder(const QString& orderId, const QString& assignee) {
     const auto normalizedAssignee = assignee.trimmed();
@@ -632,7 +702,7 @@ QVector<TableRow> ApiClient::offlineAlerts() const {
 }
 
 QVector<TableRow> ApiClient::offlineWorkOrders() const {
-    return {{{"wo-from-alert-001", "asset-001", "alert-001", "processing", "maintainer", "温度异常现场处理"}}};
+    return {{{"wo-from-alert-001", "asset-001", "alert-001", "processing", "maintainer", "温度异常现场处理", "等待复核"}}};
 }
 QVector<TableRow> ApiClient::offlineAiInteractions() const {
     return {{{"ai-interaction-demo", "alert", "alert-001", "温度异常上下文", "离线兜底诊断建议已生成，等待后端审计同步"}}};

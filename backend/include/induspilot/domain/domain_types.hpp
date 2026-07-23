@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -34,6 +35,16 @@ struct Alert {
     std::string title;
     std::string acknowledgedBy;
     std::string assignedTo;
+};
+
+struct WorkOrderAttachment {
+    std::string id;
+    std::string workOrderId;
+    std::string fileName;
+    std::string uri;
+    std::string contentType;
+    std::uint64_t sizeBytes{0};
+    std::string uploadedBy;
 };
 
 struct WorkOrder {

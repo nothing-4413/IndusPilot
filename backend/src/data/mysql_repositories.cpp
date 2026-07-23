@@ -199,6 +199,16 @@ domain::WorkOrder workOrderFromRow(const drogon::orm::Row& row) {
         nullableString(row, "result")};
 }
 
+domain::WorkOrderAttachment workOrderAttachmentFromRow(const drogon::orm::Row& row) {
+    return domain::WorkOrderAttachment{
+        row["attachment_code"].as<std::string>(),
+        row["work_order_code"].as<std::string>(),
+        row["file_name"].as<std::string>(),
+        row["uri"].as<std::string>(),
+        nullableString(row, "content_type"),
+        static_cast<std::uint64_t>(row["size_bytes"].as<unsigned long long>()),
+        nullableString(row, "uploaded_by_username")};
+}
 domain::RuntimeState runtimeStateFromRow(const drogon::orm::Row& row) {
     return domain::RuntimeState{
         row["asset_code"].as<std::string>(),
@@ -458,6 +468,40 @@ std::vector<domain::WorkOrder> MySqlWorkOrderRepository::historyForAsset(const s
     return orders;
 }
 
+domain::WorkOrderAttachment MySqlWorkOrderRepository::saveAttachment(domain::WorkOrderAttachment attachment) {
+    client_->execSqlSync(
+        "INSERT INTO work_order_attachments(attachment_code, work_order_id, file_name, uri, content_type, size_bytes, uploaded_by) "
+        "VALUES(?, (SELECT id FROM work_orders WHERE work_order_code = ?), ?, ?, ?, ?, "
+        "IF(? = '', NULL, (SELECT id FROM users WHERE username = ?))) "
+        "ON DUPLICATE KEY UPDATE file_name = VALUES(file_name), uri = VALUES(uri), content_type = VALUES(content_type), "
+        "size_bytes = VALUES(size_bytes), uploaded_by = VALUES(uploaded_by)",
+        attachment.id,
+        attachment.workOrderId,
+        attachment.fileName,
+        attachment.uri,
+        attachment.contentType,
+        static_cast<unsigned long long>(attachment.sizeBytes),
+        attachment.uploadedBy,
+        attachment.uploadedBy);
+    return attachment;
+}
+
+std::vector<domain::WorkOrderAttachment> MySqlWorkOrderRepository::listAttachments(const std::string& workOrderId) const {
+    const auto result = client_->execSqlSync(
+        "SELECT a.attachment_code, wo.work_order_code, a.file_name, a.uri, a.content_type, a.size_bytes, u.username AS uploaded_by_username "
+        "FROM work_order_attachments a "
+        "JOIN work_orders wo ON wo.id = a.work_order_id "
+        "LEFT JOIN users u ON u.id = a.uploaded_by "
+        "WHERE wo.work_order_code = ? "
+        "ORDER BY a.created_at DESC, a.attachment_code",
+        workOrderId);
+
+    std::vector<domain::WorkOrderAttachment> attachments;
+    for (const auto& row : result) {
+        attachments.push_back(workOrderAttachmentFromRow(row));
+    }
+    return attachments;
+}
 MySqlRuntimeStateRepository::MySqlRuntimeStateRepository(drogon::orm::DbClientPtr client) : client_(std::move(client)) {}
 
 domain::RuntimeState MySqlRuntimeStateRepository::save(domain::RuntimeState state) {

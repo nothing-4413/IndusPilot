@@ -124,6 +124,20 @@ std::vector<domain::WorkOrder> InMemoryWorkOrderRepository::historyForAsset(cons
     return orders;
 }
 
+domain::WorkOrderAttachment InMemoryWorkOrderRepository::saveAttachment(domain::WorkOrderAttachment attachment) {
+    attachments_[attachment.id] = attachment;
+    return attachment;
+}
+
+std::vector<domain::WorkOrderAttachment> InMemoryWorkOrderRepository::listAttachments(const std::string& workOrderId) const {
+    std::vector<domain::WorkOrderAttachment> attachments;
+    for (const auto& item : attachments_) {
+        if (item.second.workOrderId == workOrderId) {
+            attachments.push_back(item.second);
+        }
+    }
+    return attachments;
+}
 domain::RuntimeState InMemoryRuntimeStateRepository::save(domain::RuntimeState state) {
     states_[state.assetId] = state;
     return state;
