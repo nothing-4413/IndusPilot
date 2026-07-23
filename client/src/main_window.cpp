@@ -2,6 +2,9 @@
 
 #include <QAbstractItemView>
 #include <QComboBox>
+#include <QDialogButtonBox>
+#include <QDialog>
+#include <QDateTime>
 #include <QFormLayout>
 #include <QHeaderView>
 #include <QHBoxLayout>
@@ -112,17 +115,23 @@ QWidget* MainWindow::buildWorkOrderPage() {
     layout->addWidget(workOrderModeLabel_);
 
     workOrderTable_ = new QTableWidget(page);
-    fillTable(workOrderTable_, {"工单", "设备", "来源告警", "状态", "处理人"}, api_.workOrders());
+    fillTable(workOrderTable_, {"工单", "设备", "来源告警", "状态", "处理人", "摘要"}, api_.workOrders());
     layout->addWidget(workOrderTable_);
 
     auto* actionRow = new QWidget(page);
     auto* actionLayout = new QHBoxLayout(actionRow);
+    auto* createButton = new QPushButton("创建工单", actionRow);
+    auto* assignButton = new QPushButton("分派", actionRow);
     auto* startButton = new QPushButton("开始处理", actionRow);
     auto* completeButton = new QPushButton("完成", actionRow);
     auto* closeButton = new QPushButton("关闭", actionRow);
+    connect(createButton, &QPushButton::clicked, this, &MainWindow::handleCreateWorkOrder);
+    connect(assignButton, &QPushButton::clicked, this, &MainWindow::handleAssignWorkOrder);
     connect(startButton, &QPushButton::clicked, this, &MainWindow::handleStartWorkOrder);
     connect(completeButton, &QPushButton::clicked, this, &MainWindow::handleCompleteWorkOrder);
     connect(closeButton, &QPushButton::clicked, this, &MainWindow::handleCloseWorkOrder);
+    actionLayout->addWidget(createButton);
+    actionLayout->addWidget(assignButton);
     actionLayout->addWidget(startButton);
     actionLayout->addWidget(completeButton);
     actionLayout->addWidget(closeButton);
@@ -257,7 +266,7 @@ void MainWindow::refreshOnlineTables() {
 
 void MainWindow::refreshWorkOrderTable() {
     if (workOrderTable_) {
-        fillTable(workOrderTable_, {"工单", "设备", "来源告警", "状态", "处理人"}, api_.workOrders());
+        fillTable(workOrderTable_, {"工单", "设备", "来源告警", "状态", "处理人", "摘要"}, api_.workOrders());
     }
 }
 
@@ -287,6 +296,54 @@ void MainWindow::handleLogin() {
     }
 }
 
+
+void MainWindow::handleCreateWorkOrder() {
+    QDialog dialog(this);
+    dialog.setWindowTitle("创建维护工单");
+    auto* layout = new QFormLayout(&dialog);
+    auto* orderIdInput = new QLineEdit("wo-" + QDateTime::currentDateTime().toString("yyyyMMddhhmmss"), &dialog);
+    auto* assetIdInput = new QLineEdit("asset-001", &dialog);
+    auto* alertIdInput = new QLineEdit("alert-001", &dialog);
+    auto* assigneeInput = new QLineEdit("maintainer", &dialog);
+    auto* summaryInput = new QTextEdit(&dialog);
+    summaryInput->setFixedHeight(84);
+    summaryInput->setPlainText("根据告警和 AI 诊断建议执行现场检查");
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addRow("工单编号", orderIdInput);
+    layout->addRow("设备编号", assetIdInput);
+    layout->addRow("来源告警", alertIdInput);
+    layout->addRow("处理人", assigneeInput);
+    layout->addRow("摘要", summaryInput);
+    layout->addRow(buttons);
+
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+    if (api_.createWorkOrder(orderIdInput->text(), assetIdInput->text(), alertIdInput->text(), summaryInput->toPlainText(), assigneeInput->text())) {
+        refreshWorkOrderTable();
+    }
+    QMessageBox::information(this, "工单操作", api_.statusMessage());
+}
+
+void MainWindow::handleAssignWorkOrder() {
+    const auto orderId = selectedWorkOrderId();
+    if (orderId.isEmpty()) {
+        api_.assignWorkOrder(orderId, QString{});
+        QMessageBox::information(this, "工单操作", api_.statusMessage());
+        return;
+    }
+    bool ok = false;
+    const auto assignee = QInputDialog::getText(this, "分派工单", "处理人", QLineEdit::Normal, "maintainer", &ok);
+    if (!ok) {
+        return;
+    }
+    if (api_.assignWorkOrder(orderId, assignee)) {
+        refreshWorkOrderTable();
+    }
+    QMessageBox::information(this, "工单操作", api_.statusMessage());
+}
 void MainWindow::handleStartWorkOrder() {
     const auto orderId = selectedWorkOrderId();
     if (api_.startWorkOrder(orderId)) {

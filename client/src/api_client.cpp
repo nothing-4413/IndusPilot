@@ -239,11 +239,56 @@ QVector<TableRow> ApiClient::workOrders() {
             stringValue(order, "assetId"),
             stringValue(order, "alertId"),
             stringValue(order, "state"),
-            stringValue(order, "assignee")}});
+            stringValue(order, "assignee"),
+            stringValue(order, "summary")}});
     }
     return rows;
 }
 
+
+bool ApiClient::createWorkOrder(const QString& orderId, const QString& assetId, const QString& alertId, const QString& summary, const QString& assignee) {
+    const auto normalizedId = orderId.trimmed();
+    const auto normalizedAssetId = assetId.trimmed();
+    const auto normalizedSummary = summary.trimmed();
+    if (token_.isEmpty()) {
+        statusMessage_ = "请先连接后端再创建工单";
+        return false;
+    }
+    if (normalizedId.isEmpty() || normalizedAssetId.isEmpty() || normalizedSummary.isEmpty()) {
+        statusMessage_ = "创建工单需要填写工单编号、设备编号和摘要";
+        return false;
+    }
+
+    QJsonObject payload;
+    payload["id"] = normalizedId;
+    payload["assetId"] = normalizedAssetId;
+    payload["summary"] = normalizedSummary;
+    const auto normalizedAlertId = alertId.trimmed();
+    if (!normalizedAlertId.isEmpty()) {
+        payload["alertId"] = normalizedAlertId;
+    }
+    const auto normalizedAssignee = assignee.trimmed();
+    if (!normalizedAssignee.isEmpty()) {
+        payload["assignee"] = normalizedAssignee;
+    }
+    return !postEnvelope("/api/v1/work-orders", payload, QJsonValue::Object, "工单创建成功", "工单创建失败").isEmpty();
+}
+
+bool ApiClient::assignWorkOrder(const QString& orderId, const QString& assignee) {
+    const auto normalizedAssignee = assignee.trimmed();
+    if (token_.isEmpty() || orderId.isEmpty()) {
+        statusMessage_ = "请先连接后端并选择工单";
+        return false;
+    }
+    if (normalizedAssignee.isEmpty()) {
+        statusMessage_ = "分派工单需要填写处理人";
+        return false;
+    }
+
+    QJsonObject payload;
+    payload["assignee"] = normalizedAssignee;
+    return !postEnvelope(workOrderActionPath(orderId, "assign"), payload, QJsonValue::Object, "工单分派成功", "工单分派失败").isEmpty();
+}
 bool ApiClient::startWorkOrder(const QString& orderId) {
     if (token_.isEmpty() || orderId.isEmpty()) {
         statusMessage_ = "请先连接后端并选择工单";
@@ -382,7 +427,7 @@ QVector<TableRow> ApiClient::offlineAlerts() const {
 }
 
 QVector<TableRow> ApiClient::offlineWorkOrders() const {
-    return {{{"wo-from-alert-001", "asset-001", "alert-001", "processing", "maintainer"}}};
+    return {{{"wo-from-alert-001", "asset-001", "alert-001", "processing", "maintainer", "温度异常现场处理"}}};
 }
 QVector<TableRow> ApiClient::offlineAiInteractions() const {
     return {{{"ai-interaction-demo", "alert", "alert-001", "温度异常上下文", "离线兜底诊断建议已生成，等待后端审计同步"}}};

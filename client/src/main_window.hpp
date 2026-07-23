@@ -37,6 +37,8 @@ private:
     void refreshAiInteractionTable();
     QString selectedWorkOrderId() const;
     void handleLogin();
+    void handleCreateWorkOrder();
+    void handleAssignWorkOrder();
     void handleStartWorkOrder();
     void handleCompleteWorkOrder();
     void handleCloseWorkOrder();

@@ -39,6 +39,8 @@ public:
     QVector<TableRow> monitoringStates();
     QVector<TableRow> alerts();
     QVector<TableRow> workOrders();
+    bool createWorkOrder(const QString& orderId, const QString& assetId, const QString& alertId, const QString& summary, const QString& assignee);
+    bool assignWorkOrder(const QString& orderId, const QString& assignee);
     bool startWorkOrder(const QString& orderId);
     bool completeWorkOrder(const QString& orderId, const QString& result);
     bool closeWorkOrder(const QString& orderId);
