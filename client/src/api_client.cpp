@@ -29,5 +29,5 @@ QVector<TableRow> ApiClient::workOrders() const {
 }
 
 QString ApiClient::aiUnavailableMessage() const {
-    return "AI 服务未启用：当前仅展示辅助诊断入口，核心告警和工单流程不受影响。";
+    return "离线演示客户端未连接后端 AI 服务：当前仅展示辅助诊断入口，核心告警和工单流程不受影响。";
 }

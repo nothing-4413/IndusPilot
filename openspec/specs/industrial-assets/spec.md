@@ -1,7 +1,7 @@
 # industrial-assets Specification
 
 ## Purpose
-TBD - created by archiving change define-induspilot-foundation. Update Purpose after archive.
+定义设备资产主数据、工厂/车间/产线层级筛选、资产查询以及生命周期状态维护能力，为监控、告警和工单提供统一资产上下文。
 ## Requirements
 ### Requirement: Equipment asset records
 The system SHALL manage equipment asset records with identity, type, location, status, ownership, and maintenance metadata.

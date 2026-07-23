@@ -1,7 +1,7 @@
 # maintenance-workflow Specification
 
 ## Purpose
-TBD - created by archiving change define-induspilot-foundation. Update Purpose after archive.
+定义维护工单创建、从告警转工单、分派、开始处理、完成、关闭以及资产维护历史查询能力，用于支撑维修闭环。
 ## Requirements
 ### Requirement: Work order lifecycle
 The system SHALL manage maintenance work orders through creation, assignment, processing, completion, and closure.

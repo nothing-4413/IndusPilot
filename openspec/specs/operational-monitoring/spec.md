@@ -1,7 +1,7 @@
 # operational-monitoring Specification
 
 ## Purpose
-TBD - created by archiving change define-induspilot-foundation. Update Purpose after archive.
+定义设备运行状态写入、单设备查询、状态列表和状态/严重度汇总能力，为告警触发和运维决策提供实时运行上下文。
 ## Requirements
 ### Requirement: Equipment status overview
 The system SHALL provide an overview of equipment operational status for dashboard and list views.

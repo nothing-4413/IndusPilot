@@ -1,7 +1,7 @@
 # identity-access Specification
 
 ## Purpose
-TBD - created by archiving change define-induspilot-foundation. Update Purpose after archive.
+定义用户认证、会话管理、角色权限映射和受保护接口访问边界，确保后端业务模块能够统一执行身份与授权检查。
 ## Requirements
 ### Requirement: User authentication
 The system SHALL allow users to authenticate before accessing protected industrial operations features.

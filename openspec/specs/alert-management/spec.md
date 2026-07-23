@@ -1,7 +1,7 @@
 # alert-management Specification
 
 ## Purpose
-TBD - created by archiving change define-induspilot-foundation. Update Purpose after archive.
+定义告警记录、严重度、确认、分派、解决和关闭生命周期，用于支撑工业现场异常事件从发现到闭环处置的完整流程。
 ## Requirements
 ### Requirement: Alert record lifecycle
 The system SHALL manage alert records from creation through acknowledgement, assignment, resolution, and closure.

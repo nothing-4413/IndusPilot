@@ -1,7 +1,7 @@
 # platform-foundation Specification
 
 ## Purpose
-TBD - created by archiving change define-induspilot-foundation. Update Purpose after archive.
+定义后端运行时、配置加载、依赖健康检查、统一 API 响应、模块化边界和生产化构建基础，支撑各业务模块独立演进。
 ## Requirements
 ### Requirement: Application foundation boundaries
 The system SHALL define separate foundation boundaries for the Qt client, C++ backend, data stores, and AI integration layer.

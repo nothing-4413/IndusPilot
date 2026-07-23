@@ -1,7 +1,7 @@
 # ai-diagnosis-assistance Specification
 
 ## Purpose
-TBD - created by archiving change define-induspilot-foundation. Update Purpose after archive.
+定义 AI 辅助诊断入口、降级建议和交互审计边界，使工业告警和维护流程可以在未接入外部推理服务时继续运行。
 ## Requirements
 ### Requirement: AI-assisted alert explanation
 The system SHALL provide optional AI-generated explanations for alerts based on alert details, equipment context, and available logs.

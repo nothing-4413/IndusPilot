@@ -15,7 +15,7 @@
 #include <QVBoxLayout>
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
-    setWindowTitle("IndusPilot 工业智能运维支持平台");
+    setWindowTitle("IndusPilot 工业智能运维支持平台（离线演示）");
     resize(1280, 760);
 
     auto* splitter = new QSplitter(this);
@@ -44,12 +44,12 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 QWidget* MainWindow::buildLoginPage() {
     auto* page = new QWidget(this);
     auto* layout = new QFormLayout(page);
-    layout->addRow(new QLabel("IndusPilot 登录"));
+    layout->addRow(new QLabel("IndusPilot 离线演示登录"));
     usernameInput_ = new QLineEdit("admin");
     passwordInput_ = new QLineEdit("admin123");
     passwordInput_->setEchoMode(QLineEdit::Password);
-    loginMessage_ = new QLabel("等待登录");
-    auto* loginButton = new QPushButton("进入平台");
+    loginMessage_ = new QLabel("等待离线演示登录");
+    auto* loginButton = new QPushButton("进入离线演示");
     connect(loginButton, &QPushButton::clicked, this, &MainWindow::handleLogin);
     layout->addRow("账号", usernameInput_);
     layout->addRow("密码", passwordInput_);
@@ -62,7 +62,7 @@ QWidget* MainWindow::buildDashboardPage() {
     auto* page = new QWidget(this);
     auto* layout = new QVBoxLayout(page);
     layout->addWidget(new QLabel("设备运行总览"));
-    layout->addWidget(new QLabel("在线设备：1    活跃告警：1    待处理工单：1    AI 建议：入口已预留"));
+    layout->addWidget(new QLabel("离线演示数据：在线设备 1    活跃告警 1    待处理工单 1    AI 建议入口已预留"));
     layout->addWidget(statusBadge("critical", "danger"));
     layout->addStretch();
     return page;
@@ -71,7 +71,7 @@ QWidget* MainWindow::buildDashboardPage() {
 QWidget* MainWindow::buildTablePage(const QString& title, const QStringList& headers, const QVector<TableRow>& rows) {
     auto* page = new QWidget(this);
     auto* layout = new QVBoxLayout(page);
-    layout->addWidget(new QLabel(title));
+    layout->addWidget(new QLabel(title + "（离线演示数据）"));
     auto* table = new QTableWidget(rows.size(), headers.size(), page);
     table->setHorizontalHeaderLabels(headers);
     for (int row = 0; row < rows.size(); ++row) {
@@ -106,9 +106,9 @@ QLabel* MainWindow::statusBadge(const QString& text, const QString& tone) {
 
 void MainWindow::handleLogin() {
     if (api_.login(usernameInput_->text(), passwordInput_->text())) {
-        loginMessage_->setText("登录成功：" + api_.currentUser());
+        loginMessage_->setText("离线演示登录成功：" + api_.currentUser());
         navigation_->setCurrentRow(1);
     } else {
-        loginMessage_->setText("登录失败：请输入账号和密码");
+        loginMessage_->setText("离线演示登录失败：请输入账号和密码");
     }
 }
