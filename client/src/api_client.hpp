@@ -13,6 +13,13 @@ struct TableRow {
     QStringList columns;
 };
 
+struct AiInteractionPage {
+    QVector<TableRow> rows;
+    int total{0};
+    int limit{10};
+    int offset{0};
+};
+
 struct AiDiagnosisInput {
     QString relatedType{"alert"};
     QString relatedId;
@@ -54,6 +61,7 @@ public:
     bool closeWorkOrder(const QString& orderId);
     QString diagnose(const AiDiagnosisInput& input);
     QVector<TableRow> aiInteractions(const QString& relatedType = QString(), const QString& relatedId = QString());
+    AiInteractionPage aiInteractionPage(const QString& relatedType, const QString& relatedId, int limit, int offset);
     QString aiUnavailableMessage() const;
 
 private:

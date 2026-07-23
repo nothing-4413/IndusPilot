@@ -11,6 +11,8 @@ class QComboBox;
 class QLabel;
 class QLineEdit;
 class QListWidget;
+class QPushButton;
+class QSpinBox;
 class QStackedWidget;
 class QTableWidget;
 class QTextEdit;
@@ -57,6 +59,9 @@ private:
     void handleCloseWorkOrder();
     void handleAiDiagnosis();
     void handleRefreshAiInteractions();
+    void handlePreviousAiAuditPage();
+    void handleNextAiAuditPage();
+    void handleAiAuditLimitChanged(int value);
     void handleExportAiInteractions();
 
     ApiClient api_;
@@ -89,5 +94,11 @@ private:
     QTextEdit* aiOperatorDescriptionInput_{nullptr};
     QTextEdit* aiPromptInput_{nullptr};
     QTextEdit* aiResultOutput_{nullptr};
+    QSpinBox* aiAuditLimitInput_{nullptr};
+    QLabel* aiAuditPageLabel_{nullptr};
+    QPushButton* aiAuditPrevButton_{nullptr};
+    QPushButton* aiAuditNextButton_{nullptr};
+    int aiAuditOffset_{0};
+    int aiAuditTotal_{0};
     QTableWidget* aiInteractionTable_{nullptr};
 };

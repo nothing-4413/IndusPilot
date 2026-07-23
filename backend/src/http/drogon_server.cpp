@@ -16,7 +16,11 @@
 
 #include <drogon/drogon.h>
 
+#include <algorithm>
+#include <cstddef>
 #include <memory>
+#include <optional>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -240,6 +244,33 @@ std::optional<modules::WorkOrderQuery> workOrderQueryFromRequest(const drogon::H
     }
     return query;
 }
+bool parsePaginationParameter(
+    const drogon::HttpRequestPtr& request,
+    const std::string& name,
+    int minValue,
+    int maxValue,
+    std::optional<int>& value,
+    std::string& error) {
+    const auto raw = request->getParameter(name);
+    if (raw.empty()) {
+        return true;
+    }
+
+    try {
+        std::size_t consumed = 0;
+        const auto parsed = std::stoi(raw, &consumed);
+        if (consumed != raw.size() || parsed < minValue || parsed > maxValue) {
+            error = name + " 必须是 " + std::to_string(minValue) + " 到 " + std::to_string(maxValue) + " 之间的整数";
+            return false;
+        }
+        value = parsed;
+        return true;
+    } catch (const std::exception&) {
+        error = name + " 必须是 " + std::to_string(minValue) + " 到 " + std::to_string(maxValue) + " 之间的整数";
+        return false;
+    }
+}
+
 Json::Value aiSuggestionToJson(const modules::AiSuggestion& suggestion) {
     Json::Value value;
     value["available"] = suggestion.available;
@@ -1083,11 +1114,40 @@ void registerRoutes(
         if (!relatedId.empty()) {
             query.relatedId = relatedId;
         }
-        Json::Value rows(Json::arrayValue);
-        for (const auto& interaction : ai->interactions(query)) {
-            rows.append(aiInteractionToJson(interaction));
+
+        std::optional<int> limit;
+        std::optional<int> offset;
+        std::string pageError;
+        if (!parsePaginationParameter(request, "limit", 1, 100, limit, pageError) ||
+            !parsePaginationParameter(request, "offset", 0, 1000000, offset, pageError)) {
+            callback(invalidRequest(pageError));
+            return;
         }
-        callback(jsonResponse(responseEnvelope(true, "OK", "AI interactions returned", rows)));
+
+        const auto interactions = ai->interactions(query);
+        Json::Value rows(Json::arrayValue);
+        if (!limit && !offset) {
+            for (const auto& interaction : interactions) {
+                rows.append(aiInteractionToJson(interaction));
+            }
+            callback(jsonResponse(responseEnvelope(true, "OK", "AI interactions returned", rows)));
+            return;
+        }
+
+        const auto effectiveLimit = limit.value_or(20);
+        const auto effectiveOffset = offset.value_or(0);
+        const auto start = std::min<std::size_t>(static_cast<std::size_t>(effectiveOffset), interactions.size());
+        const auto end = std::min<std::size_t>(start + static_cast<std::size_t>(effectiveLimit), interactions.size());
+        for (auto index = start; index < end; ++index) {
+            rows.append(aiInteractionToJson(interactions[index]));
+        }
+
+        Json::Value page(Json::objectValue);
+        page["items"] = rows;
+        page["total"] = static_cast<Json::UInt64>(interactions.size());
+        page["limit"] = effectiveLimit;
+        page["offset"] = effectiveOffset;
+        callback(jsonResponse(responseEnvelope(true, "OK", "AI interactions returned", page)));
     }, {drogon::Get});
 }
 

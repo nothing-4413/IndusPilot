@@ -25,6 +25,15 @@ QString workOrderActionPath(const QString& orderId, const QString& action) {
 QString alertActionPath(const QString& alertId, const QString& action) {
     return "/api/v1/alerts/" + QString::fromUtf8(QUrl::toPercentEncoding(alertId)) + "/" + action;
 }
+TableRow aiInteractionRow(const QJsonObject& item) {
+    return TableRow{{
+        stringValue(item, "id"),
+        stringValue(item, "relatedType"),
+        stringValue(item, "relatedId"),
+        stringValue(item, "input"),
+        stringValue(item, "output")}};
+}
+
 QStringList jsonStringArray(const QJsonArray& array) {
     QStringList result;
     for (const auto& value : array) {
@@ -553,17 +562,59 @@ QVector<TableRow> ApiClient::aiInteractions(const QString& relatedType, const QS
     QVector<TableRow> rows;
     const auto interactions = envelope.value("data").toArray();
     for (const auto& value : interactions) {
-        const auto item = value.toObject();
-        rows.push_back(TableRow{{
-            stringValue(item, "id"),
-            stringValue(item, "relatedType"),
-            stringValue(item, "relatedId"),
-            stringValue(item, "input"),
-            stringValue(item, "output")}});
+        rows.push_back(aiInteractionRow(value.toObject()));
     }
     statusMessage_ = rows.isEmpty() ? QStringLiteral("当前关联对象暂无 AI 交互审计") : QStringLiteral("AI 交互审计已同步");
     return rows;
 }
+AiInteractionPage ApiClient::aiInteractionPage(const QString& relatedType, const QString& relatedId, int limit, int offset) {
+    AiInteractionPage page;
+    page.limit = limit < 1 ? 10 : (limit > 100 ? 100 : limit);
+    page.offset = offset < 0 ? 0 : offset;
+
+    if (token_.isEmpty()) {
+        page.rows = offlineAiInteractions();
+        page.total = page.rows.size();
+        page.offset = 0;
+        statusMessage_ = "请先登录后端再查看 AI 交互审计，已显示离线演示记录";
+        return page;
+    }
+
+    QString path = "/api/v1/ai/interactions";
+    QUrlQuery query;
+    const auto normalizedType = relatedType.trimmed();
+    const auto normalizedId = relatedId.trimmed();
+    if (!normalizedType.isEmpty()) {
+        query.addQueryItem("relatedType", normalizedType);
+    }
+    if (!normalizedId.isEmpty()) {
+        query.addQueryItem("relatedId", normalizedId);
+    }
+    query.addQueryItem("limit", QString::number(page.limit));
+    query.addQueryItem("offset", QString::number(page.offset));
+    path += "?" + query.toString(QUrl::FullyEncoded);
+
+    const auto envelope = responseEnvelope(path, QJsonValue::Object);
+    const auto data = envelope.value("data").toObject();
+    if (envelope.isEmpty() || !data.value("items").isArray()) {
+        page.rows = offlineAiInteractions();
+        page.total = page.rows.size();
+        page.offset = 0;
+        statusMessage_ = "AI 交互审计分页同步失败，已显示离线演示记录";
+        return page;
+    }
+
+    const auto interactions = data.value("items").toArray();
+    for (const auto& value : interactions) {
+        page.rows.push_back(aiInteractionRow(value.toObject()));
+    }
+    page.total = data.value("total").toInt(page.rows.size());
+    page.limit = data.value("limit").toInt(page.limit);
+    page.offset = data.value("offset").toInt(page.offset);
+    statusMessage_ = page.rows.isEmpty() ? QStringLiteral("当前筛选条件暂无 AI 交互审计") : QStringLiteral("AI 交互审计分页已同步");
+    return page;
+}
+
 QString ApiClient::aiUnavailableMessage() const {
     return "当前客户端已接入登录、资产、运行监控、告警、工单和 AI 诊断入口；AI Provider 不可用时会展示降级建议，核心告警和工单流程不受影响。";
 }

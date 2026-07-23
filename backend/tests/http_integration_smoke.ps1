@@ -262,6 +262,15 @@ try {
     $aiInteractions = Invoke-RestMethod -Uri "$BaseUrl/api/v1/ai/interactions?relatedType=alert&relatedId=alert-it-001" -Method Get -Headers $operatorHeaders -TimeoutSec 10
     $aiMatch = @($aiInteractions.data) | Where-Object { $_.relatedId -eq "alert-it-001" }
     Assert-True (@($aiMatch).Count -ge 2) "AI interaction audit query failed."
+
+    $aiPage = Invoke-RestMethod -Uri "$BaseUrl/api/v1/ai/interactions?relatedType=alert&relatedId=alert-it-001&limit=1&offset=0" -Method Get -Headers $operatorHeaders -TimeoutSec 10
+    Assert-True ($aiPage.success) "AI interaction audit page query failed."
+    Assert-True (@($aiPage.data.items).Count -eq 1) "AI interaction audit page size did not match."
+    Assert-True ($aiPage.data.total -ge @($aiMatch).Count) "AI interaction audit page total was not returned."
+    Assert-True ($aiPage.data.limit -eq 1) "AI interaction audit page limit did not match."
+    Assert-True ($aiPage.data.offset -eq 0) "AI interaction audit page offset did not match."
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/ai/interactions?limit=0&offset=0" -Method Get -Status 400 -Headers $operatorHeaders
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/ai/interactions?limit=1&offset=-1" -Method Get -Status 400 -Headers $operatorHeaders
 } finally {
     if ($proc -and -not $proc.HasExited) {
         Stop-Process -Id $proc.Id -Force

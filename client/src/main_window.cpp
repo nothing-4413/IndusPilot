@@ -17,6 +17,7 @@
 #include <QListWidget>
 #include <QPushButton>
 #include <QSplitter>
+#include <QSpinBox>
 #include <QStackedWidget>
 #include <QTableWidget>
 #include <QTableWidgetItem>
@@ -268,9 +269,29 @@ QWidget* MainWindow::buildAiPage() {
     layout->addWidget(aiResultOutput_);
 
     layout->addWidget(new QLabel("AI 交互审计", page));
+    auto* pagerRow = new QWidget(page);
+    auto* pagerLayout = new QHBoxLayout(pagerRow);
+    aiAuditLimitInput_ = new QSpinBox(pagerRow);
+    aiAuditLimitInput_->setRange(1, 100);
+    aiAuditLimitInput_->setValue(10);
+    aiAuditPrevButton_ = new QPushButton(QStringLiteral("上一页"), pagerRow);
+    aiAuditNextButton_ = new QPushButton(QStringLiteral("下一页"), pagerRow);
+    aiAuditPageLabel_ = new QLabel(QStringLiteral("第 0-0 / 共 0 条"), pagerRow);
+    connect(aiAuditPrevButton_, &QPushButton::clicked, this, &MainWindow::handlePreviousAiAuditPage);
+    connect(aiAuditNextButton_, &QPushButton::clicked, this, &MainWindow::handleNextAiAuditPage);
+    connect(aiAuditLimitInput_, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::handleAiAuditLimitChanged);
+    pagerLayout->addWidget(new QLabel(QStringLiteral("每页"), pagerRow));
+    pagerLayout->addWidget(aiAuditLimitInput_);
+    pagerLayout->addWidget(new QLabel(QStringLiteral("条"), pagerRow));
+    pagerLayout->addWidget(aiAuditPrevButton_);
+    pagerLayout->addWidget(aiAuditNextButton_);
+    pagerLayout->addWidget(aiAuditPageLabel_);
+    pagerLayout->addStretch();
+    layout->addWidget(pagerRow);
+
     aiInteractionTable_ = new QTableWidget(page);
-    fillTable(aiInteractionTable_, {"编号", "关联类型", "关联对象", "输入", "输出"}, api_.aiInteractions());
     layout->addWidget(aiInteractionTable_);
+    refreshAiInteractionTable();
     return page;
 }
 
@@ -349,10 +370,33 @@ void MainWindow::refreshWorkOrderTable() {
 }
 
 void MainWindow::refreshAiInteractionTable() {
-    if (aiInteractionTable_) {
-        const auto relatedType = aiRelatedTypeInput_ ? aiRelatedTypeInput_->currentText() : QString{};
-        const auto relatedId = aiRelatedIdInput_ ? aiRelatedIdInput_->text() : QString{};
-        fillTable(aiInteractionTable_, {"编号", "关联类型", "关联对象", "输入", "输出"}, api_.aiInteractions(relatedType, relatedId));
+    if (!aiInteractionTable_) {
+        return;
+    }
+
+    const auto relatedType = aiRelatedTypeInput_ ? aiRelatedTypeInput_->currentText() : QString{};
+    const auto relatedId = aiRelatedIdInput_ ? aiRelatedIdInput_->text() : QString{};
+    const auto limit = aiAuditLimitInput_ ? aiAuditLimitInput_->value() : 10;
+    auto page = api_.aiInteractionPage(relatedType, relatedId, limit, aiAuditOffset_);
+    if (page.total > 0 && page.offset >= page.total) {
+        aiAuditOffset_ = ((page.total - 1) / limit) * limit;
+        page = api_.aiInteractionPage(relatedType, relatedId, limit, aiAuditOffset_);
+    }
+
+    aiAuditOffset_ = page.offset;
+    aiAuditTotal_ = page.total;
+    fillTable(aiInteractionTable_, {"编号", "关联类型", "关联对象", "输入", "输出"}, page.rows);
+
+    if (aiAuditPageLabel_) {
+        const auto first = page.total == 0 ? 0 : page.offset + 1;
+        const auto last = page.offset + page.rows.size();
+        aiAuditPageLabel_->setText(QStringLiteral("第 %1-%2 / 共 %3 条").arg(first).arg(last).arg(page.total));
+    }
+    if (aiAuditPrevButton_) {
+        aiAuditPrevButton_->setEnabled(page.offset > 0);
+    }
+    if (aiAuditNextButton_) {
+        aiAuditNextButton_->setEnabled(page.offset + page.limit < page.total);
     }
 }
 
@@ -615,10 +659,33 @@ void MainWindow::handleAiDiagnosis() {
 }
 
 void MainWindow::handleRefreshAiInteractions() {
+    aiAuditOffset_ = 0;
     refreshAiInteractionTable();
     if (aiResultOutput_ && !api_.statusMessage().isEmpty()) {
         aiResultOutput_->setText(api_.statusMessage());
     }
+}
+
+void MainWindow::handlePreviousAiAuditPage() {
+    const auto limit = aiAuditLimitInput_ ? aiAuditLimitInput_->value() : 10;
+    aiAuditOffset_ -= limit;
+    if (aiAuditOffset_ < 0) {
+        aiAuditOffset_ = 0;
+    }
+    refreshAiInteractionTable();
+}
+
+void MainWindow::handleNextAiAuditPage() {
+    const auto limit = aiAuditLimitInput_ ? aiAuditLimitInput_->value() : 10;
+    if (aiAuditOffset_ + limit < aiAuditTotal_) {
+        aiAuditOffset_ += limit;
+    }
+    refreshAiInteractionTable();
+}
+
+void MainWindow::handleAiAuditLimitChanged(int) {
+    aiAuditOffset_ = 0;
+    refreshAiInteractionTable();
 }
 
 void MainWindow::handleExportAiInteractions() {

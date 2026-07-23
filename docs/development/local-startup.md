@@ -25,7 +25,7 @@ copy config/ai.example.yaml config/ai.yaml
 
 ## 默认后端和 Qt 客户端
 
-默认构建使用内存仓储和内存会话存储，适合快速验证 Qt 客户端和后端业务模块。客户端会读取 `config/client.example.json` 的 `apiBaseUrl`，后端可用时接入 HTTP 登录、资产列表与状态更新、运行监控列表与状态写入、告警创建/列表与处置、维护工单列表、新建/从告警生成/分派/基础流转、AI 结构化诊断入口和 AI 交互审计查询与 CSV 导出，后端不可用时保留离线演示数据：
+默认构建使用内存仓储和内存会话存储，适合快速验证 Qt 客户端和后端业务模块。客户端会读取 `config/client.example.json` 的 `apiBaseUrl`，后端可用时接入 HTTP 登录、资产列表与状态更新、运行监控列表与状态写入、告警创建/列表与处置、维护工单列表、新建/从告警生成/分派/基础流转、AI 结构化诊断入口和 AI 交互审计查询、分页与 CSV 导出，后端不可用时保留离线演示数据：
 
 ```powershell
 cmake -S . -B build/ninja-msvc-client -G Ninja -DINDUSPILOT_BUILD_CLIENT=ON -DCMAKE_PREFIX_PATH="D:/anaconda/Library"
@@ -74,4 +74,4 @@ $env:INDUSPILOT_REPOSITORY_STORE="mysql"
 .\build\dev-http\backend\induspilot-backend.exe config\backend.example.yaml
 ```
 
-生产部署前仍需要替换开发口令和演示盐值、补齐登录失败锁定、真实依赖集成测试、监控指标、外部 AI 推理传输，同时补充告警规则/通知联动、工单编辑/附件能力和 AI 审计分页能力。
+生产部署前仍需要替换开发口令和演示盐值、补齐登录失败锁定、真实依赖集成测试、监控指标、外部 AI 推理传输，同时补充告警规则/通知联动和工单编辑/附件能力。
