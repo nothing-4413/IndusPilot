@@ -181,8 +181,11 @@ QWidget* MainWindow::buildAiPage() {
     auto* actionRow = new QWidget(page);
     auto* actionLayout = new QHBoxLayout(actionRow);
     auto* diagnoseButton = new QPushButton("执行 AI 诊断", actionRow);
+    auto* refreshHistoryButton = new QPushButton("刷新交互审计", actionRow);
     connect(diagnoseButton, &QPushButton::clicked, this, &MainWindow::handleAiDiagnosis);
+    connect(refreshHistoryButton, &QPushButton::clicked, this, &MainWindow::handleRefreshAiInteractions);
     actionLayout->addWidget(diagnoseButton);
+    actionLayout->addWidget(refreshHistoryButton);
     actionLayout->addStretch();
     layout->addWidget(actionRow);
 
@@ -190,6 +193,11 @@ QWidget* MainWindow::buildAiPage() {
     aiResultOutput_->setReadOnly(true);
     aiResultOutput_->setText(api_.aiUnavailableMessage());
     layout->addWidget(aiResultOutput_);
+
+    layout->addWidget(new QLabel("AI 交互审计", page));
+    aiInteractionTable_ = new QTableWidget(page);
+    fillTable(aiInteractionTable_, {"编号", "关联类型", "关联对象", "输入", "输出"}, api_.aiInteractions());
+    layout->addWidget(aiInteractionTable_);
     return page;
 }
 
@@ -227,6 +235,7 @@ void MainWindow::refreshOnlineTables() {
         fillTable(alertTable_, {"级别", "设备", "标题", "状态", "负责人"}, api_.alerts());
     }
     refreshWorkOrderTable();
+    refreshAiInteractionTable();
 
     const auto modeText = api_.online() ? "后端同步" : "离线演示数据";
     if (assetModeLabel_) {
@@ -249,6 +258,14 @@ void MainWindow::refreshOnlineTables() {
 void MainWindow::refreshWorkOrderTable() {
     if (workOrderTable_) {
         fillTable(workOrderTable_, {"工单", "设备", "来源告警", "状态", "处理人"}, api_.workOrders());
+    }
+}
+
+void MainWindow::refreshAiInteractionTable() {
+    if (aiInteractionTable_) {
+        const auto relatedType = aiRelatedTypeInput_ ? aiRelatedTypeInput_->currentText() : QString{};
+        const auto relatedId = aiRelatedIdInput_ ? aiRelatedIdInput_->text() : QString{};
+        fillTable(aiInteractionTable_, {"编号", "关联类型", "关联对象", "输入", "输出"}, api_.aiInteractions(relatedType, relatedId));
     }
 }
 
@@ -321,8 +338,16 @@ void MainWindow::handleAiDiagnosis() {
     if (aiResultOutput_) {
         aiResultOutput_->setText(report.isEmpty() ? api_.statusMessage() : report);
     }
+    refreshAiInteractionTable();
     if (aiModeLabel_) {
         const auto modeText = api_.online() ? "后端同步" : "离线演示数据";
         aiModeLabel_->setText(QStringLiteral("AI 辅助诊断（") + modeText + QStringLiteral("）"));
+    }
+}
+
+void MainWindow::handleRefreshAiInteractions() {
+    refreshAiInteractionTable();
+    if (aiResultOutput_ && !api_.statusMessage().isEmpty()) {
+        aiResultOutput_->setText(api_.statusMessage());
     }
 }

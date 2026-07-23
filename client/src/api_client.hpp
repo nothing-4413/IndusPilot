@@ -43,6 +43,7 @@ public:
     bool completeWorkOrder(const QString& orderId, const QString& result);
     bool closeWorkOrder(const QString& orderId);
     QString diagnose(const AiDiagnosisInput& input);
+    QVector<TableRow> aiInteractions(const QString& relatedType = QString(), const QString& relatedId = QString());
     QString aiUnavailableMessage() const;
 
 private:
@@ -50,6 +51,7 @@ private:
     QVector<TableRow> offlineMonitoringStates() const;
     QVector<TableRow> offlineAlerts() const;
     QVector<TableRow> offlineWorkOrders() const;
+    QVector<TableRow> offlineAiInteractions() const;
     QString offlineAiDiagnosis(const AiDiagnosisInput& input) const;
     QJsonObject responseEnvelope(const QString& path, QJsonValue::Type dataType);
     QJsonObject postEnvelope(

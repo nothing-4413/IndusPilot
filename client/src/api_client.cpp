@@ -10,6 +10,7 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QTimer>
+#include <QUrlQuery>
 
 namespace {
 
@@ -323,6 +324,47 @@ QString ApiClient::diagnose(const AiDiagnosisInput& input) {
     }
     return diagnosisReport(envelope.value("data").toObject());
 }
+
+QVector<TableRow> ApiClient::aiInteractions(const QString& relatedType, const QString& relatedId) {
+    if (token_.isEmpty()) {
+        statusMessage_ = "请先登录后端再查看 AI 交互审计，已显示离线演示记录";
+        return offlineAiInteractions();
+    }
+
+    QString path = "/api/v1/ai/interactions";
+    QUrlQuery query;
+    const auto normalizedType = relatedType.trimmed();
+    const auto normalizedId = relatedId.trimmed();
+    if (!normalizedType.isEmpty()) {
+        query.addQueryItem("relatedType", normalizedType);
+    }
+    if (!normalizedId.isEmpty()) {
+        query.addQueryItem("relatedId", normalizedId);
+    }
+    if (!query.isEmpty()) {
+        path += "?" + query.toString(QUrl::FullyEncoded);
+    }
+
+    const auto envelope = responseEnvelope(path, QJsonValue::Array);
+    if (envelope.isEmpty()) {
+        statusMessage_ = "AI 交互审计同步失败，已显示离线演示记录";
+        return offlineAiInteractions();
+    }
+
+    QVector<TableRow> rows;
+    const auto interactions = envelope.value("data").toArray();
+    for (const auto& value : interactions) {
+        const auto item = value.toObject();
+        rows.push_back(TableRow{{
+            stringValue(item, "id"),
+            stringValue(item, "relatedType"),
+            stringValue(item, "relatedId"),
+            stringValue(item, "input"),
+            stringValue(item, "output")}});
+    }
+    statusMessage_ = rows.isEmpty() ? QStringLiteral("当前关联对象暂无 AI 交互审计") : QStringLiteral("AI 交互审计已同步");
+    return rows;
+}
 QString ApiClient::aiUnavailableMessage() const {
     return "当前客户端已接入登录、资产、运行监控、告警、工单和 AI 诊断入口；AI Provider 不可用时会展示降级建议，核心告警和工单流程不受影响。";
 }
@@ -341,6 +383,9 @@ QVector<TableRow> ApiClient::offlineAlerts() const {
 
 QVector<TableRow> ApiClient::offlineWorkOrders() const {
     return {{{"wo-from-alert-001", "asset-001", "alert-001", "processing", "maintainer"}}};
+}
+QVector<TableRow> ApiClient::offlineAiInteractions() const {
+    return {{{"ai-interaction-demo", "alert", "alert-001", "温度异常上下文", "离线兜底诊断建议已生成，等待后端审计同步"}}};
 }
 QString ApiClient::offlineAiDiagnosis(const AiDiagnosisInput& input) const {
     const auto relatedId = input.relatedId.trimmed().isEmpty() ? QStringLiteral("未指定对象") : input.relatedId.trimmed();
@@ -403,7 +448,13 @@ QUrl ApiClient::endpoint(const QString& path) const {
     if (basePath.endsWith('/')) {
         basePath.chop(1);
     }
-    url.setPath(basePath + path);
+
+    const auto queryStart = path.indexOf('?');
+    const auto pathOnly = queryStart >= 0 ? path.left(queryStart) : path;
+    url.setPath(basePath + pathOnly);
+    if (queryStart >= 0) {
+        url.setQuery(path.mid(queryStart + 1));
+    }
     return url;
 }
 

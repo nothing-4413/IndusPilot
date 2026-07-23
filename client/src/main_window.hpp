@@ -34,12 +34,14 @@ private:
     void fillTable(QTableWidget* table, const QStringList& headers, const QVector<TableRow>& rows);
     void refreshOnlineTables();
     void refreshWorkOrderTable();
+    void refreshAiInteractionTable();
     QString selectedWorkOrderId() const;
     void handleLogin();
     void handleStartWorkOrder();
     void handleCompleteWorkOrder();
     void handleCloseWorkOrder();
     void handleAiDiagnosis();
+    void handleRefreshAiInteractions();
 
     ApiClient api_;
     QLineEdit* usernameInput_{nullptr};
@@ -67,4 +69,5 @@ private:
     QTextEdit* aiOperatorDescriptionInput_{nullptr};
     QTextEdit* aiPromptInput_{nullptr};
     QTextEdit* aiResultOutput_{nullptr};
+    QTableWidget* aiInteractionTable_{nullptr};
 };
