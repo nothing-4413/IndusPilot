@@ -45,6 +45,7 @@ private:
     void handleAssignAlert();
     void handleResolveAlert();
     void handleCloseAlert();
+    void handleCreateWorkOrderFromAlert();
     void handleCreateWorkOrder();
     void handleAssignWorkOrder();
     void handleStartWorkOrder();

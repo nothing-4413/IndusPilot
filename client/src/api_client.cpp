@@ -349,6 +349,27 @@ bool ApiClient::createWorkOrder(const QString& orderId, const QString& assetId, 
     return !postEnvelope("/api/v1/work-orders", payload, QJsonValue::Object, "工单创建成功", "工单创建失败").isEmpty();
 }
 
+bool ApiClient::createWorkOrderFromAlert(const QString& alertId, const QString& summary) {
+    const auto normalizedAlertId = alertId.trimmed();
+    const auto normalizedSummary = summary.trimmed();
+    if (token_.isEmpty()) {
+        statusMessage_ = QStringLiteral("请先连接后端再从告警生成工单");
+        return false;
+    }
+    if (normalizedAlertId.isEmpty()) {
+        statusMessage_ = QStringLiteral("请先选择需要生成工单的告警");
+        return false;
+    }
+    if (normalizedSummary.isEmpty()) {
+        statusMessage_ = QStringLiteral("从告警生成工单需要填写处置摘要");
+        return false;
+    }
+
+    QJsonObject payload;
+    payload["alertId"] = normalizedAlertId;
+    payload["summary"] = normalizedSummary;
+    return !postEnvelope("/api/v1/work-orders/from-alert", payload, QJsonValue::Object, QStringLiteral("已从告警生成维护工单"), QStringLiteral("从告警生成工单失败")).isEmpty();
+}
 bool ApiClient::assignWorkOrder(const QString& orderId, const QString& assignee) {
     const auto normalizedAssignee = assignee.trimmed();
     if (token_.isEmpty() || orderId.isEmpty()) {

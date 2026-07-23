@@ -130,14 +130,17 @@ QWidget* MainWindow::buildAlertPage() {
     auto* assignButton = new QPushButton("分派", actionRow);
     auto* resolveButton = new QPushButton("解决", actionRow);
     auto* closeButton = new QPushButton("关闭", actionRow);
+    auto* createWorkOrderButton = new QPushButton(QStringLiteral("生成工单"), actionRow);
     connect(acknowledgeButton, &QPushButton::clicked, this, &MainWindow::handleAcknowledgeAlert);
     connect(assignButton, &QPushButton::clicked, this, &MainWindow::handleAssignAlert);
     connect(resolveButton, &QPushButton::clicked, this, &MainWindow::handleResolveAlert);
     connect(closeButton, &QPushButton::clicked, this, &MainWindow::handleCloseAlert);
+    connect(createWorkOrderButton, &QPushButton::clicked, this, &MainWindow::handleCreateWorkOrderFromAlert);
     actionLayout->addWidget(acknowledgeButton);
     actionLayout->addWidget(assignButton);
     actionLayout->addWidget(resolveButton);
     actionLayout->addWidget(closeButton);
+    actionLayout->addWidget(createWorkOrderButton);
     actionLayout->addStretch();
     layout->addWidget(actionRow);
     return page;
@@ -400,6 +403,24 @@ void MainWindow::handleCloseAlert() {
         refreshAlertTable();
     }
     QMessageBox::information(this, "告警操作", api_.statusMessage());
+}
+void MainWindow::handleCreateWorkOrderFromAlert() {
+    const auto alertId = selectedAlertId();
+    if (alertId.isEmpty()) {
+        api_.createWorkOrderFromAlert(alertId, QString{});
+        QMessageBox::information(this, QStringLiteral("工单操作"), api_.statusMessage());
+        return;
+    }
+    bool ok = false;
+    const auto summary = QInputDialog::getText(this, QStringLiteral("从告警生成工单"), QStringLiteral("处置摘要"), QLineEdit::Normal, QStringLiteral("根据告警执行现场检查"), &ok);
+    if (!ok) {
+        return;
+    }
+    if (api_.createWorkOrderFromAlert(alertId, summary)) {
+        refreshWorkOrderTable();
+        navigation_->setCurrentRow(5);
+    }
+    QMessageBox::information(this, QStringLiteral("工单操作"), api_.statusMessage());
 }
 void MainWindow::handleCreateWorkOrder() {
     QDialog dialog(this);

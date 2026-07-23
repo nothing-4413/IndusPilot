@@ -45,6 +45,7 @@ public:
     bool closeAlert(const QString& alertId);
     QVector<TableRow> workOrders();
     bool createWorkOrder(const QString& orderId, const QString& assetId, const QString& alertId, const QString& summary, const QString& assignee);
+    bool createWorkOrderFromAlert(const QString& alertId, const QString& summary);
     bool assignWorkOrder(const QString& orderId, const QString& assignee);
     bool startWorkOrder(const QString& orderId);
     bool completeWorkOrder(const QString& orderId, const QString& result);
