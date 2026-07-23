@@ -61,12 +61,14 @@ ctest --preset dev-http
 
 ## Qt 客户端联机
 
-Qt 客户端会读取 `config/client.example.json` 中的 `apiBaseUrl`。第一阶段已接入：
+Qt 客户端会读取 `config/client.example.json` 中的 `apiBaseUrl`。当前已接入：
 
 - `POST /api/v1/auth/login`：登录成功后保存 Bearer token。
 - `GET /api/v1/assets`：登录后同步资产列表。
+- `GET /api/v1/monitoring/states`：登录后同步运行监控列表。
+- `GET /api/v1/alerts`：登录后同步告警列表。
 
-如果后端不可达，客户端会保留离线演示数据并在登录页提示当前模式。运行监控、告警、工单和 AI 页面仍为离线兜底，后续按模块接入。
+如果后端不可达，客户端会保留离线演示数据并在登录页提示当前模式。工单和 AI 页面仍为离线兜底，监控/告警写操作后续按模块接入。
 ## 错误响应
 
 - INVALID_REQUEST：请求体缺少必要字段或格式无效。

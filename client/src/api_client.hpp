@@ -3,6 +3,7 @@
 #include <QString>
 #include <QStringList>
 #include <QUrl>
+#include <QJsonValue>
 #include <QVector>
 
 class QNetworkAccessManager;
@@ -20,13 +21,16 @@ public:
     QString statusMessage() const;
     bool online() const;
     QVector<TableRow> assets();
-    QVector<TableRow> monitoringStates() const;
-    QVector<TableRow> alerts() const;
+    QVector<TableRow> monitoringStates();
+    QVector<TableRow> alerts();
     QVector<TableRow> workOrders() const;
     QString aiUnavailableMessage() const;
 
 private:
     QVector<TableRow> offlineAssets() const;
+    QVector<TableRow> offlineMonitoringStates() const;
+    QVector<TableRow> offlineAlerts() const;
+    QJsonObject responseEnvelope(const QString& path, QJsonValue::Type dataType);
     QUrl endpoint(const QString& path) const;
     QByteArray requestJson(const QString& method, const QString& path, const QByteArray& body = QByteArray());
     void loadConfig();

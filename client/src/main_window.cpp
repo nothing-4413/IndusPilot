@@ -28,8 +28,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     pages_->addWidget(buildLoginPage());
     pages_->addWidget(buildDashboardPage());
     pages_->addWidget(buildAssetPage());
-    pages_->addWidget(buildTablePage("运行监控", {"设备", "状态", "指标", "更新时间"}, api_.monitoringStates()));
-    pages_->addWidget(buildTablePage("告警中心", {"级别", "设备", "标题", "状态", "负责人"}, api_.alerts()));
+    pages_->addWidget(buildMonitoringPage());
+    pages_->addWidget(buildAlertPage());
     pages_->addWidget(buildTablePage("维护工单", {"工单", "设备", "来源告警", "状态", "处理人"}, api_.workOrders()));
     pages_->addWidget(buildAiPage());
 
@@ -49,7 +49,7 @@ QWidget* MainWindow::buildLoginPage() {
     passwordInput_ = new QLineEdit("admin123");
     passwordInput_->setEchoMode(QLineEdit::Password);
     loginMessage_ = new QLabel(api_.statusMessage());
-    auto* loginButton = new QPushButton("登录并同步资产");
+    auto* loginButton = new QPushButton("登录并同步列表");
     connect(loginButton, &QPushButton::clicked, this, &MainWindow::handleLogin);
     layout->addRow("账号", usernameInput_);
     layout->addRow("密码", passwordInput_);
@@ -62,7 +62,7 @@ QWidget* MainWindow::buildDashboardPage() {
     auto* page = new QWidget(this);
     auto* layout = new QVBoxLayout(page);
     layout->addWidget(new QLabel("设备运行总览"));
-    layout->addWidget(new QLabel("基础联机阶段：登录和资产列表可接入后端，其他模块保留离线演示数据。"));
+    layout->addWidget(new QLabel("基础联机阶段：登录、资产、运行监控和告警列表可接入后端，工单与 AI 保留离线演示数据。"));
     layout->addWidget(statusBadge("critical", "danger"));
     layout->addStretch();
     return page;
@@ -76,6 +76,28 @@ QWidget* MainWindow::buildAssetPage() {
     assetTable_ = new QTableWidget(page);
     fillTable(assetTable_, {"编号", "名称", "类型", "产线", "状态"}, api_.assets());
     layout->addWidget(assetTable_);
+    return page;
+}
+
+QWidget* MainWindow::buildMonitoringPage() {
+    auto* page = new QWidget(this);
+    auto* layout = new QVBoxLayout(page);
+    monitoringModeLabel_ = new QLabel("运行监控（离线演示数据）", page);
+    layout->addWidget(monitoringModeLabel_);
+    monitoringTable_ = new QTableWidget(page);
+    fillTable(monitoringTable_, {"设备", "状态", "指标", "更新时间"}, api_.monitoringStates());
+    layout->addWidget(monitoringTable_);
+    return page;
+}
+
+QWidget* MainWindow::buildAlertPage() {
+    auto* page = new QWidget(this);
+    auto* layout = new QVBoxLayout(page);
+    alertModeLabel_ = new QLabel("告警中心（离线演示数据）", page);
+    layout->addWidget(alertModeLabel_);
+    alertTable_ = new QTableWidget(page);
+    fillTable(alertTable_, {"级别", "设备", "标题", "状态", "负责人"}, api_.alerts());
+    layout->addWidget(alertTable_);
     return page;
 }
 
@@ -123,20 +145,33 @@ void MainWindow::fillTable(QTableWidget* table, const QStringList& headers, cons
     table->setEditTriggers(QAbstractItemView::NoEditTriggers);
 }
 
-void MainWindow::refreshAssetTable() {
-    if (!assetTable_) {
-        return;
+void MainWindow::refreshOnlineTables() {
+    if (assetTable_) {
+        fillTable(assetTable_, {"编号", "名称", "类型", "产线", "状态"}, api_.assets());
     }
-    fillTable(assetTable_, {"编号", "名称", "类型", "产线", "状态"}, api_.assets());
+    if (monitoringTable_) {
+        fillTable(monitoringTable_, {"设备", "状态", "指标", "更新时间"}, api_.monitoringStates());
+    }
+    if (alertTable_) {
+        fillTable(alertTable_, {"级别", "设备", "标题", "状态", "负责人"}, api_.alerts());
+    }
+
+    const auto modeText = api_.online() ? "后端同步" : "离线演示数据";
     if (assetModeLabel_) {
-        assetModeLabel_->setText(api_.online() ? "设备资产（后端同步）" : "设备资产（离线演示数据）");
+        assetModeLabel_->setText(QStringLiteral("设备资产（") + modeText + QStringLiteral("）"));
+    }
+    if (monitoringModeLabel_) {
+        monitoringModeLabel_->setText(QStringLiteral("运行监控（") + modeText + QStringLiteral("）"));
+    }
+    if (alertModeLabel_) {
+        alertModeLabel_->setText(QStringLiteral("告警中心（") + modeText + QStringLiteral("）"));
     }
 }
 
 void MainWindow::handleLogin() {
     if (api_.login(usernameInput_->text(), passwordInput_->text())) {
         loginMessage_->setText(api_.statusMessage() + "；当前用户：" + api_.currentUser());
-        refreshAssetTable();
+        refreshOnlineTables();
         navigation_->setCurrentRow(1);
     } else {
         loginMessage_->setText("登录失败：" + api_.statusMessage());

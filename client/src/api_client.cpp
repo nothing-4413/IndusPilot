@@ -94,16 +94,8 @@ QVector<TableRow> ApiClient::assets() {
         return offlineAssets();
     }
 
-    const auto response = requestJson("GET", "/api/v1/assets");
-    if (response.isEmpty()) {
-        token_.clear();
-        return offlineAssets();
-    }
-
-    const auto document = QJsonDocument::fromJson(response);
-    const auto envelope = document.object();
-    if (!envelope.value("success").toBool(false) || !envelope.value("data").isArray()) {
-        token_.clear();
+    const auto envelope = responseEnvelope("/api/v1/assets", QJsonValue::Array);
+    if (envelope.isEmpty()) {
         statusMessage_ = "资产列表同步失败，已显示离线演示数据";
         return offlineAssets();
     }
@@ -125,12 +117,55 @@ QVector<TableRow> ApiClient::assets() {
     return rows;
 }
 
-QVector<TableRow> ApiClient::monitoringStates() const {
-    return {{{"一号产线主电机", "warning", "温度偏高", "now"}}};
+QVector<TableRow> ApiClient::monitoringStates() {
+    if (token_.isEmpty()) {
+        return offlineMonitoringStates();
+    }
+
+    const auto envelope = responseEnvelope("/api/v1/monitoring/states", QJsonValue::Object);
+    const auto data = envelope.value("data").toObject();
+    if (envelope.isEmpty() || !data.value("items").isArray()) {
+        statusMessage_ = "运行监控同步失败，已显示离线演示数据";
+        return offlineMonitoringStates();
+    }
+
+    QVector<TableRow> rows;
+    const auto states = data.value("items").toArray();
+    for (const auto& value : states) {
+        const auto state = value.toObject();
+        rows.push_back(TableRow{{
+            stringValue(state, "assetId"),
+            stringValue(state, "state"),
+            stringValue(state, "metricSummary"),
+            stringValue(state, "updatedAt")}});
+    }
+    return rows;
 }
 
-QVector<TableRow> ApiClient::alerts() const {
-    return {{{"critical", "一号产线主电机", "温度异常", "已分派", "maintainer"}}};
+QVector<TableRow> ApiClient::alerts() {
+    if (token_.isEmpty()) {
+        return offlineAlerts();
+    }
+
+    const auto envelope = responseEnvelope("/api/v1/alerts", QJsonValue::Array);
+    if (envelope.isEmpty()) {
+        statusMessage_ = "告警列表同步失败，已显示离线演示数据";
+        return offlineAlerts();
+    }
+
+    QVector<TableRow> rows;
+    const auto alerts = envelope.value("data").toArray();
+    for (const auto& value : alerts) {
+        const auto alert = value.toObject();
+        const auto assignee = stringValue(alert, "assignedTo").isEmpty() ? stringValue(alert, "acknowledgedBy") : stringValue(alert, "assignedTo");
+        rows.push_back(TableRow{{
+            stringValue(alert, "severity"),
+            stringValue(alert, "assetId"),
+            stringValue(alert, "title"),
+            stringValue(alert, "state"),
+            assignee}});
+    }
+    return rows;
 }
 
 QVector<TableRow> ApiClient::workOrders() const {
@@ -138,11 +173,36 @@ QVector<TableRow> ApiClient::workOrders() const {
 }
 
 QString ApiClient::aiUnavailableMessage() const {
-    return "当前客户端第一阶段仅接入登录和资产列表；AI 诊断页仍使用离线演示入口，核心告警和工单流程不受影响。";
+    return "当前客户端已接入登录、资产、运行监控和告警列表；AI 诊断页仍使用离线演示入口，核心告警和工单流程不受影响。";
 }
 
 QVector<TableRow> ApiClient::offlineAssets() const {
     return {{{"asset-001", "一号产线主电机", "motor", "一号产线", "维护中"}}};
+}
+
+QVector<TableRow> ApiClient::offlineMonitoringStates() const {
+    return {{{"asset-001", "warning", "温度偏高", "now"}}};
+}
+
+QVector<TableRow> ApiClient::offlineAlerts() const {
+    return {{{"critical", "asset-001", "温度异常", "已分派", "maintainer"}}};
+}
+
+QJsonObject ApiClient::responseEnvelope(const QString& path, QJsonValue::Type dataType) {
+    const auto response = requestJson("GET", path);
+    if (response.isEmpty()) {
+        return {};
+    }
+
+    const auto envelope = QJsonDocument::fromJson(response).object();
+    const auto data = envelope.value("data");
+    if (!envelope.value("success").toBool(false) || data.type() != dataType) {
+        if (envelope.value("code").toString().startsWith("AUTH")) {
+            token_.clear();
+        }
+        return {};
+    }
+    return envelope;
 }
 
 QUrl ApiClient::endpoint(const QString& path) const {
