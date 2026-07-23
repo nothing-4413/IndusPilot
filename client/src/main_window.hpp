@@ -41,6 +41,7 @@ private:
     QString selectedWorkOrderId() const;
     void handleLogin();
     void handleSubmitMonitoringState();
+    void handleCreateAlert();
     void handleAcknowledgeAlert();
     void handleAssignAlert();
     void handleResolveAlert();

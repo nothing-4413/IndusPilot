@@ -255,6 +255,43 @@ QVector<TableRow> ApiClient::alerts() {
 }
 
 
+bool ApiClient::createAlert(const QString& alertId, const QString& assetId, const QString& severity, const QString& state, const QString& title, const QString& assignedTo) {
+    const auto normalizedAlertId = alertId.trimmed();
+    const auto normalizedAssetId = assetId.trimmed();
+    const auto normalizedSeverity = severity.trimmed();
+    const auto normalizedState = state.trimmed();
+    const auto normalizedTitle = title.trimmed();
+    const auto normalizedAssignedTo = assignedTo.trimmed();
+    if (token_.isEmpty()) {
+        statusMessage_ = QStringLiteral("请先连接后端再创建告警");
+        return false;
+    }
+    if (normalizedAlertId.isEmpty() || normalizedAssetId.isEmpty() || normalizedSeverity.isEmpty() || normalizedTitle.isEmpty()) {
+        statusMessage_ = QStringLiteral("创建告警需要填写告警编号、设备编号、级别和标题");
+        return false;
+    }
+    if (!QStringList{"info", "warning", "critical"}.contains(normalizedSeverity)) {
+        statusMessage_ = QStringLiteral("告警级别只允许 info、warning、critical");
+        return false;
+    }
+    if (!normalizedState.isEmpty() && !QStringList{"open", "acknowledged", "assigned", "resolved", "closed"}.contains(normalizedState)) {
+        statusMessage_ = QStringLiteral("告警状态只允许 open、acknowledged、assigned、resolved、closed");
+        return false;
+    }
+
+    QJsonObject payload;
+    payload["id"] = normalizedAlertId;
+    payload["assetId"] = normalizedAssetId;
+    payload["severity"] = normalizedSeverity;
+    payload["title"] = normalizedTitle;
+    if (!normalizedState.isEmpty()) {
+        payload["state"] = normalizedState;
+    }
+    if (!normalizedAssignedTo.isEmpty()) {
+        payload["assignedTo"] = normalizedAssignedTo;
+    }
+    return !postEnvelope("/api/v1/alerts", payload, QJsonValue::Object, QStringLiteral("告警创建成功"), QStringLiteral("告警创建失败")).isEmpty();
+}
 bool ApiClient::acknowledgeAlert(const QString& alertId) {
     if (token_.isEmpty() || alertId.isEmpty()) {
         statusMessage_ = "请先连接后端并选择告警";

@@ -126,16 +126,19 @@ QWidget* MainWindow::buildAlertPage() {
 
     auto* actionRow = new QWidget(page);
     auto* actionLayout = new QHBoxLayout(actionRow);
+    auto* createButton = new QPushButton(QStringLiteral("创建告警"), actionRow);
     auto* acknowledgeButton = new QPushButton("确认", actionRow);
     auto* assignButton = new QPushButton("分派", actionRow);
     auto* resolveButton = new QPushButton("解决", actionRow);
     auto* closeButton = new QPushButton("关闭", actionRow);
     auto* createWorkOrderButton = new QPushButton(QStringLiteral("生成工单"), actionRow);
+    connect(createButton, &QPushButton::clicked, this, &MainWindow::handleCreateAlert);
     connect(acknowledgeButton, &QPushButton::clicked, this, &MainWindow::handleAcknowledgeAlert);
     connect(assignButton, &QPushButton::clicked, this, &MainWindow::handleAssignAlert);
     connect(resolveButton, &QPushButton::clicked, this, &MainWindow::handleResolveAlert);
     connect(closeButton, &QPushButton::clicked, this, &MainWindow::handleCloseAlert);
     connect(createWorkOrderButton, &QPushButton::clicked, this, &MainWindow::handleCreateWorkOrderFromAlert);
+    actionLayout->addWidget(createButton);
     actionLayout->addWidget(acknowledgeButton);
     actionLayout->addWidget(assignButton);
     actionLayout->addWidget(resolveButton);
@@ -362,6 +365,38 @@ void MainWindow::handleSubmitMonitoringState() {
         refreshMonitoringTable();
     }
     QMessageBox::information(this, QStringLiteral("运行监控"), api_.statusMessage());
+}
+void MainWindow::handleCreateAlert() {
+    QDialog dialog(this);
+    dialog.setWindowTitle(QStringLiteral("创建告警"));
+    auto* layout = new QFormLayout(&dialog);
+    auto* alertIdInput = new QLineEdit("alert-" + QDateTime::currentDateTime().toString("yyyyMMddhhmmss"), &dialog);
+    auto* assetIdInput = new QLineEdit("asset-001", &dialog);
+    auto* severityInput = new QComboBox(&dialog);
+    severityInput->addItems({"info", "warning", "critical"});
+    severityInput->setCurrentText("warning");
+    auto* stateInput = new QComboBox(&dialog);
+    stateInput->addItems({"open", "acknowledged", "assigned", "resolved", "closed"});
+    auto* titleInput = new QLineEdit(QStringLiteral("现场巡检发现异常"), &dialog);
+    auto* assigneeInput = new QLineEdit(&dialog);
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addRow(QStringLiteral("告警编号"), alertIdInput);
+    layout->addRow(QStringLiteral("设备编号"), assetIdInput);
+    layout->addRow(QStringLiteral("告警级别"), severityInput);
+    layout->addRow(QStringLiteral("告警状态"), stateInput);
+    layout->addRow(QStringLiteral("告警标题"), titleInput);
+    layout->addRow(QStringLiteral("负责人"), assigneeInput);
+    layout->addRow(buttons);
+
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+    if (api_.createAlert(alertIdInput->text(), assetIdInput->text(), severityInput->currentText(), stateInput->currentText(), titleInput->text(), assigneeInput->text())) {
+        refreshAlertTable();
+    }
+    QMessageBox::information(this, QStringLiteral("告警操作"), api_.statusMessage());
 }
 void MainWindow::handleAcknowledgeAlert() {
     const auto alertId = selectedAlertId();

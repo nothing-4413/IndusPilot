@@ -39,6 +39,7 @@ public:
     QVector<TableRow> monitoringStates();
     bool writeMonitoringState(const QString& assetId, const QString& state, const QString& metricSummary, const QString& severity);
     QVector<TableRow> alerts();
+    bool createAlert(const QString& alertId, const QString& assetId, const QString& severity, const QString& state, const QString& title, const QString& assignedTo);
     bool acknowledgeAlert(const QString& alertId);
     bool assignAlert(const QString& alertId, const QString& assignee);
     bool resolveAlert(const QString& alertId);
