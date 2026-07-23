@@ -44,6 +44,10 @@ public:
     virtual domain::Alert save(domain::Alert alert) = 0;
     virtual std::vector<domain::Alert> list() const = 0;
     virtual std::optional<domain::Alert> findById(const std::string& id) const = 0;
+    virtual domain::AlertRule saveRule(domain::AlertRule rule) = 0;
+    virtual std::vector<domain::AlertRule> listRules() const = 0;
+    virtual domain::AlertNotification saveNotification(domain::AlertNotification notification) = 0;
+    virtual std::vector<domain::AlertNotification> listNotifications() const = 0;
 };
 
 class WorkOrderRepository {

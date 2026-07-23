@@ -37,6 +37,26 @@ struct Alert {
     std::string assignedTo;
 };
 
+struct AlertRule {
+    std::string id;
+    std::string name;
+    std::string assetId;
+    std::string minSeverity{"warning"};
+    std::string channel{"console"};
+    std::string target;
+    bool enabled{true};
+};
+
+struct AlertNotification {
+    std::string id;
+    std::string alertId;
+    std::string ruleId;
+    std::string channel;
+    std::string target;
+    std::string status{"queued"};
+    std::string message;
+};
+
 struct WorkOrderAttachment {
     std::string id;
     std::string workOrderId;

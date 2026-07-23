@@ -93,6 +93,31 @@ std::optional<domain::Alert> InMemoryAlertRepository::findById(const std::string
     return it->second;
 }
 
+domain::AlertRule InMemoryAlertRepository::saveRule(domain::AlertRule rule) {
+    rules_[rule.id] = rule;
+    return rule;
+}
+
+std::vector<domain::AlertRule> InMemoryAlertRepository::listRules() const {
+    std::vector<domain::AlertRule> rules;
+    for (const auto& item : rules_) {
+        rules.push_back(item.second);
+    }
+    return rules;
+}
+
+domain::AlertNotification InMemoryAlertRepository::saveNotification(domain::AlertNotification notification) {
+    notifications_[notification.id] = notification;
+    return notification;
+}
+
+std::vector<domain::AlertNotification> InMemoryAlertRepository::listNotifications() const {
+    std::vector<domain::AlertNotification> notifications;
+    for (const auto& item : notifications_) {
+        notifications.push_back(item.second);
+    }
+    return notifications;
+}
 domain::WorkOrder InMemoryWorkOrderRepository::save(domain::WorkOrder order) {
     orders_[order.id] = order;
     return order;

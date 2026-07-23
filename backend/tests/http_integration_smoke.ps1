@@ -159,7 +159,18 @@ try {
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/alerts" -Method Post -Status 403 -Headers $maintainerHeaders -Body '{"id":"alert-denied","assetId":"asset-it-001","severity":"warning","title":"denied"}'
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/alerts" -Method Post -Status 400 -Headers $operatorHeaders -Body '{"id":"alert-bad","assetId":"asset-it-001","severity":"bad","title":"bad"}'
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/alerts" -Method Post -Status 400 -Headers $operatorHeaders -Body '{"id":"alert-bad-state","assetId":"asset-it-001","severity":"warning","state":"bad","title":"bad"}'
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/alert-rules" -Method Post -Status 403 -Headers $maintainerHeaders -Body '{"id":"rule-denied","name":"denied","minSeverity":"warning","channel":"console","target":"lead"}'
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/alert-rules" -Method Post -Status 400 -Headers $operatorHeaders -Body '{"id":"rule-bad","name":"bad","minSeverity":"bad","channel":"console","target":"lead"}'
 
+    $alertRuleBody = '{"id":"rule-it-critical","name":"critical alert fanout","assetId":"asset-it-001","minSeverity":"warning","channel":"console","target":"shift-lead","enabled":true}'
+    $alertRule = Invoke-RestMethod -Uri "$BaseUrl/api/v1/alert-rules" -Method Post -Headers $operatorHeaders -ContentType "application/json" -Body $alertRuleBody -TimeoutSec 10
+    Assert-True $alertRule.success "Alert rule creation failed."
+    Assert-True ($alertRule.data.id -eq "rule-it-critical") "Alert rule id did not match."
+    Assert-True ($alertRule.data.enabled -eq $true) "Alert rule enabled state did not match."
+
+    $alertRules = Invoke-RestMethod -Uri "$BaseUrl/api/v1/alert-rules" -Method Get -Headers $operatorHeaders -TimeoutSec 10
+    $alertRuleMatch = @($alertRules.data) | Where-Object { $_.id -eq "rule-it-critical" }
+    Assert-True (@($alertRuleMatch).Count -eq 1) "Alert rule query failed."
     $alertBody = '{"id":"alert-it-001","assetId":"asset-it-001","severity":"critical","title":"temperature critical"}'
     $alert = Invoke-RestMethod -Uri "$BaseUrl/api/v1/alerts" -Method Post -Headers $operatorHeaders -ContentType "application/json" -Body $alertBody -TimeoutSec 10
     Assert-True $alert.success "Alert creation failed."
@@ -173,6 +184,12 @@ try {
     $criticalMatch = @($criticalAlerts.data) | Where-Object { $_.id -eq "alert-it-001" }
     Assert-True (@($criticalMatch).Count -eq 1) "Alert filtering failed."
 
+    $notifications = Invoke-RestMethod -Uri "$BaseUrl/api/v1/alert-notifications" -Method Get -Headers $operatorHeaders -TimeoutSec 10
+    $notificationMatch = @($notifications.data) | Where-Object { $_.alertId -eq "alert-it-001" -and $_.ruleId -eq "rule-it-critical" }
+    Assert-True (@($notificationMatch).Count -eq 1) "Alert notification fanout failed."
+    Assert-True ($notificationMatch[0].channel -eq "console") "Alert notification channel did not match."
+    Assert-True ($notificationMatch[0].target -eq "shift-lead") "Alert notification target did not match."
+    Assert-True ($notificationMatch[0].status -eq "queued") "Alert notification status did not match."
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/alerts/alert-it-001/assign" -Method Post -Status 400 -Headers $operatorHeaders -Body '{}'
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/alerts/not-exist/acknowledge" -Method Post -Status 404 -Headers $operatorHeaders
 

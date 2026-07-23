@@ -148,18 +148,24 @@ QWidget* MainWindow::buildAlertPage() {
     auto* actionRow = new QWidget(page);
     auto* actionLayout = new QHBoxLayout(actionRow);
     auto* createButton = new QPushButton(QStringLiteral("创建告警"), actionRow);
+    auto* rulesButton = new QPushButton(QStringLiteral("规则"), actionRow);
+    auto* notificationsButton = new QPushButton(QStringLiteral("通知"), actionRow);
     auto* acknowledgeButton = new QPushButton("确认", actionRow);
     auto* assignButton = new QPushButton("分派", actionRow);
     auto* resolveButton = new QPushButton("解决", actionRow);
     auto* closeButton = new QPushButton("关闭", actionRow);
     auto* createWorkOrderButton = new QPushButton(QStringLiteral("生成工单"), actionRow);
     connect(createButton, &QPushButton::clicked, this, &MainWindow::handleCreateAlert);
+    connect(rulesButton, &QPushButton::clicked, this, &MainWindow::handleAlertRules);
+    connect(notificationsButton, &QPushButton::clicked, this, &MainWindow::handleAlertNotifications);
     connect(acknowledgeButton, &QPushButton::clicked, this, &MainWindow::handleAcknowledgeAlert);
     connect(assignButton, &QPushButton::clicked, this, &MainWindow::handleAssignAlert);
     connect(resolveButton, &QPushButton::clicked, this, &MainWindow::handleResolveAlert);
     connect(closeButton, &QPushButton::clicked, this, &MainWindow::handleCloseAlert);
     connect(createWorkOrderButton, &QPushButton::clicked, this, &MainWindow::handleCreateWorkOrderFromAlert);
     actionLayout->addWidget(createButton);
+    actionLayout->addWidget(rulesButton);
+    actionLayout->addWidget(notificationsButton);
     actionLayout->addWidget(acknowledgeButton);
     actionLayout->addWidget(assignButton);
     actionLayout->addWidget(resolveButton);
@@ -499,6 +505,58 @@ void MainWindow::handleCreateAlert() {
         refreshAlertTable();
     }
     QMessageBox::information(this, QStringLiteral("告警操作"), api_.statusMessage());
+}
+void MainWindow::handleAlertRules() {
+    QDialog dialog(this);
+    dialog.setWindowTitle(QStringLiteral("告警规则"));
+    auto* layout = new QVBoxLayout(&dialog);
+    auto* table = new QTableWidget(&dialog);
+    fillTable(table, {"编号", "名称", "设备", "最低级别", "通道", "目标", "状态"}, api_.alertRules());
+    layout->addWidget(table);
+
+    auto* form = new QFormLayout();
+    auto* ruleIdInput = new QLineEdit(QStringLiteral("rule-") + QDateTime::currentDateTime().toString("yyyyMMddhhmmss"), &dialog);
+    auto* nameInput = new QLineEdit(QStringLiteral("关键设备告警通知"), &dialog);
+    auto* assetIdInput = new QLineEdit(&dialog);
+    auto* severityInput = new QComboBox(&dialog);
+    severityInput->addItems({"info", "warning", "critical"});
+    severityInput->setCurrentText("warning");
+    auto* channelInput = new QComboBox(&dialog);
+    channelInput->addItems({"console", "email", "webhook"});
+    auto* targetInput = new QLineEdit(QStringLiteral("值班长"), &dialog);
+    auto* enabledInput = new QComboBox(&dialog);
+    enabledInput->addItems({QStringLiteral("启用"), QStringLiteral("停用")});
+    form->addRow(QStringLiteral("规则编号"), ruleIdInput);
+    form->addRow(QStringLiteral("规则名称"), nameInput);
+    form->addRow(QStringLiteral("设备编号"), assetIdInput);
+    form->addRow(QStringLiteral("最低级别"), severityInput);
+    form->addRow(QStringLiteral("通知通道"), channelInput);
+    form->addRow(QStringLiteral("通知目标"), targetInput);
+    form->addRow(QStringLiteral("状态"), enabledInput);
+    layout->addLayout(form);
+
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+    api_.createAlertRule(ruleIdInput->text(), nameInput->text(), assetIdInput->text(), severityInput->currentText(), channelInput->currentText(), targetInput->text(), enabledInput->currentIndex() == 0);
+    QMessageBox::information(this, QStringLiteral("告警规则"), api_.statusMessage());
+}
+
+void MainWindow::handleAlertNotifications() {
+    QDialog dialog(this);
+    dialog.setWindowTitle(QStringLiteral("告警通知"));
+    auto* layout = new QVBoxLayout(&dialog);
+    auto* table = new QTableWidget(&dialog);
+    fillTable(table, {"编号", "告警", "规则", "通道", "目标", "状态", "消息"}, api_.alertNotifications());
+    layout->addWidget(table);
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+    dialog.exec();
 }
 void MainWindow::handleAcknowledgeAlert() {
     const auto alertId = selectedAlertId();

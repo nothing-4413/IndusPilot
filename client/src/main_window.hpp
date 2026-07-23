@@ -47,6 +47,8 @@ private:
     void handleUpdateAssetStatus();
     void handleSubmitMonitoringState();
     void handleCreateAlert();
+    void handleAlertRules();
+    void handleAlertNotifications();
     void handleAcknowledgeAlert();
     void handleAssignAlert();
     void handleResolveAlert();

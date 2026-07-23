@@ -188,6 +188,27 @@ domain::Alert alertFromRow(const drogon::orm::Row& row) {
         nullableString(row, "assigned_to_username")};
 }
 
+domain::AlertRule alertRuleFromRow(const drogon::orm::Row& row) {
+    return domain::AlertRule{
+        row["rule_code"].as<std::string>(),
+        row["name"].as<std::string>(),
+        nullableString(row, "asset_code"),
+        row["min_severity"].as<std::string>(),
+        row["channel"].as<std::string>(),
+        row["target"].as<std::string>(),
+        row["enabled"].as<int>() != 0};
+}
+
+domain::AlertNotification alertNotificationFromRow(const drogon::orm::Row& row) {
+    return domain::AlertNotification{
+        row["notification_code"].as<std::string>(),
+        row["alert_code"].as<std::string>(),
+        row["rule_code"].as<std::string>(),
+        row["channel"].as<std::string>(),
+        row["target"].as<std::string>(),
+        row["status"].as<std::string>(),
+        row["message"].as<std::string>()};
+}
 domain::WorkOrder workOrderFromRow(const drogon::orm::Row& row) {
     return domain::WorkOrder{
         row["work_order_code"].as<std::string>(),
@@ -397,6 +418,64 @@ std::optional<domain::Alert> MySqlAlertRepository::findById(const std::string& i
     return alertFromRow(result[0]);
 }
 
+domain::AlertRule MySqlAlertRepository::saveRule(domain::AlertRule rule) {
+    client_->execSqlSync(
+        "INSERT INTO alert_rules(rule_code, name, asset_id, min_severity, channel, target, enabled) "
+        "VALUES(?, ?, IF(? = '', NULL, (SELECT id FROM equipment_assets WHERE asset_code = ?)), ?, ?, ?, ?) "
+        "ON DUPLICATE KEY UPDATE name = VALUES(name), asset_id = VALUES(asset_id), min_severity = VALUES(min_severity), "
+        "channel = VALUES(channel), target = VALUES(target), enabled = VALUES(enabled)",
+        rule.id,
+        rule.name,
+        rule.assetId,
+        rule.assetId,
+        rule.minSeverity,
+        rule.channel,
+        rule.target,
+        rule.enabled ? 1 : 0);
+    return rule;
+}
+
+std::vector<domain::AlertRule> MySqlAlertRepository::listRules() const {
+    const auto result = client_->execSqlSync(
+        "SELECT r.rule_code, r.name, ea.asset_code, r.min_severity, r.channel, r.target, r.enabled "
+        "FROM alert_rules r "
+        "LEFT JOIN equipment_assets ea ON ea.id = r.asset_id "
+        "ORDER BY r.updated_at DESC, r.rule_code");
+    std::vector<domain::AlertRule> rules;
+    for (const auto& row : result) {
+        rules.push_back(alertRuleFromRow(row));
+    }
+    return rules;
+}
+
+domain::AlertNotification MySqlAlertRepository::saveNotification(domain::AlertNotification notification) {
+    client_->execSqlSync(
+        "INSERT INTO alert_notifications(notification_code, alert_id, rule_id, channel, target, status, message) "
+        "VALUES(?, (SELECT id FROM alerts WHERE alert_code = ?), (SELECT id FROM alert_rules WHERE rule_code = ?), ?, ?, ?, ?) "
+        "ON DUPLICATE KEY UPDATE status = VALUES(status), message = VALUES(message)",
+        notification.id,
+        notification.alertId,
+        notification.ruleId,
+        notification.channel,
+        notification.target,
+        notification.status,
+        notification.message);
+    return notification;
+}
+
+std::vector<domain::AlertNotification> MySqlAlertRepository::listNotifications() const {
+    const auto result = client_->execSqlSync(
+        "SELECT n.notification_code, a.alert_code, r.rule_code, n.channel, n.target, n.status, n.message "
+        "FROM alert_notifications n "
+        "JOIN alerts a ON a.id = n.alert_id "
+        "JOIN alert_rules r ON r.id = n.rule_id "
+        "ORDER BY n.created_at DESC, n.notification_code");
+    std::vector<domain::AlertNotification> notifications;
+    for (const auto& row : result) {
+        notifications.push_back(alertNotificationFromRow(row));
+    }
+    return notifications;
+}
 MySqlWorkOrderRepository::MySqlWorkOrderRepository(drogon::orm::DbClientPtr client) : client_(std::move(client)) {}
 
 domain::WorkOrder MySqlWorkOrderRepository::save(domain::WorkOrder order) {

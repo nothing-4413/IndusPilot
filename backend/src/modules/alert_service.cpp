@@ -7,6 +7,29 @@
 namespace induspilot::modules {
 namespace {
 
+int severityRank(const std::string& severity) {
+    if (severity == "critical") {
+        return 3;
+    }
+    if (severity == "warning") {
+        return 2;
+    }
+    if (severity == "info") {
+        return 1;
+    }
+    return 0;
+}
+
+bool matchesRule(const domain::Alert& alert, const domain::AlertRule& rule) {
+    if (!rule.enabled) {
+        return false;
+    }
+    if (!rule.assetId.empty() && alert.assetId != rule.assetId) {
+        return false;
+    }
+    return severityRank(alertSeverityToString(alert.severity)) >= severityRank(rule.minSeverity);
+}
+
 bool matches(const domain::Alert& alert, const AlertQuery& query) {
     if (query.assetId && alert.assetId != *query.assetId) {
         return false;
@@ -95,7 +118,9 @@ ServiceStatus AlertService::status() const {
 }
 
 domain::Alert AlertService::create(domain::Alert alert) {
-    return repository_->save(std::move(alert));
+    auto saved = repository_->save(std::move(alert));
+    createNotificationsFor(saved);
+    return saved;
 }
 
 std::optional<domain::Alert> AlertService::findById(const std::string& id) const {
@@ -110,6 +135,34 @@ std::vector<domain::Alert> AlertService::list(const AlertQuery& query) const {
         }
     }
     return result;
+}
+
+domain::AlertRule AlertService::createRule(domain::AlertRule rule) {
+    return repository_->saveRule(std::move(rule));
+}
+
+std::vector<domain::AlertRule> AlertService::rules() const {
+    return repository_->listRules();
+}
+
+std::vector<domain::AlertNotification> AlertService::notifications() const {
+    return repository_->listNotifications();
+}
+
+void AlertService::createNotificationsFor(const domain::Alert& alert) {
+    for (const auto& rule : repository_->listRules()) {
+        if (!matchesRule(alert, rule)) {
+            continue;
+        }
+        repository_->saveNotification(domain::AlertNotification{
+            "notice-" + alert.id + "-" + rule.id,
+            alert.id,
+            rule.id,
+            rule.channel,
+            rule.target,
+            "queued",
+            "告警 " + alert.id + " 命中规则 " + rule.name});
+    }
 }
 
 std::optional<domain::Alert> AlertService::acknowledge(const std::string& id, const std::string& operatorId) {

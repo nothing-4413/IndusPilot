@@ -37,6 +37,27 @@ TableRow aiInteractionRow(const QJsonObject& item) {
         stringValue(item, "input"),
         stringValue(item, "output")}};
 }
+TableRow alertRuleRow(const QJsonObject& item) {
+    return TableRow{{
+        stringValue(item, "id"),
+        stringValue(item, "name"),
+        stringValue(item, "assetId"),
+        stringValue(item, "minSeverity"),
+        stringValue(item, "channel"),
+        stringValue(item, "target"),
+        item.value("enabled").toBool(true) ? QStringLiteral("启用") : QStringLiteral("停用")}};
+}
+
+TableRow alertNotificationRow(const QJsonObject& item) {
+    return TableRow{{
+        stringValue(item, "id"),
+        stringValue(item, "alertId"),
+        stringValue(item, "ruleId"),
+        stringValue(item, "channel"),
+        stringValue(item, "target"),
+        stringValue(item, "status"),
+        stringValue(item, "message")}};
+}
 
 QStringList jsonStringArray(const QJsonArray& array) {
     QStringList result;
@@ -289,6 +310,76 @@ QVector<TableRow> ApiClient::alerts() {
 }
 
 
+QVector<TableRow> ApiClient::alertRules() {
+    if (token_.isEmpty()) {
+        return offlineAlertRules();
+    }
+
+    const auto envelope = responseEnvelope("/api/v1/alert-rules", QJsonValue::Array);
+    if (envelope.isEmpty()) {
+        statusMessage_ = QStringLiteral("告警规则同步失败，已显示离线演示数据");
+        return offlineAlertRules();
+    }
+
+    QVector<TableRow> rows;
+    const auto rules = envelope.value("data").toArray();
+    for (const auto& value : rules) {
+        rows.push_back(alertRuleRow(value.toObject()));
+    }
+    statusMessage_ = rows.isEmpty() ? QStringLiteral("当前暂无告警规则") : QStringLiteral("告警规则已同步");
+    return rows;
+}
+
+bool ApiClient::createAlertRule(const QString& ruleId, const QString& name, const QString& assetId, const QString& minSeverity, const QString& channel, const QString& target, bool enabled) {
+    const auto normalizedRuleId = ruleId.trimmed();
+    const auto normalizedName = name.trimmed();
+    const auto normalizedAssetId = assetId.trimmed();
+    const auto normalizedMinSeverity = minSeverity.trimmed();
+    const auto normalizedChannel = channel.trimmed();
+    const auto normalizedTarget = target.trimmed();
+    if (token_.isEmpty()) {
+        statusMessage_ = QStringLiteral("请先连接后端再创建告警规则");
+        return false;
+    }
+    if (normalizedRuleId.isEmpty() || normalizedName.isEmpty() || normalizedMinSeverity.isEmpty() || normalizedChannel.isEmpty() || normalizedTarget.isEmpty()) {
+        statusMessage_ = QStringLiteral("告警规则需要填写编号、名称、最低级别、通道和目标");
+        return false;
+    }
+    if (!QStringList{"info", "warning", "critical"}.contains(normalizedMinSeverity)) {
+        statusMessage_ = QStringLiteral("告警规则最低级别只允许 info、warning、critical");
+        return false;
+    }
+
+    QJsonObject payload;
+    payload["id"] = normalizedRuleId;
+    payload["name"] = normalizedName;
+    payload["assetId"] = normalizedAssetId;
+    payload["minSeverity"] = normalizedMinSeverity;
+    payload["channel"] = normalizedChannel;
+    payload["target"] = normalizedTarget;
+    payload["enabled"] = enabled;
+    return !postEnvelope("/api/v1/alert-rules", payload, QJsonValue::Object, QStringLiteral("告警规则创建成功"), QStringLiteral("告警规则创建失败")).isEmpty();
+}
+
+QVector<TableRow> ApiClient::alertNotifications() {
+    if (token_.isEmpty()) {
+        return offlineAlertNotifications();
+    }
+
+    const auto envelope = responseEnvelope("/api/v1/alert-notifications", QJsonValue::Array);
+    if (envelope.isEmpty()) {
+        statusMessage_ = QStringLiteral("告警通知同步失败，已显示离线演示数据");
+        return offlineAlertNotifications();
+    }
+
+    QVector<TableRow> rows;
+    const auto notifications = envelope.value("data").toArray();
+    for (const auto& value : notifications) {
+        rows.push_back(alertNotificationRow(value.toObject()));
+    }
+    statusMessage_ = rows.isEmpty() ? QStringLiteral("当前暂无告警通知记录") : QStringLiteral("告警通知记录已同步");
+    return rows;
+}
 bool ApiClient::createAlert(const QString& alertId, const QString& assetId, const QString& severity, const QString& state, const QString& title, const QString& assignedTo) {
     const auto normalizedAlertId = alertId.trimmed();
     const auto normalizedAssetId = assetId.trimmed();
@@ -699,6 +790,13 @@ QVector<TableRow> ApiClient::offlineMonitoringStates() const {
 
 QVector<TableRow> ApiClient::offlineAlerts() const {
     return {{{"alert-001", "critical", "asset-001", "温度异常", "已分派", "maintainer"}}};
+}
+QVector<TableRow> ApiClient::offlineAlertRules() const {
+    return {{{"rule-critical-pump", "关键设备严重告警", "asset-001", "warning", "console", "值班长", "启用"}}};
+}
+
+QVector<TableRow> ApiClient::offlineAlertNotifications() const {
+    return {{{"notice-alert-001-rule-critical-pump", "alert-001", "rule-critical-pump", "console", "值班长", "queued", "告警 alert-001 命中规则 关键设备严重告警"}}};
 }
 
 QVector<TableRow> ApiClient::offlineWorkOrders() const {

@@ -47,6 +47,9 @@ public:
     QVector<TableRow> monitoringStates();
     bool writeMonitoringState(const QString& assetId, const QString& state, const QString& metricSummary, const QString& severity);
     QVector<TableRow> alerts();
+    QVector<TableRow> alertRules();
+    bool createAlertRule(const QString& ruleId, const QString& name, const QString& assetId, const QString& minSeverity, const QString& channel, const QString& target, bool enabled);
+    QVector<TableRow> alertNotifications();
     bool createAlert(const QString& alertId, const QString& assetId, const QString& severity, const QString& state, const QString& title, const QString& assignedTo);
     bool acknowledgeAlert(const QString& alertId);
     bool assignAlert(const QString& alertId, const QString& assignee);
@@ -71,6 +74,8 @@ private:
     QVector<TableRow> offlineAssets() const;
     QVector<TableRow> offlineMonitoringStates() const;
     QVector<TableRow> offlineAlerts() const;
+    QVector<TableRow> offlineAlertRules() const;
+    QVector<TableRow> offlineAlertNotifications() const;
     QVector<TableRow> offlineWorkOrders() const;
     QVector<TableRow> offlineAiInteractions() const;
     QString offlineAiDiagnosis(const AiDiagnosisInput& input) const;

@@ -183,6 +183,30 @@ Json::Value alertToJson(const domain::Alert& alert) {
     return value;
 }
 
+Json::Value alertRuleToJson(const domain::AlertRule& rule) {
+    Json::Value value;
+    value["id"] = rule.id;
+    value["name"] = rule.name;
+    value["assetId"] = rule.assetId;
+    value["minSeverity"] = rule.minSeverity;
+    value["channel"] = rule.channel;
+    value["target"] = rule.target;
+    value["enabled"] = rule.enabled;
+    return value;
+}
+
+Json::Value alertNotificationToJson(const domain::AlertNotification& notification) {
+    Json::Value value;
+    value["id"] = notification.id;
+    value["alertId"] = notification.alertId;
+    value["ruleId"] = notification.ruleId;
+    value["channel"] = notification.channel;
+    value["target"] = notification.target;
+    value["status"] = notification.status;
+    value["message"] = notification.message;
+    return value;
+}
+
 std::optional<modules::AlertQuery> alertQueryFromRequest(const drogon::HttpRequestPtr& request, std::string& error) {
     modules::AlertQuery query;
     const auto assetId = request->getParameter("assetId");
@@ -760,6 +784,59 @@ void registerRoutes(
         callback(jsonResponse(responseEnvelope(true, "OK", "alerts returned", rows)));
     }, {drogon::Get});
 
+    server.registerHandler("/api/v1/alert-rules", [identity, alerts](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+        const auto session = requireSession(identity, request, callback);
+        if (!session || !requirePermission(identity, *session, "alert:read", callback)) {
+            return;
+        }
+        writeRequestLog(request, session);
+        Json::Value rows(Json::arrayValue);
+        for (const auto& rule : alerts->rules()) {
+            rows.append(alertRuleToJson(rule));
+        }
+        callback(jsonResponse(responseEnvelope(true, "OK", "alert rules returned", rows)));
+    }, {drogon::Get});
+
+    server.registerHandler("/api/v1/alert-rules", [identity, alerts](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+        const auto session = requireSession(identity, request, callback);
+        if (!session || !requirePermission(identity, *session, "alert:write", callback)) {
+            return;
+        }
+        writeRequestLog(request, session);
+        const auto payload = request->getJsonObject();
+        if (!payload || !payload->isMember("id") || !payload->isMember("name") || !payload->isMember("minSeverity") ||
+            !payload->isMember("channel") || !payload->isMember("target")) {
+            callback(invalidRequest("id, name, minSeverity, channel and target are required"));
+            return;
+        }
+        const auto minSeverity = (*payload)["minSeverity"].asString();
+        if (!modules::alertSeverityFromString(minSeverity)) {
+            callback(invalidRequest("unsupported alert severity"));
+            return;
+        }
+        const auto rule = alerts->createRule(domain::AlertRule{
+            (*payload)["id"].asString(),
+            (*payload)["name"].asString(),
+            payload->isMember("assetId") ? (*payload)["assetId"].asString() : "",
+            minSeverity,
+            (*payload)["channel"].asString(),
+            (*payload)["target"].asString(),
+            payload->isMember("enabled") ? (*payload)["enabled"].asBool() : true});
+        callback(jsonResponse(responseEnvelope(true, "OK", "alert rule created", alertRuleToJson(rule))));
+    }, {drogon::Post});
+
+    server.registerHandler("/api/v1/alert-notifications", [identity, alerts](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+        const auto session = requireSession(identity, request, callback);
+        if (!session || !requirePermission(identity, *session, "alert:read", callback)) {
+            return;
+        }
+        writeRequestLog(request, session);
+        Json::Value rows(Json::arrayValue);
+        for (const auto& notification : alerts->notifications()) {
+            rows.append(alertNotificationToJson(notification));
+        }
+        callback(jsonResponse(responseEnvelope(true, "OK", "alert notifications returned", rows)));
+    }, {drogon::Get});
     server.registerHandler("/api/v1/alerts/{1}", [identity, alerts](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback, const std::string& alertId) {
         const auto session = requireSession(identity, request, callback);
         if (!session || !requirePermission(identity, *session, "alert:read", callback)) {

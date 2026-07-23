@@ -26,12 +26,17 @@ public:
     domain::Alert create(domain::Alert alert);
     std::optional<domain::Alert> findById(const std::string& id) const;
     std::vector<domain::Alert> list(const AlertQuery& query = {}) const;
+    domain::AlertRule createRule(domain::AlertRule rule);
+    std::vector<domain::AlertRule> rules() const;
+    std::vector<domain::AlertNotification> notifications() const;
     std::optional<domain::Alert> acknowledge(const std::string& id, const std::string& operatorId);
     std::optional<domain::Alert> assign(const std::string& id, const std::string& assignee);
     std::optional<domain::Alert> resolve(const std::string& id);
     std::optional<domain::Alert> close(const std::string& id);
 
 private:
+    void createNotificationsFor(const domain::Alert& alert);
+
     std::shared_ptr<data::AlertRepository> repository_;
 };
 

@@ -106,7 +106,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File deployment/preflight.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File deployment/preflight.ps1 -RequireDocker
 ```
 
-MySQL 初始化脚本会登记以下版本到 `schema_migrations`：`001_foundation_schema`、`002_seed_identity`、`003_runtime_persistence_schema`、`004_work_order_attachments_schema`。该版本表用于部署核对，不代表后端会在启动时自动迁移数据库。
+MySQL 初始化脚本会登记以下版本到 `schema_migrations`：`001_foundation_schema`、`002_seed_identity`、`003_runtime_persistence_schema`、`004_work_order_attachments_schema`、`005_alert_rules_notifications_schema`。该版本表用于部署核对，不代表后端会在启动时自动迁移数据库。
 ## HTTP 冒烟测试
 
 CTest 已注册 `induspilot-http-integration-smoke`，覆盖：
@@ -138,7 +138,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File backend/tests/http_integ
 ## 生产注意事项
 
 - 开发口令和 MySQL 演示哈希仍是骨架数据，生产必须替换为唯一盐哈希、密码轮换、登录失败锁定和审计策略。
-- MySQL 仓储已经覆盖 identity、asset、alert、work-order、runtime-state 和 AI interaction；生产部署前需执行 `database/mysql/001_foundation_schema.sql`、`002_seed_identity.sql`、`003_runtime_persistence_schema.sql`、`004_work_order_attachments_schema.sql`，并确认 `schema_migrations` 已登记对应版本。
+- MySQL 仓储已经覆盖 identity、asset、alert、work-order、runtime-state 和 AI interaction；生产部署前需执行 `database/mysql/001_foundation_schema.sql`、`002_seed_identity.sql`、`003_runtime_persistence_schema.sql`、`004_work_order_attachments_schema.sql`、`005_alert_rules_notifications_schema.sql`，并确认 `schema_migrations` 已登记对应版本。
 - Redis session 已支持配置化接入，后续需要补充连接失败降级策略和监控指标。
 - 当前 MongoDB 仅做依赖探测，后续可用于长日志、知识片段或非结构化诊断上下文。
 - 当前 HTTP 冒烟测试默认使用内存仓储；`deployment/preflight.ps1` 覆盖离线部署基线，MySQL/Redis/MongoDB 的真实连通和认证仍需要在部署环境中补充集成验证。

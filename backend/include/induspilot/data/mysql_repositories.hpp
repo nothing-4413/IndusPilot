@@ -54,6 +54,10 @@ public:
     domain::Alert save(domain::Alert alert) override;
     std::vector<domain::Alert> list() const override;
     std::optional<domain::Alert> findById(const std::string& id) const override;
+    domain::AlertRule saveRule(domain::AlertRule rule) override;
+    std::vector<domain::AlertRule> listRules() const override;
+    domain::AlertNotification saveNotification(domain::AlertNotification notification) override;
+    std::vector<domain::AlertNotification> listNotifications() const override;
 
 private:
     drogon::orm::DbClientPtr client_;
