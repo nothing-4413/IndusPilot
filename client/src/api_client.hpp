@@ -37,6 +37,7 @@ public:
     bool online() const;
     QVector<TableRow> assets();
     QVector<TableRow> monitoringStates();
+    bool writeMonitoringState(const QString& assetId, const QString& state, const QString& metricSummary, const QString& severity);
     QVector<TableRow> alerts();
     bool acknowledgeAlert(const QString& alertId);
     bool assignAlert(const QString& alertId, const QString& assignee);

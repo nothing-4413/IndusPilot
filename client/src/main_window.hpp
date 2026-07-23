@@ -33,12 +33,14 @@ private:
     QLabel* statusBadge(const QString& text, const QString& tone);
     void fillTable(QTableWidget* table, const QStringList& headers, const QVector<TableRow>& rows);
     void refreshOnlineTables();
+    void refreshMonitoringTable();
     void refreshAlertTable();
     void refreshWorkOrderTable();
     void refreshAiInteractionTable();
     QString selectedAlertId() const;
     QString selectedWorkOrderId() const;
     void handleLogin();
+    void handleSubmitMonitoringState();
     void handleAcknowledgeAlert();
     void handleAssignAlert();
     void handleResolveAlert();
@@ -64,6 +66,10 @@ private:
     QStackedWidget* pages_{nullptr};
     QTableWidget* assetTable_{nullptr};
     QTableWidget* monitoringTable_{nullptr};
+    QLineEdit* monitoringAssetIdInput_{nullptr};
+    QComboBox* monitoringStateInput_{nullptr};
+    QComboBox* monitoringSeverityInput_{nullptr};
+    QLineEdit* monitoringMetricSummaryInput_{nullptr};
     QTableWidget* alertTable_{nullptr};
     QTableWidget* workOrderTable_{nullptr};
     QComboBox* aiRelatedTypeInput_{nullptr};

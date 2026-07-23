@@ -89,14 +89,32 @@ QWidget* MainWindow::buildAssetPage() {
 QWidget* MainWindow::buildMonitoringPage() {
     auto* page = new QWidget(this);
     auto* layout = new QVBoxLayout(page);
-    monitoringModeLabel_ = new QLabel("运行监控（离线演示数据）", page);
+    monitoringModeLabel_ = new QLabel(QStringLiteral("运行监控（离线演示数据）"), page);
     layout->addWidget(monitoringModeLabel_);
+
+    auto* form = new QFormLayout();
+    monitoringAssetIdInput_ = new QLineEdit("asset-001", page);
+    monitoringStateInput_ = new QComboBox(page);
+    monitoringStateInput_->addItems({"online", "warning", "critical", "offline"});
+    monitoringStateInput_->setCurrentText("warning");
+    monitoringSeverityInput_ = new QComboBox(page);
+    monitoringSeverityInput_->addItems({"info", "warning", "critical"});
+    monitoringSeverityInput_->setCurrentText("warning");
+    monitoringMetricSummaryInput_ = new QLineEdit(QStringLiteral("温度持续高于阈值"), page);
+    auto* submitButton = new QPushButton(QStringLiteral("写入运行状态"), page);
+    connect(submitButton, &QPushButton::clicked, this, &MainWindow::handleSubmitMonitoringState);
+    form->addRow(QStringLiteral("设备编号"), monitoringAssetIdInput_);
+    form->addRow(QStringLiteral("运行状态"), monitoringStateInput_);
+    form->addRow(QStringLiteral("严重度"), monitoringSeverityInput_);
+    form->addRow(QStringLiteral("指标摘要"), monitoringMetricSummaryInput_);
+    form->addRow(submitButton);
+    layout->addLayout(form);
+
     monitoringTable_ = new QTableWidget(page);
-    fillTable(monitoringTable_, {"设备", "状态", "指标", "更新时间"}, api_.monitoringStates());
+    fillTable(monitoringTable_, {QStringLiteral("设备"), QStringLiteral("状态"), QStringLiteral("严重度"), QStringLiteral("指标"), QStringLiteral("更新时间")}, api_.monitoringStates());
     layout->addWidget(monitoringTable_);
     return page;
 }
-
 QWidget* MainWindow::buildAlertPage() {
     auto* page = new QWidget(this);
     auto* layout = new QVBoxLayout(page);
@@ -255,7 +273,7 @@ void MainWindow::refreshOnlineTables() {
         fillTable(assetTable_, {"编号", "名称", "类型", "产线", "状态"}, api_.assets());
     }
     if (monitoringTable_) {
-        fillTable(monitoringTable_, {"设备", "状态", "指标", "更新时间"}, api_.monitoringStates());
+        refreshMonitoringTable();
     }
     refreshAlertTable();
     refreshWorkOrderTable();
@@ -279,6 +297,11 @@ void MainWindow::refreshOnlineTables() {
     }
 }
 
+void MainWindow::refreshMonitoringTable() {
+    if (monitoringTable_) {
+        fillTable(monitoringTable_, {QStringLiteral("设备"), QStringLiteral("状态"), QStringLiteral("严重度"), QStringLiteral("指标"), QStringLiteral("更新时间")}, api_.monitoringStates());
+    }
+}
 void MainWindow::refreshAlertTable() {
     if (alertTable_) {
         fillTable(alertTable_, {"告警", "级别", "设备", "标题", "状态", "负责人"}, api_.alerts());
@@ -327,6 +350,16 @@ void MainWindow::handleLogin() {
 
 
 
+void MainWindow::handleSubmitMonitoringState() {
+    const auto assetId = monitoringAssetIdInput_ ? monitoringAssetIdInput_->text() : QString{};
+    const auto state = monitoringStateInput_ ? monitoringStateInput_->currentText() : QString{};
+    const auto severity = monitoringSeverityInput_ ? monitoringSeverityInput_->currentText() : QString{};
+    const auto metricSummary = monitoringMetricSummaryInput_ ? monitoringMetricSummaryInput_->text() : QString{};
+    if (api_.writeMonitoringState(assetId, state, metricSummary, severity)) {
+        refreshMonitoringTable();
+    }
+    QMessageBox::information(this, QStringLiteral("运行监控"), api_.statusMessage());
+}
 void MainWindow::handleAcknowledgeAlert() {
     const auto alertId = selectedAlertId();
     if (api_.acknowledgeAlert(alertId)) {

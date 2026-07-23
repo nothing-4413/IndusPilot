@@ -191,12 +191,42 @@ QVector<TableRow> ApiClient::monitoringStates() {
         rows.push_back(TableRow{{
             stringValue(state, "assetId"),
             stringValue(state, "state"),
+            stringValue(state, "severity"),
             stringValue(state, "metricSummary"),
             stringValue(state, "updatedAt")}});
     }
     return rows;
 }
 
+bool ApiClient::writeMonitoringState(const QString& assetId, const QString& state, const QString& metricSummary, const QString& severity) {
+    const auto normalizedAssetId = assetId.trimmed();
+    const auto normalizedState = state.trimmed();
+    const auto normalizedMetricSummary = metricSummary.trimmed();
+    const auto normalizedSeverity = severity.trimmed();
+    if (token_.isEmpty()) {
+        statusMessage_ = QStringLiteral("请先连接后端再写入运行状态");
+        return false;
+    }
+    if (normalizedAssetId.isEmpty() || normalizedState.isEmpty() || normalizedMetricSummary.isEmpty() || normalizedSeverity.isEmpty()) {
+        statusMessage_ = QStringLiteral("写入运行状态需要填写设备、状态、严重度和指标摘要");
+        return false;
+    }
+    if (!QStringList{"online", "warning", "critical", "offline"}.contains(normalizedState)) {
+        statusMessage_ = QStringLiteral("运行状态只允许 online、warning、critical、offline");
+        return false;
+    }
+    if (!QStringList{"info", "warning", "critical"}.contains(normalizedSeverity)) {
+        statusMessage_ = QStringLiteral("严重度只允许 info、warning、critical");
+        return false;
+    }
+
+    QJsonObject payload;
+    payload["assetId"] = normalizedAssetId;
+    payload["state"] = normalizedState;
+    payload["metricSummary"] = normalizedMetricSummary;
+    payload["severity"] = normalizedSeverity;
+    return !postEnvelope("/api/v1/monitoring/states", payload, QJsonValue::Object, QStringLiteral("运行状态写入成功"), QStringLiteral("运行状态写入失败")).isEmpty();
+}
 QVector<TableRow> ApiClient::alerts() {
     if (token_.isEmpty()) {
         return offlineAlerts();
@@ -464,7 +494,7 @@ QVector<TableRow> ApiClient::offlineAssets() const {
 }
 
 QVector<TableRow> ApiClient::offlineMonitoringStates() const {
-    return {{{"asset-001", "warning", "温度偏高", "now"}}};
+    return {{{"asset-001", "warning", "warning", "温度偏高", "now"}}};
 }
 
 QVector<TableRow> ApiClient::offlineAlerts() const {

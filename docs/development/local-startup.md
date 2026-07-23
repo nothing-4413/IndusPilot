@@ -25,7 +25,7 @@ copy config/ai.example.yaml config/ai.yaml
 
 ## 默认后端和 Qt 客户端
 
-默认构建使用内存仓储和内存会话存储，适合快速验证 Qt 客户端和后端业务模块。客户端会读取 `config/client.example.json` 的 `apiBaseUrl`，后端可用时接入 HTTP 登录、资产列表、运行监控、告警列表与处置、维护工单列表、新建/分派/基础流转、AI 结构化诊断入口和 AI 交互审计查询，后端不可用时保留离线演示数据：
+默认构建使用内存仓储和内存会话存储，适合快速验证 Qt 客户端和后端业务模块。客户端会读取 `config/client.example.json` 的 `apiBaseUrl`，后端可用时接入 HTTP 登录、资产列表、运行监控列表与状态写入、告警列表与处置、维护工单列表、新建/分派/基础流转、AI 结构化诊断入口和 AI 交互审计查询，后端不可用时保留离线演示数据：
 
 ```powershell
 cmake -S . -B build/ninja-msvc-client -G Ninja -DINDUSPILOT_BUILD_CLIENT=ON -DCMAKE_PREFIX_PATH="D:/anaconda/Library"
