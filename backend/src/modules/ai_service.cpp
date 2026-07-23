@@ -1,6 +1,7 @@
 #include "induspilot/modules/ai_service.hpp"
 
 #include <sstream>
+#include <utility>
 
 namespace induspilot::modules {
 namespace {
@@ -17,8 +18,13 @@ bool matches(const domain::AiInteraction& interaction, const AiInteractionQuery&
 
 }  // namespace
 
+AiService::AiService(app::AiConfig config) : config_(std::move(config)) {}
+
 ServiceStatus AiService::status() const {
-    return ServiceStatus{"ai-diagnosis-assistance", true, "AI assistance audit service is ready"};
+    if (!config_.enabled) {
+        return ServiceStatus{"ai-diagnosis-assistance", true, "AI 未启用，当前仅记录辅助请求审计"};
+    }
+    return ServiceStatus{"ai-diagnosis-assistance", true, "AI endpoint 已配置为 " + config_.endpoint + "，外部推理调用尚未接入，当前使用审计降级模式"};
 }
 
 AiSuggestion AiService::explainAlert(const std::string& alertSummary) {
@@ -26,11 +32,11 @@ AiSuggestion AiService::explainAlert(const std::string& alertSummary) {
 }
 
 AiSuggestion AiService::troubleshoot(const AiRequest& request) {
-    return unavailableSuggestion(request, "troubleshooting");
+    return unavailableSuggestion(request, "故障排查");
 }
 
 AiSuggestion AiService::summarizeLogs(const AiRequest& request) {
-    return unavailableSuggestion(request, "log summary");
+    return unavailableSuggestion(request, "日志摘要");
 }
 
 std::vector<domain::AiInteraction> AiService::interactions(const AiInteractionQuery& query) const {
@@ -44,7 +50,10 @@ std::vector<domain::AiInteraction> AiService::interactions(const AiInteractionQu
 }
 
 AiSuggestion AiService::unavailableSuggestion(const AiRequest& request, const std::string& operation) {
-    AiSuggestion suggestion{false, "assistance", "AI service is unavailable; recorded " + operation + " request and core workflow can continue"};
+    const auto content = config_.enabled
+        ? "已记录" + operation + "请求；外部 AI endpoint 已配置但推理调用尚未接入，核心流程可继续执行"
+        : "AI 未启用，已记录" + operation + "请求，核心流程可继续执行";
+    AiSuggestion suggestion{false, "辅助建议", content};
     recordInteraction(request, suggestion);
     return suggestion;
 }

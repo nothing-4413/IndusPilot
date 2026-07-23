@@ -1001,7 +1001,7 @@ int runDrogonServer(const app::AppConfig& config) {
     auto monitoring = std::make_shared<modules::MonitoringService>();
     auto alerts = std::make_shared<modules::AlertService>();
     auto maintenance = std::make_shared<modules::MaintenanceService>();
-    auto ai = std::make_shared<modules::AiService>();
+    auto ai = std::make_shared<modules::AiService>(config.ai);
 
     application->start();
     registerRoutes(application, identity, assets, monitoring, alerts, maintenance, ai);

@@ -11,22 +11,30 @@ mysql:
   database: "induspilot"
   user: "induspilot"
   password: "change-me"
+  # uri 当前仅作为预留字段；MySQL 仓储运行时使用 host/port/database/user/password。
+  uri: ""
 
 redis:
   host: "127.0.0.1"
   port: 6379
+  # Redis 会话存储当前使用 uri 建立连接；如需口令或 DB，请写入 uri，例如 tcp://:password@127.0.0.1:6379/0。
+  password: ""
+  database: 0
   uri: "tcp://127.0.0.1:6379"
   session_key_prefix: "induspilot:session:"
   session_ttl_seconds: 28800
   session_store: "memory"
 
 storage:
+  # memory 用于本地演示；mysql 会将身份和资产模块切换到 MySQL 仓储。
   repository_store: "memory"
 
 mongodb:
+  # 当前仅参与 TCP 健康探测，日志/AI 交互落库仍在后续模块中接入。
   uri: "mongodb://127.0.0.1:27017"
   database: "induspilot"
 
 ai:
+  # enabled/endpoint 当前驱动健康探测和 AI 服务状态；外部推理调用尚未接入。
   enabled: false
   endpoint: "http://127.0.0.1:9000"

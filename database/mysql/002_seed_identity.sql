@@ -17,6 +17,7 @@ INSERT INTO permissions(code, name) VALUES
   ('ai:use', '使用 AI 辅助诊断')
 ON DUPLICATE KEY UPDATE name = VALUES(name);
 
+-- CHANGE_ME_HASH 仅用于提示初始化流程；生产部署前必须替换为后端密码策略生成的加盐哈希。
 INSERT INTO users(username, password_hash, display_name) VALUES
   ('admin', 'CHANGE_ME_HASH', '默认管理员')
 ON DUPLICATE KEY UPDATE display_name = VALUES(display_name);

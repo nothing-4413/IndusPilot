@@ -32,7 +32,7 @@ api::HealthCheck Application::health() const {
         {"ai", config_.ai.enabled ? dependencies_.ai : true},
     };
     if (!dependencies_.mysql || !dependencies_.redis || !dependencies_.mongodb) {
-        health.warnings.push_back("依赖探测当前为占位实现，请在接入真实连接后启用严格检查");
+        health.warnings.push_back("依赖健康检查当前仅验证 TCP 连通性，尚未校验认证、库表结构或集合状态");
     }
     return health;
 }

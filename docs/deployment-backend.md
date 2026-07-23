@@ -37,19 +37,43 @@ docker compose up -d
 
 - `INDUSPILOT_SERVER_HOST`
 - `INDUSPILOT_SERVER_PORT`
+- `INDUSPILOT_LOG_LEVEL`
 - `INDUSPILOT_MYSQL_HOST`
 - `INDUSPILOT_MYSQL_PORT`
 - `INDUSPILOT_MYSQL_DATABASE`
 - `INDUSPILOT_MYSQL_USER`
 - `INDUSPILOT_MYSQL_PASSWORD`
+- `INDUSPILOT_MYSQL_URI`
+- `INDUSPILOT_REDIS_HOST`
+- `INDUSPILOT_REDIS_PORT`
+- `INDUSPILOT_REDIS_PASSWORD`
+- `INDUSPILOT_REDIS_DATABASE`
 - `INDUSPILOT_REDIS_URI`
 - `INDUSPILOT_REDIS_SESSION_STORE`
 - `INDUSPILOT_REDIS_SESSION_KEY_PREFIX`
 - `INDUSPILOT_REDIS_SESSION_TTL_SECONDS`
+- `INDUSPILOT_REPOSITORY_STORE`
+- `INDUSPILOT_MONGODB_HOST`
+- `INDUSPILOT_MONGODB_PORT`
+- `INDUSPILOT_MONGODB_DATABASE`
 - `INDUSPILOT_MONGODB_URI`
 - `INDUSPILOT_AI_ENABLED`
 - `INDUSPILOT_AI_ENDPOINT`
 
+## 仓储运行时
+
+`storage.repository_store` 支持 `memory` 和 `mysql`。默认 `memory` 用于离线演示和测试；设置为 `mysql` 后，HTTP 运行时会将身份认证和资产服务切换到 MySQL 仓储。告警、工单、运行监控和 AI 交互审计仍是进程内存实现，后续需要独立仓储化。
+
+## 身份口令边界
+
+内存仓储保留 `admin/admin123`、`operator/operator123`、`maintainer/maintainer123` 作为开发演示口令。MySQL 初始化脚本只写入 `CHANGE_ME_HASH` 占位值；生产部署前必须通过正式密码策略生成加盐哈希，并补充密码轮换、锁定、审计和最小权限账户治理。
+
+## 当前配置边界
+
+- Redis session 已支持通过 `redis.uri` 接入；`redis.password` 和 `redis.database` 会被解析，但当前连接实现不单独消费这两个字段，如需认证或选择 DB，请把信息嵌入 `redis.uri`。
+- MongoDB 当前仅用于 TCP 健康探测，尚未承载日志或 AI 交互落库。
+- `ai.enabled` 和 `ai.endpoint` 当前驱动健康探测、AI 状态接口和降级提示；外部推理 HTTP 调用尚未实现。
+- `/health` 依赖检查当前只验证 TCP 连通性，不校验认证、schema、表结构或 MongoDB collection。
 ## Session Store
 
 默认示例配置使用：

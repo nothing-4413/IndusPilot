@@ -1,5 +1,6 @@
 #pragma once
 
+#include "induspilot/app/config.hpp"
 #include "induspilot/domain/domain_types.hpp"
 #include "induspilot/modules/service_status.hpp"
 
@@ -29,6 +30,8 @@ struct AiInteractionQuery {
 
 class AiService {
 public:
+    explicit AiService(app::AiConfig config = app::AiConfig{});
+
     ServiceStatus status() const;
     AiSuggestion explainAlert(const std::string& alertSummary);
     AiSuggestion troubleshoot(const AiRequest& request);
@@ -39,6 +42,7 @@ private:
     AiSuggestion unavailableSuggestion(const AiRequest& request, const std::string& operation);
     void recordInteraction(const AiRequest& request, const AiSuggestion& suggestion);
 
+    app::AiConfig config_;
     std::vector<domain::AiInteraction> interactions_;
 };
 

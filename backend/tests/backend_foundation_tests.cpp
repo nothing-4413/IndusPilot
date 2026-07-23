@@ -16,6 +16,7 @@
 #include <cassert>
 #include <chrono>
 #include <memory>
+#include <string>
 #include <type_traits>
 
 static_assert(std::has_virtual_destructor_v<induspilot::data::UserRepository>);
@@ -34,27 +35,32 @@ int main() {
     _putenv_s("INDUSPILOT_REDIS_SESSION_TTL_SECONDS", "60");
     _putenv_s("INDUSPILOT_REDIS_SESSION_KEY_PREFIX", "test:session:");
     _putenv_s("INDUSPILOT_REDIS_SESSION_STORE", "redis");
+    _putenv_s("INDUSPILOT_REPOSITORY_STORE", "mysql");
 #else
     setenv("INDUSPILOT_SERVER_PORT", "18080", 1);
     setenv("INDUSPILOT_REDIS_SESSION_TTL_SECONDS", "60", 1);
     setenv("INDUSPILOT_REDIS_SESSION_KEY_PREFIX", "test:session:", 1);
     setenv("INDUSPILOT_REDIS_SESSION_STORE", "redis", 1);
+    setenv("INDUSPILOT_REPOSITORY_STORE", "mysql", 1);
 #endif
     const auto loadedConfig = induspilot::app::loadConfig("config/backend.example.yaml");
     assert(loadedConfig.port == 18080);
     assert(loadedConfig.redis.sessionTtlSeconds == 60);
     assert(loadedConfig.redis.sessionKeyPrefix == "test:session:");
     assert(loadedConfig.redis.sessionStore == "redis");
+    assert(loadedConfig.storage.repositoryStore == "mysql");
 #ifdef _WIN32
     _putenv_s("INDUSPILOT_SERVER_PORT", "");
     _putenv_s("INDUSPILOT_REDIS_SESSION_TTL_SECONDS", "");
     _putenv_s("INDUSPILOT_REDIS_SESSION_KEY_PREFIX", "");
     _putenv_s("INDUSPILOT_REDIS_SESSION_STORE", "");
+    _putenv_s("INDUSPILOT_REPOSITORY_STORE", "");
 #else
     unsetenv("INDUSPILOT_SERVER_PORT");
     unsetenv("INDUSPILOT_REDIS_SESSION_TTL_SECONDS");
     unsetenv("INDUSPILOT_REDIS_SESSION_KEY_PREFIX");
     unsetenv("INDUSPILOT_REDIS_SESSION_STORE");
+    unsetenv("INDUSPILOT_REPOSITORY_STORE");
 #endif
 
     induspilot::app::Application app(induspilot::app::AppConfig{});
@@ -116,6 +122,9 @@ int main() {
     assert(!maintenance.historyForAsset("asset-001").empty());
 
     induspilot::modules::AiService ai;
+    assert(ai.status().message.find("AI 未启用") != std::string::npos);
+    induspilot::modules::AiService configuredAi(induspilot::app::AiConfig{true, "http://127.0.0.1:9000"});
+    assert(configuredAi.status().message.find("http://127.0.0.1:9000") != std::string::npos);
     const auto suggestion = ai.troubleshoot({"alert", "alert-001", "温度异常", {"设备：一号产线主电机"}});
     assert(!suggestion.available);
     assert(!ai.interactions().empty());

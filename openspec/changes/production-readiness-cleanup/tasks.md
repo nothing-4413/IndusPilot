@@ -7,10 +7,10 @@
 
 ## 2. 身份与安全缺口
 - [x] 2.1 将 `IdentityService` 接入用户和权限仓储
-- [ ] 2.2 文档明确开发口令和生产密码策略边界
+- [x] 2.2 文档明确开发口令和生产密码策略边界
 
 ## 3. 未用配置与文档清理
-- [ ] 3.1 标注 Redis 密码/DB、MongoDB、AI endpoint 的当前使用边界
+- [x] 3.1 标注 Redis 密码/DB、MongoDB、AI endpoint 的当前使用边界
 - [ ] 3.2 修正 OpenSpec Purpose 的 `TBD`
 - [ ] 3.3 修正 Redis 文档乱码
 
