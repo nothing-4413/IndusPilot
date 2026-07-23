@@ -4,12 +4,27 @@
 #include <QStringList>
 #include <QUrl>
 #include <QJsonValue>
+#include <QJsonObject>
 #include <QVector>
 
 class QNetworkAccessManager;
 
 struct TableRow {
     QStringList columns;
+};
+
+struct AiDiagnosisInput {
+    QString relatedType{"alert"};
+    QString relatedId;
+    QString prompt;
+    QString assetId;
+    QString alertTitle;
+    QString runtimeState;
+    QString severity;
+    QString metricSummary;
+    QString workOrderHistory;
+    QString operatorDescription;
+    QStringList contextItems;
 };
 
 class ApiClient {
@@ -27,6 +42,7 @@ public:
     bool startWorkOrder(const QString& orderId);
     bool completeWorkOrder(const QString& orderId, const QString& result);
     bool closeWorkOrder(const QString& orderId);
+    QString diagnose(const AiDiagnosisInput& input);
     QString aiUnavailableMessage() const;
 
 private:
@@ -34,8 +50,14 @@ private:
     QVector<TableRow> offlineMonitoringStates() const;
     QVector<TableRow> offlineAlerts() const;
     QVector<TableRow> offlineWorkOrders() const;
+    QString offlineAiDiagnosis(const AiDiagnosisInput& input) const;
     QJsonObject responseEnvelope(const QString& path, QJsonValue::Type dataType);
-    QJsonObject postEnvelope(const QString& path, const QJsonObject& payload, QJsonValue::Type dataType);
+    QJsonObject postEnvelope(
+        const QString& path,
+        const QJsonObject& payload,
+        QJsonValue::Type dataType,
+        const QString& successMessage = QString(),
+        const QString& failureMessage = QString());
     QUrl endpoint(const QString& path) const;
     QByteArray requestJson(const QString& method, const QString& path, const QByteArray& body = QByteArray());
     void loadConfig();

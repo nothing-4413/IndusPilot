@@ -1,6 +1,7 @@
 #include "main_window.hpp"
 
 #include <QAbstractItemView>
+#include <QComboBox>
 #include <QFormLayout>
 #include <QHeaderView>
 #include <QHBoxLayout>
@@ -65,7 +66,7 @@ QWidget* MainWindow::buildDashboardPage() {
     auto* page = new QWidget(this);
     auto* layout = new QVBoxLayout(page);
     layout->addWidget(new QLabel("设备运行总览"));
-    layout->addWidget(new QLabel("基础联机阶段：登录、资产、运行监控、告警和工单可接入后端，AI 保留离线演示入口。"));
+    layout->addWidget(new QLabel("基础联机阶段：登录、资产、运行监控、告警、工单和 AI 诊断可接入后端。"));
     layout->addWidget(statusBadge("critical", "danger"));
     layout->addStretch();
     return page;
@@ -143,11 +144,52 @@ QWidget* MainWindow::buildTablePage(const QString& title, const QStringList& hea
 QWidget* MainWindow::buildAiPage() {
     auto* page = new QWidget(this);
     auto* layout = new QVBoxLayout(page);
-    layout->addWidget(new QLabel("AI 辅助诊断"));
-    auto* text = new QTextEdit(page);
-    text->setText(api_.aiUnavailableMessage());
-    text->setPlaceholderText("选择告警后在这里生成解释、排查建议和日志摘要。");
-    layout->addWidget(text);
+    aiModeLabel_ = new QLabel("AI 辅助诊断（离线演示数据）", page);
+    layout->addWidget(aiModeLabel_);
+
+    auto* form = new QFormLayout();
+    aiRelatedTypeInput_ = new QComboBox(page);
+    aiRelatedTypeInput_->addItems({"alert", "work-order", "asset"});
+    aiRelatedIdInput_ = new QLineEdit("alert-001", page);
+    aiAssetIdInput_ = new QLineEdit("asset-001", page);
+    aiAlertTitleInput_ = new QLineEdit("温度异常", page);
+    aiRuntimeStateInput_ = new QLineEdit("critical", page);
+    aiSeverityInput_ = new QLineEdit("critical", page);
+    aiMetricSummaryInput_ = new QLineEdit("温度持续高于阈值", page);
+    aiWorkOrderHistoryInput_ = new QTextEdit(page);
+    aiWorkOrderHistoryInput_->setFixedHeight(72);
+    aiWorkOrderHistoryInput_->setPlainText("最近一次维护更换轴承并清理散热通道");
+    aiOperatorDescriptionInput_ = new QTextEdit(page);
+    aiOperatorDescriptionInput_->setFixedHeight(72);
+    aiOperatorDescriptionInput_->setPlainText("现场有异味，设备振动略高");
+    aiPromptInput_ = new QTextEdit(page);
+    aiPromptInput_->setFixedHeight(84);
+    aiPromptInput_->setPlainText("诊断当前告警的可能原因，并给出现场处置建议");
+
+    form->addRow("关联类型", aiRelatedTypeInput_);
+    form->addRow("关联对象", aiRelatedIdInput_);
+    form->addRow("设备编号", aiAssetIdInput_);
+    form->addRow("告警标题", aiAlertTitleInput_);
+    form->addRow("运行状态", aiRuntimeStateInput_);
+    form->addRow("严重度", aiSeverityInput_);
+    form->addRow("指标摘要", aiMetricSummaryInput_);
+    form->addRow("工单历史", aiWorkOrderHistoryInput_);
+    form->addRow("人工描述", aiOperatorDescriptionInput_);
+    form->addRow("诊断问题", aiPromptInput_);
+    layout->addLayout(form);
+
+    auto* actionRow = new QWidget(page);
+    auto* actionLayout = new QHBoxLayout(actionRow);
+    auto* diagnoseButton = new QPushButton("执行 AI 诊断", actionRow);
+    connect(diagnoseButton, &QPushButton::clicked, this, &MainWindow::handleAiDiagnosis);
+    actionLayout->addWidget(diagnoseButton);
+    actionLayout->addStretch();
+    layout->addWidget(actionRow);
+
+    aiResultOutput_ = new QTextEdit(page);
+    aiResultOutput_->setReadOnly(true);
+    aiResultOutput_->setText(api_.aiUnavailableMessage());
+    layout->addWidget(aiResultOutput_);
     return page;
 }
 
@@ -198,6 +240,9 @@ void MainWindow::refreshOnlineTables() {
     }
     if (workOrderModeLabel_) {
         workOrderModeLabel_->setText(QStringLiteral("维护工单（") + modeText + QStringLiteral("）"));
+    }
+    if (aiModeLabel_) {
+        aiModeLabel_->setText(QStringLiteral("AI 辅助诊断（") + modeText + QStringLiteral("）"));
     }
 }
 
@@ -257,4 +302,27 @@ void MainWindow::handleCloseWorkOrder() {
         refreshWorkOrderTable();
     }
     QMessageBox::information(this, "工单操作", api_.statusMessage());
+}
+
+void MainWindow::handleAiDiagnosis() {
+    AiDiagnosisInput input;
+    input.relatedType = aiRelatedTypeInput_ ? aiRelatedTypeInput_->currentText() : QStringLiteral("alert");
+    input.relatedId = aiRelatedIdInput_ ? aiRelatedIdInput_->text() : QString{};
+    input.assetId = aiAssetIdInput_ ? aiAssetIdInput_->text() : QString{};
+    input.alertTitle = aiAlertTitleInput_ ? aiAlertTitleInput_->text() : QString{};
+    input.runtimeState = aiRuntimeStateInput_ ? aiRuntimeStateInput_->text() : QString{};
+    input.severity = aiSeverityInput_ ? aiSeverityInput_->text() : QString{};
+    input.metricSummary = aiMetricSummaryInput_ ? aiMetricSummaryInput_->text() : QString{};
+    input.workOrderHistory = aiWorkOrderHistoryInput_ ? aiWorkOrderHistoryInput_->toPlainText() : QString{};
+    input.operatorDescription = aiOperatorDescriptionInput_ ? aiOperatorDescriptionInput_->toPlainText() : QString{};
+    input.prompt = aiPromptInput_ ? aiPromptInput_->toPlainText() : QString{};
+
+    const auto report = api_.diagnose(input);
+    if (aiResultOutput_) {
+        aiResultOutput_->setText(report.isEmpty() ? api_.statusMessage() : report);
+    }
+    if (aiModeLabel_) {
+        const auto modeText = api_.online() ? "后端同步" : "离线演示数据";
+        aiModeLabel_->setText(QStringLiteral("AI 辅助诊断（") + modeText + QStringLiteral("）"));
+    }
 }

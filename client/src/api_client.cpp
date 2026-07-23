@@ -20,6 +20,52 @@ QString stringValue(const QJsonObject& object, const QString& key) {
 QString workOrderActionPath(const QString& orderId, const QString& action) {
     return "/api/v1/work-orders/" + QString::fromUtf8(QUrl::toPercentEncoding(orderId)) + "/" + action;
 }
+QStringList jsonStringArray(const QJsonArray& array) {
+    QStringList result;
+    for (const auto& value : array) {
+        const auto item = value.toString().trimmed();
+        if (!item.isEmpty()) {
+            result.push_back(item);
+        }
+    }
+    return result;
+}
+
+void appendContextItem(QStringList& items, const QString& label, const QString& value) {
+    const auto normalized = value.trimmed();
+    if (!normalized.isEmpty()) {
+        items.push_back(label + "：" + normalized);
+    }
+}
+
+QString bulletSection(const QString& title, const QStringList& items) {
+    QString section = title + "\n";
+    if (items.isEmpty()) {
+        return section + "- 暂无\n";
+    }
+    for (const auto& item : items) {
+        section += "- " + item + "\n";
+    }
+    return section;
+}
+
+QString diagnosisReport(const QJsonObject& data) {
+    const auto reviewText = data.value("requiresHumanReview").toBool(true) ? "需要人工复核" : "可按低风险建议执行";
+    QString report;
+    report += "AI 结构化诊断\n\n";
+    report += QStringLiteral("摘要：") + stringValue(data, "summary") + QStringLiteral("\n");
+    report += QStringLiteral("风险级别：") + stringValue(data, "riskLevel") + QStringLiteral("\n");
+    report += QStringLiteral("Provider：") + stringValue(data, "provider") + QStringLiteral("\n");
+    report += QStringLiteral("可用状态：") + QString(data.value("available").toBool(false) ? "在线" : "降级") + QStringLiteral("\n");
+    report += QStringLiteral("人审要求：") + reviewText + QStringLiteral("\n\n");
+    report += bulletSection("可能原因", jsonStringArray(data.value("possibleCauses").toArray()));
+    report += "\n" + bulletSection("建议动作", jsonStringArray(data.value("recommendedActions").toArray()));
+    const auto rawOutput = stringValue(data, "rawProviderOutput").trimmed();
+    if (!rawOutput.isEmpty()) {
+        report += QStringLiteral("\nProvider 输出：\n") + rawOutput + QStringLiteral("\n");
+    }
+    return report.trimmed();
+}
 
 QString configPath() {
     const auto appDir = QCoreApplication::applicationDirPath();
@@ -202,7 +248,7 @@ bool ApiClient::startWorkOrder(const QString& orderId) {
         statusMessage_ = "请先连接后端并选择工单";
         return false;
     }
-    return !postEnvelope(workOrderActionPath(orderId, "start"), QJsonObject{}, QJsonValue::Object).isEmpty();
+    return !postEnvelope(workOrderActionPath(orderId, "start"), QJsonObject{}, QJsonValue::Object, "工单操作成功", "工单操作失败").isEmpty();
 }
 
 bool ApiClient::completeWorkOrder(const QString& orderId, const QString& result) {
@@ -213,7 +259,7 @@ bool ApiClient::completeWorkOrder(const QString& orderId, const QString& result)
     }
     QJsonObject payload;
     payload["result"] = normalizedResult;
-    return !postEnvelope(workOrderActionPath(orderId, "complete"), payload, QJsonValue::Object).isEmpty();
+    return !postEnvelope(workOrderActionPath(orderId, "complete"), payload, QJsonValue::Object, "工单操作成功", "工单操作失败").isEmpty();
 }
 
 bool ApiClient::closeWorkOrder(const QString& orderId) {
@@ -221,11 +267,64 @@ bool ApiClient::closeWorkOrder(const QString& orderId) {
         statusMessage_ = "请先连接后端并选择工单";
         return false;
     }
-    return !postEnvelope(workOrderActionPath(orderId, "close"), QJsonObject{}, QJsonValue::Object).isEmpty();
+    return !postEnvelope(workOrderActionPath(orderId, "close"), QJsonObject{}, QJsonValue::Object, "工单操作成功", "工单操作失败").isEmpty();
 }
 
+
+QString ApiClient::diagnose(const AiDiagnosisInput& input) {
+    const auto relatedType = input.relatedType.trimmed().isEmpty() ? QStringLiteral("alert") : input.relatedType.trimmed();
+    const auto relatedId = input.relatedId.trimmed();
+    const auto prompt = input.prompt.trimmed();
+    if (token_.isEmpty()) {
+        statusMessage_ = "请先登录后端再使用 AI 诊断，已显示离线兜底建议";
+        return offlineAiDiagnosis(input);
+    }
+    if (relatedId.isEmpty() || prompt.isEmpty()) {
+        statusMessage_ = "AI 诊断需要关联对象和问题描述";
+        return {};
+    }
+
+    QStringList contextItems = input.contextItems;
+    appendContextItem(contextItems, "设备", input.assetId);
+    appendContextItem(contextItems, "告警", input.alertTitle);
+    appendContextItem(contextItems, "运行状态", input.runtimeState);
+    appendContextItem(contextItems, "严重度", input.severity);
+    appendContextItem(contextItems, "指标", input.metricSummary);
+    appendContextItem(contextItems, "工单历史", input.workOrderHistory);
+    appendContextItem(contextItems, "人工描述", input.operatorDescription);
+
+    QJsonArray contextArray;
+    for (const auto& item : contextItems) {
+        const auto normalized = item.trimmed();
+        if (!normalized.isEmpty()) {
+            contextArray.push_back(normalized);
+        }
+    }
+
+    QJsonObject context;
+    context["assetId"] = input.assetId.trimmed();
+    context["alertTitle"] = input.alertTitle.trimmed();
+    context["runtimeState"] = input.runtimeState.trimmed();
+    context["severity"] = input.severity.trimmed();
+    context["metricSummary"] = input.metricSummary.trimmed();
+    context["workOrderHistory"] = input.workOrderHistory.trimmed();
+    context["operatorDescription"] = input.operatorDescription.trimmed();
+    context["contextItems"] = contextArray;
+
+    QJsonObject payload;
+    payload["relatedType"] = relatedType;
+    payload["relatedId"] = relatedId;
+    payload["prompt"] = prompt;
+    payload["context"] = context;
+
+    const auto envelope = postEnvelope("/api/v1/ai/diagnose", payload, QJsonValue::Object, "AI 诊断已返回", "AI 诊断请求失败");
+    if (envelope.isEmpty()) {
+        return offlineAiDiagnosis(input);
+    }
+    return diagnosisReport(envelope.value("data").toObject());
+}
 QString ApiClient::aiUnavailableMessage() const {
-    return "当前客户端已接入登录、资产、运行监控、告警和工单列表；AI 诊断页仍使用离线演示入口，核心告警和工单流程不受影响。";
+    return "当前客户端已接入登录、资产、运行监控、告警、工单和 AI 诊断入口；AI Provider 不可用时会展示降级建议，核心告警和工单流程不受影响。";
 }
 
 QVector<TableRow> ApiClient::offlineAssets() const {
@@ -242,6 +341,24 @@ QVector<TableRow> ApiClient::offlineAlerts() const {
 
 QVector<TableRow> ApiClient::offlineWorkOrders() const {
     return {{{"wo-from-alert-001", "asset-001", "alert-001", "processing", "maintainer"}}};
+}
+QString ApiClient::offlineAiDiagnosis(const AiDiagnosisInput& input) const {
+    const auto relatedId = input.relatedId.trimmed().isEmpty() ? QStringLiteral("未指定对象") : input.relatedId.trimmed();
+    const auto prompt = input.prompt.trimmed().isEmpty() ? QStringLiteral("未填写问题描述") : input.prompt.trimmed();
+    QString report;
+    report += "AI 诊断（离线兜底）\n\n";
+    report += QStringLiteral("关联对象：") + relatedId + QStringLiteral("\n");
+    report += QStringLiteral("问题描述：") + prompt + QStringLiteral("\n");
+    report += "风险级别：warning\n";
+    report += "人审要求：需要人工复核\n\n";
+    report += "可能原因\n";
+    report += "- AI 后端或 Provider 当前不可用\n";
+    report += "- 需要结合告警、运行状态和工单记录继续排查\n\n";
+    report += "建议动作\n";
+    report += "- 先确认设备实时状态和最近告警\n";
+    report += "- 检查维护工单是否已经开始处理或完成\n";
+    report += "- 保留人工复核，避免把降级建议作为自动处置依据";
+    return report;
 }
 
 QJsonObject ApiClient::responseEnvelope(const QString& path, QJsonValue::Type dataType) {
@@ -261,7 +378,7 @@ QJsonObject ApiClient::responseEnvelope(const QString& path, QJsonValue::Type da
     return envelope;
 }
 
-QJsonObject ApiClient::postEnvelope(const QString& path, const QJsonObject& payload, QJsonValue::Type dataType) {
+QJsonObject ApiClient::postEnvelope(const QString& path, const QJsonObject& payload, QJsonValue::Type dataType, const QString& successMessage, const QString& failureMessage) {
     const auto response = requestJson("POST", path, QJsonDocument(payload).toJson(QJsonDocument::Compact));
     if (response.isEmpty()) {
         return {};
@@ -273,10 +390,10 @@ QJsonObject ApiClient::postEnvelope(const QString& path, const QJsonObject& payl
         if (envelope.value("code").toString().startsWith("AUTH")) {
             token_.clear();
         }
-        statusMessage_ = envelope.value("message").toString("工单操作失败");
+        statusMessage_ = envelope.value("message").toString(failureMessage.isEmpty() ? QStringLiteral("请求失败") : failureMessage);
         return {};
     }
-    statusMessage_ = "工单操作成功";
+    statusMessage_ = successMessage.isEmpty() ? QStringLiteral("请求成功") : successMessage;
     return envelope;
 }
 
