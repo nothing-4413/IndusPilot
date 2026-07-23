@@ -59,7 +59,19 @@ $stderr = [System.IO.Path]::GetTempFileName()
 $proc = Start-Process -FilePath $BackendExe -ArgumentList $ConfigPath -WorkingDirectory (Split-Path -Parent (Split-Path -Parent $BackendExe)) -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru
 
 try {
-    Start-Sleep -Seconds 3
+    $health = $null
+    for ($attempt = 0; $attempt -lt 20; $attempt++) {
+        try {
+            $health = Invoke-RestMethod -Uri "$BaseUrl/health" -Method Get -Headers @{ "X-Trace-Id" = "trace-it-health" } -TimeoutSec 2
+            break
+        } catch {
+            if ($proc.HasExited) {
+                throw
+            }
+            Start-Sleep -Milliseconds 500
+        }
+    }
+    Assert-True ($null -ne $health) "Backend did not become ready."
 
     $health = Invoke-RestMethod -Uri "$BaseUrl/health" -Method Get -Headers @{ "X-Trace-Id" = "trace-it-health" } -TimeoutSec 10
     Assert-True ($health.service -eq "induspilot-backend") "Health check did not return service name."

@@ -216,6 +216,28 @@ Json::Value workOrderToJson(const domain::WorkOrder& order) {
     return value;
 }
 
+std::optional<modules::WorkOrderQuery> workOrderQueryFromRequest(const drogon::HttpRequestPtr& request, std::string& error) {
+    modules::WorkOrderQuery query;
+    const auto assetId = request->getParameter("assetId");
+    const auto alertId = request->getParameter("alertId");
+    const auto state = request->getParameter("state");
+
+    if (!assetId.empty()) {
+        query.assetId = assetId;
+    }
+    if (!alertId.empty()) {
+        query.alertId = alertId;
+    }
+    if (!state.empty()) {
+        const auto parsed = modules::workOrderStateFromString(state);
+        if (!parsed) {
+            error = "unsupported work order state";
+            return std::nullopt;
+        }
+        query.state = *parsed;
+    }
+    return query;
+}
 Json::Value responseEnvelope(bool success, const std::string& code, const std::string& message, Json::Value data = Json::Value(Json::objectValue)) {
     Json::Value value;
     value["success"] = success;
@@ -670,13 +692,162 @@ void registerRoutes(
             return;
         }
         writeRequestLog(request, session);
+        std::string queryError;
+        const auto query = workOrderQueryFromRequest(request, queryError);
+        if (!query) {
+            callback(invalidRequest(queryError));
+            return;
+        }
         Json::Value rows(Json::arrayValue);
-        for (const auto& order : maintenance->list()) {
+        for (const auto& order : maintenance->list(*query)) {
             rows.append(workOrderToJson(order));
         }
         callback(jsonResponse(responseEnvelope(true, "OK", "work orders returned", rows)));
     }, {drogon::Get});
 
+    server.registerHandler("/api/v1/work-orders/{1}", [identity, maintenance](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback, const std::string& orderId) {
+        const auto session = requireSession(identity, request, callback);
+        if (!session || !requirePermission(identity, *session, "work-order:read", callback)) {
+            return;
+        }
+        writeRequestLog(request, session);
+        const auto order = maintenance->findById(orderId);
+        if (!order) {
+            callback(notFound("work order not found"));
+            return;
+        }
+        callback(jsonResponse(responseEnvelope(true, "OK", "work order returned", workOrderToJson(*order))));
+    }, {drogon::Get});
+
+    server.registerHandler("/api/v1/work-orders", [identity, maintenance](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+        const auto session = requireSession(identity, request, callback);
+        if (!session || !requirePermission(identity, *session, "work-order:write", callback)) {
+            return;
+        }
+        writeRequestLog(request, session);
+        const auto payload = request->getJsonObject();
+        if (!payload || !payload->isMember("id") || !payload->isMember("assetId") || !payload->isMember("summary")) {
+            callback(invalidRequest("id, assetId and summary are required"));
+            return;
+        }
+        auto state = domain::WorkOrderState::Created;
+        if (payload->isMember("state")) {
+            const auto parsed = modules::workOrderStateFromString((*payload)["state"].asString());
+            if (!parsed) {
+                callback(invalidRequest("unsupported work order state"));
+                return;
+            }
+            state = *parsed;
+        }
+        const auto order = maintenance->create(domain::WorkOrder{
+            (*payload)["id"].asString(),
+            (*payload)["assetId"].asString(),
+            payload->isMember("alertId") ? (*payload)["alertId"].asString() : "",
+            state,
+            payload->isMember("assignee") ? (*payload)["assignee"].asString() : "",
+            (*payload)["summary"].asString(),
+            payload->isMember("result") ? (*payload)["result"].asString() : ""});
+        callback(jsonResponse(responseEnvelope(true, "OK", "work order created", workOrderToJson(order))));
+    }, {drogon::Post});
+
+    server.registerHandler("/api/v1/work-orders/from-alert", [identity, alerts, maintenance](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+        const auto session = requireSession(identity, request, callback);
+        if (!session || !requirePermission(identity, *session, "work-order:write", callback)) {
+            return;
+        }
+        writeRequestLog(request, session);
+        const auto payload = request->getJsonObject();
+        if (!payload || !payload->isMember("alertId") || !payload->isMember("summary")) {
+            callback(invalidRequest("alertId and summary are required"));
+            return;
+        }
+        const auto alert = alerts->findById((*payload)["alertId"].asString());
+        if (!alert) {
+            callback(notFound("alert not found"));
+            return;
+        }
+        const auto order = maintenance->createFromAlert(*alert, (*payload)["summary"].asString());
+        callback(jsonResponse(responseEnvelope(true, "OK", "work order created from alert", workOrderToJson(order))));
+    }, {drogon::Post});
+
+    server.registerHandler("/api/v1/work-orders/{1}/assign", [identity, maintenance](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback, const std::string& orderId) {
+        const auto session = requireSession(identity, request, callback);
+        if (!session || !requirePermission(identity, *session, "work-order:write", callback)) {
+            return;
+        }
+        writeRequestLog(request, session);
+        const auto payload = request->getJsonObject();
+        if (!payload || !payload->isMember("assignee")) {
+            callback(invalidRequest("assignee is required"));
+            return;
+        }
+        const auto order = maintenance->assign(orderId, (*payload)["assignee"].asString());
+        if (!order) {
+            callback(notFound("work order not found"));
+            return;
+        }
+        callback(jsonResponse(responseEnvelope(true, "OK", "work order assigned", workOrderToJson(*order))));
+    }, {drogon::Post});
+
+    server.registerHandler("/api/v1/work-orders/{1}/start", [identity, maintenance](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback, const std::string& orderId) {
+        const auto session = requireSession(identity, request, callback);
+        if (!session || !requirePermission(identity, *session, "work-order:write", callback)) {
+            return;
+        }
+        writeRequestLog(request, session);
+        const auto order = maintenance->startProcessing(orderId);
+        if (!order) {
+            callback(notFound("work order not found"));
+            return;
+        }
+        callback(jsonResponse(responseEnvelope(true, "OK", "work order processing", workOrderToJson(*order))));
+    }, {drogon::Post});
+
+    server.registerHandler("/api/v1/work-orders/{1}/complete", [identity, maintenance](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback, const std::string& orderId) {
+        const auto session = requireSession(identity, request, callback);
+        if (!session || !requirePermission(identity, *session, "work-order:write", callback)) {
+            return;
+        }
+        writeRequestLog(request, session);
+        const auto payload = request->getJsonObject();
+        if (!payload || !payload->isMember("result")) {
+            callback(invalidRequest("result is required"));
+            return;
+        }
+        const auto order = maintenance->complete(orderId, (*payload)["result"].asString());
+        if (!order) {
+            callback(notFound("work order not found"));
+            return;
+        }
+        callback(jsonResponse(responseEnvelope(true, "OK", "work order completed", workOrderToJson(*order))));
+    }, {drogon::Post});
+
+    server.registerHandler("/api/v1/work-orders/{1}/close", [identity, maintenance](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback, const std::string& orderId) {
+        const auto session = requireSession(identity, request, callback);
+        if (!session || !requirePermission(identity, *session, "work-order:write", callback)) {
+            return;
+        }
+        writeRequestLog(request, session);
+        const auto order = maintenance->close(orderId);
+        if (!order) {
+            callback(notFound("work order not found"));
+            return;
+        }
+        callback(jsonResponse(responseEnvelope(true, "OK", "work order closed", workOrderToJson(*order))));
+    }, {drogon::Post});
+
+    server.registerHandler("/api/v1/assets/{1}/maintenance-history", [identity, maintenance](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback, const std::string& assetId) {
+        const auto session = requireSession(identity, request, callback);
+        if (!session || !requirePermission(identity, *session, "work-order:read", callback)) {
+            return;
+        }
+        writeRequestLog(request, session);
+        Json::Value rows(Json::arrayValue);
+        for (const auto& order : maintenance->historyForAsset(assetId)) {
+            rows.append(workOrderToJson(order));
+        }
+        callback(jsonResponse(responseEnvelope(true, "OK", "maintenance history returned", rows)));
+    }, {drogon::Get});
     server.registerHandler("/api/v1/ai/status", [identity, ai](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
         const auto session = requireSession(identity, request, callback);
         if (!session || !requirePermission(identity, *session, "ai:use", callback)) {
