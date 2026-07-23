@@ -3,6 +3,7 @@
 #include "induspilot/domain/domain_types.hpp"
 #include "induspilot/modules/service_status.hpp"
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -21,13 +22,18 @@ struct AiSuggestion {
     std::string content{"AI 服务未启用，核心流程可继续执行"};
 };
 
+struct AiInteractionQuery {
+    std::optional<std::string> relatedType;
+    std::optional<std::string> relatedId;
+};
+
 class AiService {
 public:
     ServiceStatus status() const;
     AiSuggestion explainAlert(const std::string& alertSummary);
     AiSuggestion troubleshoot(const AiRequest& request);
     AiSuggestion summarizeLogs(const AiRequest& request);
-    std::vector<domain::AiInteraction> interactions() const;
+    std::vector<domain::AiInteraction> interactions(const AiInteractionQuery& query = {}) const;
 
 private:
     AiSuggestion unavailableSuggestion(const AiRequest& request, const std::string& operation);
