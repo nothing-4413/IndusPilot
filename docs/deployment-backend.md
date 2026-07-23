@@ -62,7 +62,7 @@ docker compose up -d
 
 ## 仓储运行时
 
-`storage.repository_store` 支持 `memory` 和 `mysql`。默认 `memory` 用于离线演示和测试；设置为 `mysql` 后，HTTP 运行时会将身份认证和资产服务切换到 MySQL 仓储。告警、工单、运行监控和 AI 交互审计仍是进程内存实现，后续需要独立仓储化。
+`storage.repository_store` 支持 `memory` 和 `mysql`。默认 `memory` 用于离线演示和测试；设置为 `mysql` 后，HTTP 运行时会将身份认证、资产、告警、维护工单、运行状态和 AI 交互审计切换到 MySQL 仓储。
 
 ## 身份口令边界
 
@@ -71,7 +71,7 @@ docker compose up -d
 ## 当前配置边界
 
 - Redis session 已支持通过 `redis.uri` 接入；`redis.password` 和 `redis.database` 会被解析，但当前连接实现不单独消费这两个字段，如需认证或选择 DB，请把信息嵌入 `redis.uri`。
-- MongoDB 当前仅用于 TCP 健康探测，尚未承载日志或 AI 交互落库。
+- MongoDB 当前仅用于 TCP 健康探测；AI 交互审计在 `repository_store=mysql` 时写入 MySQL，尚未写入 MongoDB。
 - `ai.enabled` 和 `ai.endpoint` 当前驱动健康探测、AI 状态接口和降级提示；外部推理 HTTP 调用尚未实现。
 - `/health` 依赖检查当前只验证 TCP 连通性，不校验认证、schema、表结构或 MongoDB collection。
 ## Session Store
@@ -121,6 +121,6 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File backend/tests/http_integ
 ## 生产注意事项
 
 - 开发口令仍是骨架数据，生产必须替换为加盐哈希和密码策略。
-- MySQL 仓储已经建立 identity 和 asset 初始实现，但业务服务尚未完全切换到仓储注入。
+- MySQL 仓储已经覆盖 identity、asset、alert、work-order、runtime-state 和 AI interaction；生产部署前需执行 `database/mysql/001_foundation_schema.sql`、`002_seed_identity.sql`、`003_runtime_persistence_schema.sql`。
 - Redis session 已支持配置化接入，后续需要补充连接失败降级策略和监控指标。
-- 当前 MongoDB 仅做依赖探测，日志和 AI 交互落库会在后续模块推进。
+- 当前 MongoDB 仅做依赖探测，后续可用于长日志、知识片段或非结构化诊断上下文。

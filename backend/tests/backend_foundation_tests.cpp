@@ -27,6 +27,10 @@ static_assert(std::has_virtual_destructor_v<induspilot::data::AiInteractionRepos
 #ifdef INDUSPILOT_WITH_DROGON
 static_assert(std::is_base_of_v<induspilot::data::UserRepository, induspilot::data::MySqlUserRepository>);
 static_assert(std::is_base_of_v<induspilot::data::AssetRepository, induspilot::data::MySqlAssetRepository>);
+static_assert(std::is_base_of_v<induspilot::data::AlertRepository, induspilot::data::MySqlAlertRepository>);
+static_assert(std::is_base_of_v<induspilot::data::WorkOrderRepository, induspilot::data::MySqlWorkOrderRepository>);
+static_assert(std::is_base_of_v<induspilot::data::RuntimeStateRepository, induspilot::data::MySqlRuntimeStateRepository>);
+static_assert(std::is_base_of_v<induspilot::data::AiInteractionRepository, induspilot::data::MySqlAiInteractionRepository>);
 #endif
 
 int main() {

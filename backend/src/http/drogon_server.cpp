@@ -369,6 +369,34 @@ std::shared_ptr<data::AssetRepository> createAssetRepository(const app::AppConfi
     }
     return std::make_shared<data::InMemoryAssetRepository>();
 }
+
+std::shared_ptr<data::AlertRepository> createAlertRepository(const app::AppConfig& config, const drogon::orm::DbClientPtr& mysqlClient) {
+    if (config.storage.repositoryStore == "mysql") {
+        return std::make_shared<data::MySqlAlertRepository>(mysqlClient);
+    }
+    return std::make_shared<data::InMemoryAlertRepository>();
+}
+
+std::shared_ptr<data::WorkOrderRepository> createWorkOrderRepository(const app::AppConfig& config, const drogon::orm::DbClientPtr& mysqlClient) {
+    if (config.storage.repositoryStore == "mysql") {
+        return std::make_shared<data::MySqlWorkOrderRepository>(mysqlClient);
+    }
+    return std::make_shared<data::InMemoryWorkOrderRepository>();
+}
+
+std::shared_ptr<data::RuntimeStateRepository> createRuntimeStateRepository(const app::AppConfig& config, const drogon::orm::DbClientPtr& mysqlClient) {
+    if (config.storage.repositoryStore == "mysql") {
+        return std::make_shared<data::MySqlRuntimeStateRepository>(mysqlClient);
+    }
+    return std::make_shared<data::InMemoryRuntimeStateRepository>();
+}
+
+std::shared_ptr<data::AiInteractionRepository> createAiInteractionRepository(const app::AppConfig& config, const drogon::orm::DbClientPtr& mysqlClient) {
+    if (config.storage.repositoryStore == "mysql") {
+        return std::make_shared<data::MySqlAiInteractionRepository>(mysqlClient);
+    }
+    return std::make_shared<data::InMemoryAiInteractionRepository>();
+}
 std::optional<modules::SessionInfo> requireSession(
     const std::shared_ptr<modules::IdentityService>& identity,
     const drogon::HttpRequestPtr& request,
@@ -998,10 +1026,10 @@ int runDrogonServer(const app::AppConfig& config) {
 
     auto identity = createIdentityService(config, mysqlClient);
     auto assets = std::make_shared<modules::AssetService>(createAssetRepository(config, mysqlClient));
-    auto monitoring = std::make_shared<modules::MonitoringService>();
-    auto alerts = std::make_shared<modules::AlertService>();
-    auto maintenance = std::make_shared<modules::MaintenanceService>();
-    auto ai = std::make_shared<modules::AiService>(config.ai);
+    auto monitoring = std::make_shared<modules::MonitoringService>(createRuntimeStateRepository(config, mysqlClient));
+    auto alerts = std::make_shared<modules::AlertService>(createAlertRepository(config, mysqlClient));
+    auto maintenance = std::make_shared<modules::MaintenanceService>(createWorkOrderRepository(config, mysqlClient));
+    auto ai = std::make_shared<modules::AiService>(config.ai, createAiInteractionRepository(config, mysqlClient));
 
     application->start();
     registerRoutes(application, identity, assets, monitoring, alerts, maintenance, ai);

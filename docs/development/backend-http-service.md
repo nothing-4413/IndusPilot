@@ -56,7 +56,7 @@ ctest --preset dev-http
 
 ## 后续约束
 
-当前 HTTP 层已经接入会话守卫、权限守卫、统一错误响应和资产仓储边界。`storage.repository_store` 为 `memory` 时使用内存身份/资产仓储；设置为 `mysql` 时，身份认证和资产模块使用 MySQL 仓储。运行监控、告警、工单和 AI 交互审计仍保存在进程内存中。AI 模块会读取 `ai.enabled` 与 `ai.endpoint` 并在状态/降级建议中说明当前边界，但尚未调用外部推理服务。
+当前 HTTP 层已经接入会话守卫、权限守卫、统一错误响应和仓储边界。`storage.repository_store` 为 `memory` 时使用内存仓储；设置为 `mysql` 时，身份认证、资产、告警、工单、运行状态和 AI 交互审计使用 MySQL 仓储。AI 模块会读取 `ai.enabled` 与 `ai.endpoint` 并在状态/降级建议中说明当前边界，但尚未调用外部推理服务。
 
 ## 错误响应
 

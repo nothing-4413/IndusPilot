@@ -73,6 +73,99 @@ std::string assetStatusToString(domain::AssetStatus status) {
     return "active";
 }
 
+domain::AlertSeverity alertSeverityFromString(const std::string& value) {
+    if (value == "warning") {
+        return domain::AlertSeverity::Warning;
+    }
+    if (value == "critical") {
+        return domain::AlertSeverity::Critical;
+    }
+    return domain::AlertSeverity::Info;
+}
+
+std::string alertSeverityToString(domain::AlertSeverity severity) {
+    switch (severity) {
+        case domain::AlertSeverity::Warning:
+            return "warning";
+        case domain::AlertSeverity::Critical:
+            return "critical";
+        case domain::AlertSeverity::Info:
+            return "info";
+    }
+    return "info";
+}
+
+domain::AlertState alertStateFromString(const std::string& value) {
+    if (value == "acknowledged") {
+        return domain::AlertState::Acknowledged;
+    }
+    if (value == "assigned") {
+        return domain::AlertState::Assigned;
+    }
+    if (value == "resolved") {
+        return domain::AlertState::Resolved;
+    }
+    if (value == "closed") {
+        return domain::AlertState::Closed;
+    }
+    return domain::AlertState::Open;
+}
+
+std::string alertStateToString(domain::AlertState state) {
+    switch (state) {
+        case domain::AlertState::Acknowledged:
+            return "acknowledged";
+        case domain::AlertState::Assigned:
+            return "assigned";
+        case domain::AlertState::Resolved:
+            return "resolved";
+        case domain::AlertState::Closed:
+            return "closed";
+        case domain::AlertState::Open:
+            return "open";
+    }
+    return "open";
+}
+
+domain::WorkOrderState workOrderStateFromString(const std::string& value) {
+    if (value == "assigned") {
+        return domain::WorkOrderState::Assigned;
+    }
+    if (value == "processing") {
+        return domain::WorkOrderState::Processing;
+    }
+    if (value == "completed") {
+        return domain::WorkOrderState::Completed;
+    }
+    if (value == "closed") {
+        return domain::WorkOrderState::Closed;
+    }
+    return domain::WorkOrderState::Created;
+}
+
+std::string workOrderStateToString(domain::WorkOrderState state) {
+    switch (state) {
+        case domain::WorkOrderState::Assigned:
+            return "assigned";
+        case domain::WorkOrderState::Processing:
+            return "processing";
+        case domain::WorkOrderState::Completed:
+            return "completed";
+        case domain::WorkOrderState::Closed:
+            return "closed";
+        case domain::WorkOrderState::Created:
+            return "created";
+    }
+    return "created";
+}
+
+std::string nullableString(const drogon::orm::Row& row, const char* field) {
+    if (row[field].isNull()) {
+        return {};
+    }
+    return row[field].as<std::string>();
+}
+
 domain::EquipmentAsset assetFromRow(const drogon::orm::Row& row) {
     return domain::EquipmentAsset{
         row["asset_code"].as<std::string>(),
@@ -82,6 +175,46 @@ domain::EquipmentAsset assetFromRow(const drogon::orm::Row& row) {
         row["workshop"].as<std::string>(),
         row["production_line"].as<std::string>(),
         assetStatusFromString(row["status"].as<std::string>())};
+}
+
+domain::Alert alertFromRow(const drogon::orm::Row& row) {
+    return domain::Alert{
+        row["alert_code"].as<std::string>(),
+        nullableString(row, "asset_code"),
+        alertSeverityFromString(row["severity"].as<std::string>()),
+        alertStateFromString(row["state"].as<std::string>()),
+        row["title"].as<std::string>(),
+        nullableString(row, "acknowledged_by_username"),
+        nullableString(row, "assigned_to_username")};
+}
+
+domain::WorkOrder workOrderFromRow(const drogon::orm::Row& row) {
+    return domain::WorkOrder{
+        row["work_order_code"].as<std::string>(),
+        nullableString(row, "asset_code"),
+        nullableString(row, "alert_code"),
+        workOrderStateFromString(row["state"].as<std::string>()),
+        nullableString(row, "assignee_username"),
+        row["summary"].as<std::string>(),
+        nullableString(row, "result")};
+}
+
+domain::RuntimeState runtimeStateFromRow(const drogon::orm::Row& row) {
+    return domain::RuntimeState{
+        row["asset_code"].as<std::string>(),
+        row["state"].as<std::string>(),
+        nullableString(row, "metric_summary"),
+        row["reported_at"].as<std::string>(),
+        row["severity"].as<std::string>()};
+}
+
+domain::AiInteraction aiInteractionFromRow(const drogon::orm::Row& row) {
+    return domain::AiInteraction{
+        row["interaction_code"].as<std::string>(),
+        row["related_type"].as<std::string>(),
+        row["related_id"].as<std::string>(),
+        row["input"].as<std::string>(),
+        row["output"].as<std::string>()};
 }
 
 }  // namespace
@@ -197,6 +330,199 @@ std::optional<domain::EquipmentAsset> MySqlAssetRepository::findById(const std::
         return std::nullopt;
     }
     return assetFromRow(result[0]);
+}
+
+MySqlAlertRepository::MySqlAlertRepository(drogon::orm::DbClientPtr client) : client_(std::move(client)) {}
+
+domain::Alert MySqlAlertRepository::save(domain::Alert alert) {
+    client_->execSqlSync(
+        "INSERT INTO alerts(alert_code, asset_id, severity, state, title, acknowledged_by, assigned_to) "
+        "VALUES(?, (SELECT id FROM equipment_assets WHERE asset_code = ?), ?, ?, ?, "
+        "IF(? = '', NULL, (SELECT id FROM users WHERE username = ?)), "
+        "IF(? = '', NULL, (SELECT id FROM users WHERE username = ?))) "
+        "ON DUPLICATE KEY UPDATE asset_id = VALUES(asset_id), severity = VALUES(severity), state = VALUES(state), "
+        "title = VALUES(title), acknowledged_by = VALUES(acknowledged_by), assigned_to = VALUES(assigned_to)",
+        alert.id,
+        alert.assetId,
+        alertSeverityToString(alert.severity),
+        alertStateToString(alert.state),
+        alert.title,
+        alert.acknowledgedBy,
+        alert.acknowledgedBy,
+        alert.assignedTo,
+        alert.assignedTo);
+    return alert;
+}
+
+std::vector<domain::Alert> MySqlAlertRepository::list() const {
+    const auto result = client_->execSqlSync(
+        "SELECT a.alert_code, ea.asset_code, a.severity, a.state, a.title, "
+        "ack.username AS acknowledged_by_username, assignee.username AS assigned_to_username "
+        "FROM alerts a "
+        "LEFT JOIN equipment_assets ea ON ea.id = a.asset_id "
+        "LEFT JOIN users ack ON ack.id = a.acknowledged_by "
+        "LEFT JOIN users assignee ON assignee.id = a.assigned_to "
+        "ORDER BY a.updated_at DESC, a.alert_code");
+
+    std::vector<domain::Alert> alerts;
+    for (const auto& row : result) {
+        alerts.push_back(alertFromRow(row));
+    }
+    return alerts;
+}
+
+std::optional<domain::Alert> MySqlAlertRepository::findById(const std::string& id) const {
+    const auto result = client_->execSqlSync(
+        "SELECT a.alert_code, ea.asset_code, a.severity, a.state, a.title, "
+        "ack.username AS acknowledged_by_username, assignee.username AS assigned_to_username "
+        "FROM alerts a "
+        "LEFT JOIN equipment_assets ea ON ea.id = a.asset_id "
+        "LEFT JOIN users ack ON ack.id = a.acknowledged_by "
+        "LEFT JOIN users assignee ON assignee.id = a.assigned_to "
+        "WHERE a.alert_code = ?",
+        id);
+    if (result.empty()) {
+        return std::nullopt;
+    }
+    return alertFromRow(result[0]);
+}
+
+MySqlWorkOrderRepository::MySqlWorkOrderRepository(drogon::orm::DbClientPtr client) : client_(std::move(client)) {}
+
+domain::WorkOrder MySqlWorkOrderRepository::save(domain::WorkOrder order) {
+    client_->execSqlSync(
+        "INSERT INTO work_orders(work_order_code, asset_id, alert_id, state, summary, assignee, result) "
+        "VALUES(?, (SELECT id FROM equipment_assets WHERE asset_code = ?), "
+        "IF(? = '', NULL, (SELECT id FROM alerts WHERE alert_code = ?)), ?, ?, "
+        "IF(? = '', NULL, (SELECT id FROM users WHERE username = ?)), ?) "
+        "ON DUPLICATE KEY UPDATE asset_id = VALUES(asset_id), alert_id = VALUES(alert_id), state = VALUES(state), "
+        "summary = VALUES(summary), assignee = VALUES(assignee), result = VALUES(result)",
+        order.id,
+        order.assetId,
+        order.alertId,
+        order.alertId,
+        workOrderStateToString(order.state),
+        order.summary,
+        order.assignee,
+        order.assignee,
+        order.result);
+    return order;
+}
+
+std::vector<domain::WorkOrder> MySqlWorkOrderRepository::list() const {
+    const auto result = client_->execSqlSync(
+        "SELECT wo.work_order_code, ea.asset_code, a.alert_code, wo.state, wo.summary, u.username AS assignee_username, wo.result "
+        "FROM work_orders wo "
+        "LEFT JOIN equipment_assets ea ON ea.id = wo.asset_id "
+        "LEFT JOIN alerts a ON a.id = wo.alert_id "
+        "LEFT JOIN users u ON u.id = wo.assignee "
+        "ORDER BY wo.updated_at DESC, wo.work_order_code");
+
+    std::vector<domain::WorkOrder> orders;
+    for (const auto& row : result) {
+        orders.push_back(workOrderFromRow(row));
+    }
+    return orders;
+}
+
+std::optional<domain::WorkOrder> MySqlWorkOrderRepository::findById(const std::string& id) const {
+    const auto result = client_->execSqlSync(
+        "SELECT wo.work_order_code, ea.asset_code, a.alert_code, wo.state, wo.summary, u.username AS assignee_username, wo.result "
+        "FROM work_orders wo "
+        "LEFT JOIN equipment_assets ea ON ea.id = wo.asset_id "
+        "LEFT JOIN alerts a ON a.id = wo.alert_id "
+        "LEFT JOIN users u ON u.id = wo.assignee "
+        "WHERE wo.work_order_code = ?",
+        id);
+    if (result.empty()) {
+        return std::nullopt;
+    }
+    return workOrderFromRow(result[0]);
+}
+
+std::vector<domain::WorkOrder> MySqlWorkOrderRepository::historyForAsset(const std::string& assetId) const {
+    const auto result = client_->execSqlSync(
+        "SELECT wo.work_order_code, ea.asset_code, a.alert_code, wo.state, wo.summary, u.username AS assignee_username, wo.result "
+        "FROM work_orders wo "
+        "LEFT JOIN equipment_assets ea ON ea.id = wo.asset_id "
+        "LEFT JOIN alerts a ON a.id = wo.alert_id "
+        "LEFT JOIN users u ON u.id = wo.assignee "
+        "WHERE ea.asset_code = ? AND wo.state = 'closed' "
+        "ORDER BY wo.updated_at DESC, wo.work_order_code",
+        assetId);
+
+    std::vector<domain::WorkOrder> orders;
+    for (const auto& row : result) {
+        orders.push_back(workOrderFromRow(row));
+    }
+    return orders;
+}
+
+MySqlRuntimeStateRepository::MySqlRuntimeStateRepository(drogon::orm::DbClientPtr client) : client_(std::move(client)) {}
+
+domain::RuntimeState MySqlRuntimeStateRepository::save(domain::RuntimeState state) {
+    client_->execSqlSync(
+        "INSERT INTO runtime_states(asset_code, state, metric_summary, severity, reported_at) "
+        "VALUES(?, ?, ?, ?, ?) "
+        "ON DUPLICATE KEY UPDATE state = VALUES(state), metric_summary = VALUES(metric_summary), "
+        "severity = VALUES(severity), reported_at = VALUES(reported_at)",
+        state.assetId,
+        state.state,
+        state.metricSummary,
+        state.severity,
+        state.updatedAt);
+    return state;
+}
+
+std::vector<domain::RuntimeState> MySqlRuntimeStateRepository::list() const {
+    const auto result = client_->execSqlSync(
+        "SELECT asset_code, state, metric_summary, severity, reported_at "
+        "FROM runtime_states ORDER BY updated_at DESC, asset_code");
+
+    std::vector<domain::RuntimeState> states;
+    for (const auto& row : result) {
+        states.push_back(runtimeStateFromRow(row));
+    }
+    return states;
+}
+
+std::optional<domain::RuntimeState> MySqlRuntimeStateRepository::findByAssetId(const std::string& assetId) const {
+    const auto result = client_->execSqlSync(
+        "SELECT asset_code, state, metric_summary, severity, reported_at "
+        "FROM runtime_states WHERE asset_code = ?",
+        assetId);
+    if (result.empty()) {
+        return std::nullopt;
+    }
+    return runtimeStateFromRow(result[0]);
+}
+
+MySqlAiInteractionRepository::MySqlAiInteractionRepository(drogon::orm::DbClientPtr client) : client_(std::move(client)) {}
+
+domain::AiInteraction MySqlAiInteractionRepository::save(domain::AiInteraction interaction) {
+    client_->execSqlSync(
+        "INSERT INTO ai_interactions(interaction_code, related_type, related_id, input, output) "
+        "VALUES(?, ?, ?, ?, ?) "
+        "ON DUPLICATE KEY UPDATE related_type = VALUES(related_type), related_id = VALUES(related_id), "
+        "input = VALUES(input), output = VALUES(output)",
+        interaction.id,
+        interaction.relatedType,
+        interaction.relatedId,
+        interaction.input,
+        interaction.output);
+    return interaction;
+}
+
+std::vector<domain::AiInteraction> MySqlAiInteractionRepository::list() const {
+    const auto result = client_->execSqlSync(
+        "SELECT interaction_code, related_type, related_id, input, output "
+        "FROM ai_interactions ORDER BY created_at DESC, interaction_code");
+
+    std::vector<domain::AiInteraction> interactions;
+    for (const auto& row : result) {
+        interactions.push_back(aiInteractionFromRow(row));
+    }
+    return interactions;
 }
 
 }  // namespace induspilot::data
