@@ -1,5 +1,9 @@
 #include "induspilot/modules/alert_service.hpp"
 
+#include "induspilot/data/in_memory_repositories.hpp"
+
+#include <utility>
+
 namespace induspilot::modules {
 namespace {
 
@@ -78,69 +82,72 @@ std::string alertStateToString(domain::AlertState state) {
     return "unknown";
 }
 
+AlertService::AlertService() : AlertService(std::make_shared<data::InMemoryAlertRepository>()) {}
+
+AlertService::AlertService(std::shared_ptr<data::AlertRepository> repository) : repository_(std::move(repository)) {
+    if (!repository_) {
+        repository_ = std::make_shared<data::InMemoryAlertRepository>();
+    }
+}
+
 ServiceStatus AlertService::status() const {
-    return ServiceStatus{"alert-management", true, "alert lifecycle service is ready"};
+    return ServiceStatus{"alert-management", true, "alert repository is ready"};
 }
 
 domain::Alert AlertService::create(domain::Alert alert) {
-    alerts_[alert.id] = alert;
-    return alert;
+    return repository_->save(std::move(alert));
 }
 
 std::optional<domain::Alert> AlertService::findById(const std::string& id) const {
-    const auto it = alerts_.find(id);
-    if (it == alerts_.end()) {
-        return std::nullopt;
-    }
-    return it->second;
+    return repository_->findById(id);
 }
 
 std::vector<domain::Alert> AlertService::list(const AlertQuery& query) const {
     std::vector<domain::Alert> result;
-    for (const auto& item : alerts_) {
-        if (matches(item.second, query)) {
-            result.push_back(item.second);
+    for (const auto& alert : repository_->list()) {
+        if (matches(alert, query)) {
+            result.push_back(alert);
         }
     }
     return result;
 }
 
 std::optional<domain::Alert> AlertService::acknowledge(const std::string& id, const std::string& operatorId) {
-    const auto it = alerts_.find(id);
-    if (it == alerts_.end()) {
+    auto alert = repository_->findById(id);
+    if (!alert) {
         return std::nullopt;
     }
-    it->second.state = domain::AlertState::Acknowledged;
-    it->second.acknowledgedBy = operatorId;
-    return it->second;
+    alert->state = domain::AlertState::Acknowledged;
+    alert->acknowledgedBy = operatorId;
+    return repository_->save(*alert);
 }
 
 std::optional<domain::Alert> AlertService::assign(const std::string& id, const std::string& assignee) {
-    const auto it = alerts_.find(id);
-    if (it == alerts_.end()) {
+    auto alert = repository_->findById(id);
+    if (!alert) {
         return std::nullopt;
     }
-    it->second.state = domain::AlertState::Assigned;
-    it->second.assignedTo = assignee;
-    return it->second;
+    alert->state = domain::AlertState::Assigned;
+    alert->assignedTo = assignee;
+    return repository_->save(*alert);
 }
 
 std::optional<domain::Alert> AlertService::resolve(const std::string& id) {
-    const auto it = alerts_.find(id);
-    if (it == alerts_.end()) {
+    auto alert = repository_->findById(id);
+    if (!alert) {
         return std::nullopt;
     }
-    it->second.state = domain::AlertState::Resolved;
-    return it->second;
+    alert->state = domain::AlertState::Resolved;
+    return repository_->save(*alert);
 }
 
 std::optional<domain::Alert> AlertService::close(const std::string& id) {
-    const auto it = alerts_.find(id);
-    if (it == alerts_.end()) {
+    auto alert = repository_->findById(id);
+    if (!alert) {
         return std::nullopt;
     }
-    it->second.state = domain::AlertState::Closed;
-    return it->second;
+    alert->state = domain::AlertState::Closed;
+    return repository_->save(*alert);
 }
 
 }  // namespace induspilot::modules

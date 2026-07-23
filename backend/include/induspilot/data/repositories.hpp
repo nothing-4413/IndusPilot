@@ -56,6 +56,14 @@ public:
     virtual std::vector<domain::WorkOrder> historyForAsset(const std::string& assetId) const = 0;
 };
 
+class RuntimeStateRepository {
+public:
+    virtual ~RuntimeStateRepository() = default;
+
+    virtual domain::RuntimeState save(domain::RuntimeState state) = 0;
+    virtual std::vector<domain::RuntimeState> list() const = 0;
+    virtual std::optional<domain::RuntimeState> findByAssetId(const std::string& assetId) const = 0;
+};
 class AiInteractionRepository {
 public:
     virtual ~AiInteractionRepository() = default;

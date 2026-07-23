@@ -1,9 +1,10 @@
 #pragma once
 
+#include "induspilot/data/repositories.hpp"
 #include "induspilot/domain/domain_types.hpp"
 #include "induspilot/modules/service_status.hpp"
 
-#include <map>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -18,6 +19,9 @@ struct WorkOrderQuery {
 
 class MaintenanceService {
 public:
+    MaintenanceService();
+    explicit MaintenanceService(std::shared_ptr<data::WorkOrderRepository> repository);
+
     ServiceStatus status() const;
     domain::WorkOrder create(domain::WorkOrder order);
     domain::WorkOrder createFromAlert(const domain::Alert& alert, const std::string& summary);
@@ -30,7 +34,7 @@ public:
     std::vector<domain::WorkOrder> historyForAsset(const std::string& assetId) const;
 
 private:
-    std::map<std::string, domain::WorkOrder> orders_;
+    std::shared_ptr<data::WorkOrderRepository> repository_;
 };
 
 std::optional<domain::WorkOrderState> workOrderStateFromString(const std::string& value);

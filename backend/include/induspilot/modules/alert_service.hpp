@@ -1,9 +1,10 @@
 #pragma once
 
+#include "induspilot/data/repositories.hpp"
 #include "induspilot/domain/domain_types.hpp"
 #include "induspilot/modules/service_status.hpp"
 
-#include <map>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -18,6 +19,9 @@ struct AlertQuery {
 
 class AlertService {
 public:
+    AlertService();
+    explicit AlertService(std::shared_ptr<data::AlertRepository> repository);
+
     ServiceStatus status() const;
     domain::Alert create(domain::Alert alert);
     std::optional<domain::Alert> findById(const std::string& id) const;
@@ -28,7 +32,7 @@ public:
     std::optional<domain::Alert> close(const std::string& id);
 
 private:
-    std::map<std::string, domain::Alert> alerts_;
+    std::shared_ptr<data::AlertRepository> repository_;
 };
 
 std::optional<domain::AlertSeverity> alertSeverityFromString(const std::string& value);

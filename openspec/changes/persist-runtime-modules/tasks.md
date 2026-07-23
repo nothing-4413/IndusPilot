@@ -5,15 +5,15 @@
 - [x] 1.2 通过 OpenSpec 严格校验
 
 ## 2. 仓储接口与实现
-- [ ] 2.1 为运行监控状态增加仓储接口和内存实现
+- [x] 2.1 为运行监控状态增加仓储接口和内存实现
 - [ ] 2.2 为告警、工单、运行监控和 AI 交互补齐 MySQL 仓储
 - [ ] 2.3 补充 MySQL schema 增量
 
 ## 3. 服务注入与运行时
-- [ ] 3.1 将告警服务接入 `AlertRepository`
-- [ ] 3.2 将维护工单服务接入 `WorkOrderRepository`
-- [ ] 3.3 将运行监控服务接入 `RuntimeStateRepository`
-- [ ] 3.4 将 AI 服务接入 `AiInteractionRepository`
+- [x] 3.1 将告警服务接入 `AlertRepository`
+- [x] 3.2 将维护工单服务接入 `WorkOrderRepository`
+- [x] 3.3 将运行监控服务接入 `RuntimeStateRepository`
+- [x] 3.4 将 AI 服务接入 `AiInteractionRepository`
 - [ ] 3.5 让 HTTP 运行时按仓储配置注入运行模块仓储
 
 ## 4. 测试与文档

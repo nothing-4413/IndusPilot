@@ -124,6 +124,26 @@ std::vector<domain::WorkOrder> InMemoryWorkOrderRepository::historyForAsset(cons
     return orders;
 }
 
+domain::RuntimeState InMemoryRuntimeStateRepository::save(domain::RuntimeState state) {
+    states_[state.assetId] = state;
+    return state;
+}
+
+std::vector<domain::RuntimeState> InMemoryRuntimeStateRepository::list() const {
+    std::vector<domain::RuntimeState> states;
+    for (const auto& item : states_) {
+        states.push_back(item.second);
+    }
+    return states;
+}
+
+std::optional<domain::RuntimeState> InMemoryRuntimeStateRepository::findByAssetId(const std::string& assetId) const {
+    const auto it = states_.find(assetId);
+    if (it == states_.end()) {
+        return std::nullopt;
+    }
+    return it->second;
+}
 domain::AiInteraction InMemoryAiInteractionRepository::save(domain::AiInteraction interaction) {
     interactions_.push_back(interaction);
     return interaction;

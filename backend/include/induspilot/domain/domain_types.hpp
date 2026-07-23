@@ -46,6 +46,14 @@ struct WorkOrder {
     std::string result;
 };
 
+struct RuntimeState {
+    std::string assetId;
+    std::string state{"unknown"};
+    std::string metricSummary;
+    std::string updatedAt;
+    std::string severity{"info"};
+};
+
 struct AiInteraction {
     std::string id;
     std::string relatedType;

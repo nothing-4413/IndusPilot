@@ -1,9 +1,11 @@
 #pragma once
 
 #include "induspilot/app/config.hpp"
+#include "induspilot/data/repositories.hpp"
 #include "induspilot/domain/domain_types.hpp"
 #include "induspilot/modules/service_status.hpp"
 
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -30,7 +32,7 @@ struct AiInteractionQuery {
 
 class AiService {
 public:
-    explicit AiService(app::AiConfig config = app::AiConfig{});
+    explicit AiService(app::AiConfig config = app::AiConfig{}, std::shared_ptr<data::AiInteractionRepository> repository = nullptr);
 
     ServiceStatus status() const;
     AiSuggestion explainAlert(const std::string& alertSummary);
@@ -43,7 +45,7 @@ private:
     void recordInteraction(const AiRequest& request, const AiSuggestion& suggestion);
 
     app::AiConfig config_;
-    std::vector<domain::AiInteraction> interactions_;
+    std::shared_ptr<data::AiInteractionRepository> repository_;
 };
 
 }  // namespace induspilot::modules

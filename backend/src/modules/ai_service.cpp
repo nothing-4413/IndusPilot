@@ -1,5 +1,7 @@
 #include "induspilot/modules/ai_service.hpp"
 
+#include "induspilot/data/in_memory_repositories.hpp"
+
 #include <sstream>
 #include <utility>
 
@@ -18,7 +20,12 @@ bool matches(const domain::AiInteraction& interaction, const AiInteractionQuery&
 
 }  // namespace
 
-AiService::AiService(app::AiConfig config) : config_(std::move(config)) {}
+AiService::AiService(app::AiConfig config, std::shared_ptr<data::AiInteractionRepository> repository)
+    : config_(std::move(config)), repository_(std::move(repository)) {
+    if (!repository_) {
+        repository_ = std::make_shared<data::InMemoryAiInteractionRepository>();
+    }
+}
 
 ServiceStatus AiService::status() const {
     if (!config_.enabled) {
@@ -41,7 +48,7 @@ AiSuggestion AiService::summarizeLogs(const AiRequest& request) {
 
 std::vector<domain::AiInteraction> AiService::interactions(const AiInteractionQuery& query) const {
     std::vector<domain::AiInteraction> result;
-    for (const auto& interaction : interactions_) {
+    for (const auto& interaction : repository_->list()) {
         if (matches(interaction, query)) {
             result.push_back(interaction);
         }
@@ -60,8 +67,8 @@ AiSuggestion AiService::unavailableSuggestion(const AiRequest& request, const st
 
 void AiService::recordInteraction(const AiRequest& request, const AiSuggestion& suggestion) {
     std::ostringstream id;
-    id << "ai-interaction-" << interactions_.size() + 1;
-    interactions_.push_back(domain::AiInteraction{id.str(), request.relatedType, request.relatedId, request.prompt, suggestion.content});
+    id << "ai-interaction-" << repository_->list().size() + 1;
+    repository_->save(domain::AiInteraction{id.str(), request.relatedType, request.relatedId, request.prompt, suggestion.content});
 }
 
 }  // namespace induspilot::modules

@@ -1,10 +1,13 @@
 #include "induspilot/modules/monitoring_service.hpp"
 
+#include "induspilot/data/in_memory_repositories.hpp"
+
 #include <array>
 #include <chrono>
 #include <ctime>
 #include <iomanip>
 #include <sstream>
+#include <utility>
 
 namespace induspilot::modules {
 namespace {
@@ -45,8 +48,16 @@ bool isSupportedRuntimeSeverity(const std::string& severity) {
     return contains(severities, severity);
 }
 
+MonitoringService::MonitoringService() : MonitoringService(std::make_shared<data::InMemoryRuntimeStateRepository>()) {}
+
+MonitoringService::MonitoringService(std::shared_ptr<data::RuntimeStateRepository> repository) : repository_(std::move(repository)) {
+    if (!repository_) {
+        repository_ = std::make_shared<data::InMemoryRuntimeStateRepository>();
+    }
+}
+
 ServiceStatus MonitoringService::status() const {
-    return ServiceStatus{"operational-monitoring", true, "runtime state service is ready"};
+    return ServiceStatus{"operational-monitoring", true, "runtime state repository is ready"};
 }
 
 RuntimeState MonitoringService::updateState(RuntimeState state) {
@@ -56,38 +67,29 @@ RuntimeState MonitoringService::updateState(RuntimeState state) {
     if (state.severity.empty()) {
         state.severity = "info";
     }
-    states_[state.assetId] = state;
-    return state;
+    return repository_->save(std::move(state));
 }
 
 std::optional<RuntimeState> MonitoringService::findState(const std::string& assetId) const {
-    const auto it = states_.find(assetId);
-    if (it == states_.end()) {
-        return std::nullopt;
-    }
-    return it->second;
+    return repository_->findByAssetId(assetId);
 }
 
 std::vector<RuntimeState> MonitoringService::listStates() const {
-    std::vector<RuntimeState> result;
-    for (const auto& item : states_) {
-        result.push_back(item.second);
-    }
-    return result;
+    return repository_->list();
 }
 
 std::map<std::string, int> MonitoringService::summarizeStates() const {
     std::map<std::string, int> summary{{"online", 0}, {"warning", 0}, {"critical", 0}, {"offline", 0}};
-    for (const auto& item : states_) {
-        summary[item.second.state]++;
+    for (const auto& state : repository_->list()) {
+        summary[state.state]++;
     }
     return summary;
 }
 
 std::map<std::string, int> MonitoringService::summarizeSeverity() const {
     std::map<std::string, int> summary{{"info", 0}, {"warning", 0}, {"critical", 0}};
-    for (const auto& item : states_) {
-        summary[item.second.severity]++;
+    for (const auto& state : repository_->list()) {
+        summary[state.severity]++;
     }
     return summary;
 }

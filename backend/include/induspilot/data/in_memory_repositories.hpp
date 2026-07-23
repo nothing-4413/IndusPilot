@@ -62,6 +62,15 @@ private:
     std::map<std::string, domain::WorkOrder> orders_;
 };
 
+class InMemoryRuntimeStateRepository final : public RuntimeStateRepository {
+public:
+    domain::RuntimeState save(domain::RuntimeState state) override;
+    std::vector<domain::RuntimeState> list() const override;
+    std::optional<domain::RuntimeState> findByAssetId(const std::string& assetId) const override;
+
+private:
+    std::map<std::string, domain::RuntimeState> states_;
+};
 class InMemoryAiInteractionRepository final : public AiInteractionRepository {
 public:
     domain::AiInteraction save(domain::AiInteraction interaction) override;
