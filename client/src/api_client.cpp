@@ -21,6 +21,10 @@ QString stringValue(const QJsonObject& object, const QString& key) {
 QString workOrderActionPath(const QString& orderId, const QString& action) {
     return "/api/v1/work-orders/" + QString::fromUtf8(QUrl::toPercentEncoding(orderId)) + "/" + action;
 }
+
+QString alertActionPath(const QString& alertId, const QString& action) {
+    return "/api/v1/alerts/" + QString::fromUtf8(QUrl::toPercentEncoding(alertId)) + "/" + action;
+}
 QStringList jsonStringArray(const QJsonArray& array) {
     QStringList result;
     for (const auto& value : array) {
@@ -210,6 +214,7 @@ QVector<TableRow> ApiClient::alerts() {
         const auto alert = value.toObject();
         const auto assignee = stringValue(alert, "assignedTo").isEmpty() ? stringValue(alert, "acknowledgedBy") : stringValue(alert, "assignedTo");
         rows.push_back(TableRow{{
+            stringValue(alert, "id"),
             stringValue(alert, "severity"),
             stringValue(alert, "assetId"),
             stringValue(alert, "title"),
@@ -219,6 +224,46 @@ QVector<TableRow> ApiClient::alerts() {
     return rows;
 }
 
+
+bool ApiClient::acknowledgeAlert(const QString& alertId) {
+    if (token_.isEmpty() || alertId.isEmpty()) {
+        statusMessage_ = "请先连接后端并选择告警";
+        return false;
+    }
+    return !postEnvelope(alertActionPath(alertId, "acknowledge"), QJsonObject{}, QJsonValue::Object, "告警确认成功", "告警确认失败").isEmpty();
+}
+
+bool ApiClient::assignAlert(const QString& alertId, const QString& assignee) {
+    const auto normalizedAssignee = assignee.trimmed();
+    if (token_.isEmpty() || alertId.isEmpty()) {
+        statusMessage_ = "请先连接后端并选择告警";
+        return false;
+    }
+    if (normalizedAssignee.isEmpty()) {
+        statusMessage_ = "分派告警需要填写负责人";
+        return false;
+    }
+
+    QJsonObject payload;
+    payload["assignee"] = normalizedAssignee;
+    return !postEnvelope(alertActionPath(alertId, "assign"), payload, QJsonValue::Object, "告警分派成功", "告警分派失败").isEmpty();
+}
+
+bool ApiClient::resolveAlert(const QString& alertId) {
+    if (token_.isEmpty() || alertId.isEmpty()) {
+        statusMessage_ = "请先连接后端并选择告警";
+        return false;
+    }
+    return !postEnvelope(alertActionPath(alertId, "resolve"), QJsonObject{}, QJsonValue::Object, "告警解决成功", "告警解决失败").isEmpty();
+}
+
+bool ApiClient::closeAlert(const QString& alertId) {
+    if (token_.isEmpty() || alertId.isEmpty()) {
+        statusMessage_ = "请先连接后端并选择告警";
+        return false;
+    }
+    return !postEnvelope(alertActionPath(alertId, "close"), QJsonObject{}, QJsonValue::Object, "告警关闭成功", "告警关闭失败").isEmpty();
+}
 QVector<TableRow> ApiClient::workOrders() {
     if (token_.isEmpty()) {
         return offlineWorkOrders();
@@ -423,7 +468,7 @@ QVector<TableRow> ApiClient::offlineMonitoringStates() const {
 }
 
 QVector<TableRow> ApiClient::offlineAlerts() const {
-    return {{{"critical", "asset-001", "温度异常", "已分派", "maintainer"}}};
+    return {{{"alert-001", "critical", "asset-001", "温度异常", "已分派", "maintainer"}}};
 }
 
 QVector<TableRow> ApiClient::offlineWorkOrders() const {

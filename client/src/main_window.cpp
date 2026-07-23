@@ -103,8 +103,25 @@ QWidget* MainWindow::buildAlertPage() {
     alertModeLabel_ = new QLabel("告警中心（离线演示数据）", page);
     layout->addWidget(alertModeLabel_);
     alertTable_ = new QTableWidget(page);
-    fillTable(alertTable_, {"级别", "设备", "标题", "状态", "负责人"}, api_.alerts());
+    fillTable(alertTable_, {"告警", "级别", "设备", "标题", "状态", "负责人"}, api_.alerts());
     layout->addWidget(alertTable_);
+
+    auto* actionRow = new QWidget(page);
+    auto* actionLayout = new QHBoxLayout(actionRow);
+    auto* acknowledgeButton = new QPushButton("确认", actionRow);
+    auto* assignButton = new QPushButton("分派", actionRow);
+    auto* resolveButton = new QPushButton("解决", actionRow);
+    auto* closeButton = new QPushButton("关闭", actionRow);
+    connect(acknowledgeButton, &QPushButton::clicked, this, &MainWindow::handleAcknowledgeAlert);
+    connect(assignButton, &QPushButton::clicked, this, &MainWindow::handleAssignAlert);
+    connect(resolveButton, &QPushButton::clicked, this, &MainWindow::handleResolveAlert);
+    connect(closeButton, &QPushButton::clicked, this, &MainWindow::handleCloseAlert);
+    actionLayout->addWidget(acknowledgeButton);
+    actionLayout->addWidget(assignButton);
+    actionLayout->addWidget(resolveButton);
+    actionLayout->addWidget(closeButton);
+    actionLayout->addStretch();
+    layout->addWidget(actionRow);
     return page;
 }
 
@@ -240,9 +257,7 @@ void MainWindow::refreshOnlineTables() {
     if (monitoringTable_) {
         fillTable(monitoringTable_, {"设备", "状态", "指标", "更新时间"}, api_.monitoringStates());
     }
-    if (alertTable_) {
-        fillTable(alertTable_, {"级别", "设备", "标题", "状态", "负责人"}, api_.alerts());
-    }
+    refreshAlertTable();
     refreshWorkOrderTable();
     refreshAiInteractionTable();
 
@@ -264,6 +279,12 @@ void MainWindow::refreshOnlineTables() {
     }
 }
 
+void MainWindow::refreshAlertTable() {
+    if (alertTable_) {
+        fillTable(alertTable_, {"告警", "级别", "设备", "标题", "状态", "负责人"}, api_.alerts());
+    }
+}
+
 void MainWindow::refreshWorkOrderTable() {
     if (workOrderTable_) {
         fillTable(workOrderTable_, {"工单", "设备", "来源告警", "状态", "处理人", "摘要"}, api_.workOrders());
@@ -276,6 +297,14 @@ void MainWindow::refreshAiInteractionTable() {
         const auto relatedId = aiRelatedIdInput_ ? aiRelatedIdInput_->text() : QString{};
         fillTable(aiInteractionTable_, {"编号", "关联类型", "关联对象", "输入", "输出"}, api_.aiInteractions(relatedType, relatedId));
     }
+}
+
+QString MainWindow::selectedAlertId() const {
+    if (!alertTable_ || alertTable_->currentRow() < 0) {
+        return {};
+    }
+    const auto* item = alertTable_->item(alertTable_->currentRow(), 0);
+    return item ? item->text() : QString{};
 }
 
 QString MainWindow::selectedWorkOrderId() const {
@@ -297,6 +326,48 @@ void MainWindow::handleLogin() {
 }
 
 
+
+void MainWindow::handleAcknowledgeAlert() {
+    const auto alertId = selectedAlertId();
+    if (api_.acknowledgeAlert(alertId)) {
+        refreshAlertTable();
+    }
+    QMessageBox::information(this, "告警操作", api_.statusMessage());
+}
+
+void MainWindow::handleAssignAlert() {
+    const auto alertId = selectedAlertId();
+    if (alertId.isEmpty()) {
+        api_.assignAlert(alertId, QString{});
+        QMessageBox::information(this, "告警操作", api_.statusMessage());
+        return;
+    }
+    bool ok = false;
+    const auto assignee = QInputDialog::getText(this, "分派告警", "负责人", QLineEdit::Normal, "maintainer", &ok);
+    if (!ok) {
+        return;
+    }
+    if (api_.assignAlert(alertId, assignee)) {
+        refreshAlertTable();
+    }
+    QMessageBox::information(this, "告警操作", api_.statusMessage());
+}
+
+void MainWindow::handleResolveAlert() {
+    const auto alertId = selectedAlertId();
+    if (api_.resolveAlert(alertId)) {
+        refreshAlertTable();
+    }
+    QMessageBox::information(this, "告警操作", api_.statusMessage());
+}
+
+void MainWindow::handleCloseAlert() {
+    const auto alertId = selectedAlertId();
+    if (api_.closeAlert(alertId)) {
+        refreshAlertTable();
+    }
+    QMessageBox::information(this, "告警操作", api_.statusMessage());
+}
 void MainWindow::handleCreateWorkOrder() {
     QDialog dialog(this);
     dialog.setWindowTitle("创建维护工单");

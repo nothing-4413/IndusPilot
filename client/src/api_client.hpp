@@ -38,6 +38,10 @@ public:
     QVector<TableRow> assets();
     QVector<TableRow> monitoringStates();
     QVector<TableRow> alerts();
+    bool acknowledgeAlert(const QString& alertId);
+    bool assignAlert(const QString& alertId, const QString& assignee);
+    bool resolveAlert(const QString& alertId);
+    bool closeAlert(const QString& alertId);
     QVector<TableRow> workOrders();
     bool createWorkOrder(const QString& orderId, const QString& assetId, const QString& alertId, const QString& summary, const QString& assignee);
     bool assignWorkOrder(const QString& orderId, const QString& assignee);
