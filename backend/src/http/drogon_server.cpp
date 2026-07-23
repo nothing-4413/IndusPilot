@@ -238,6 +238,40 @@ std::optional<modules::WorkOrderQuery> workOrderQueryFromRequest(const drogon::H
     }
     return query;
 }
+Json::Value aiSuggestionToJson(const modules::AiSuggestion& suggestion) {
+    Json::Value value;
+    value["available"] = suggestion.available;
+    value["label"] = suggestion.label;
+    value["content"] = suggestion.content;
+    return value;
+}
+
+Json::Value aiInteractionToJson(const domain::AiInteraction& interaction) {
+    Json::Value value;
+    value["id"] = interaction.id;
+    value["relatedType"] = interaction.relatedType;
+    value["relatedId"] = interaction.relatedId;
+    value["input"] = interaction.input;
+    value["output"] = interaction.output;
+    return value;
+}
+
+std::optional<modules::AiRequest> aiRequestFromPayload(const Json::Value& payload, std::string& error) {
+    if (!payload.isMember("relatedType") || !payload.isMember("relatedId") || !payload.isMember("prompt")) {
+        error = "relatedType, relatedId and prompt are required";
+        return std::nullopt;
+    }
+    modules::AiRequest request;
+    request.relatedType = payload["relatedType"].asString();
+    request.relatedId = payload["relatedId"].asString();
+    request.prompt = payload["prompt"].asString();
+    if (payload.isMember("contextItems") && payload["contextItems"].isArray()) {
+        for (const auto& item : payload["contextItems"]) {
+            request.contextItems.push_back(item.asString());
+        }
+    }
+    return request;
+}
 Json::Value responseEnvelope(bool success, const std::string& code, const std::string& message, Json::Value data = Json::Value(Json::objectValue)) {
     Json::Value value;
     value["success"] = success;
@@ -860,6 +894,70 @@ void registerRoutes(
         data["available"] = status.ready;
         data["message"] = status.message;
         callback(jsonResponse(responseEnvelope(true, "OK", "AI status returned", data)));
+    }, {drogon::Get});
+
+    server.registerHandler("/api/v1/ai/troubleshoot", [identity, ai](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+        const auto session = requireSession(identity, request, callback);
+        if (!session || !requirePermission(identity, *session, "ai:use", callback)) {
+            return;
+        }
+        writeRequestLog(request, session);
+        const auto payload = request->getJsonObject();
+        if (!payload) {
+            callback(invalidRequest("JSON body is required"));
+            return;
+        }
+        std::string error;
+        const auto aiRequest = aiRequestFromPayload(*payload, error);
+        if (!aiRequest) {
+            callback(invalidRequest(error));
+            return;
+        }
+        const auto suggestion = ai->troubleshoot(*aiRequest);
+        callback(jsonResponse(responseEnvelope(true, "OK", "AI troubleshooting returned", aiSuggestionToJson(suggestion))));
+    }, {drogon::Post});
+
+    server.registerHandler("/api/v1/ai/summarize-logs", [identity, ai](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+        const auto session = requireSession(identity, request, callback);
+        if (!session || !requirePermission(identity, *session, "ai:use", callback)) {
+            return;
+        }
+        writeRequestLog(request, session);
+        const auto payload = request->getJsonObject();
+        if (!payload) {
+            callback(invalidRequest("JSON body is required"));
+            return;
+        }
+        std::string error;
+        const auto aiRequest = aiRequestFromPayload(*payload, error);
+        if (!aiRequest) {
+            callback(invalidRequest(error));
+            return;
+        }
+        const auto suggestion = ai->summarizeLogs(*aiRequest);
+        callback(jsonResponse(responseEnvelope(true, "OK", "AI log summary returned", aiSuggestionToJson(suggestion))));
+    }, {drogon::Post});
+
+    server.registerHandler("/api/v1/ai/interactions", [identity, ai](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+        const auto session = requireSession(identity, request, callback);
+        if (!session || !requirePermission(identity, *session, "ai:use", callback)) {
+            return;
+        }
+        writeRequestLog(request, session);
+        modules::AiInteractionQuery query;
+        const auto relatedType = request->getParameter("relatedType");
+        const auto relatedId = request->getParameter("relatedId");
+        if (!relatedType.empty()) {
+            query.relatedType = relatedType;
+        }
+        if (!relatedId.empty()) {
+            query.relatedId = relatedId;
+        }
+        Json::Value rows(Json::arrayValue);
+        for (const auto& interaction : ai->interactions(query)) {
+            rows.append(aiInteractionToJson(interaction));
+        }
+        callback(jsonResponse(responseEnvelope(true, "OK", "AI interactions returned", rows)));
     }, {drogon::Get});
 }
 
