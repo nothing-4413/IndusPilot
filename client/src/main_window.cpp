@@ -5,6 +5,8 @@
 #include <QDialogButtonBox>
 #include <QDialog>
 #include <QDateTime>
+#include <QFile>
+#include <QFileDialog>
 #include <QFormLayout>
 #include <QHeaderView>
 #include <QHBoxLayout>
@@ -21,6 +23,17 @@
 #include <QTextEdit>
 #include <QVBoxLayout>
 
+namespace {
+
+QString csvCell(QString value) {
+    value.replace('"', "\"\"");
+    if (value.contains(',') || value.contains('"') || value.contains('\n') || value.contains('\r')) {
+        return QStringLiteral("\"") + value + QStringLiteral("\"");
+    }
+    return value;
+}
+
+}  // namespace
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     setWindowTitle("IndusPilot 工业智能运维支持平台");
     resize(1280, 760);
@@ -232,10 +245,13 @@ QWidget* MainWindow::buildAiPage() {
     auto* actionLayout = new QHBoxLayout(actionRow);
     auto* diagnoseButton = new QPushButton("执行 AI 诊断", actionRow);
     auto* refreshHistoryButton = new QPushButton("刷新交互审计", actionRow);
+    auto* exportHistoryButton = new QPushButton(QStringLiteral("导出审计"), actionRow);
     connect(diagnoseButton, &QPushButton::clicked, this, &MainWindow::handleAiDiagnosis);
     connect(refreshHistoryButton, &QPushButton::clicked, this, &MainWindow::handleRefreshAiInteractions);
+    connect(exportHistoryButton, &QPushButton::clicked, this, &MainWindow::handleExportAiInteractions);
     actionLayout->addWidget(diagnoseButton);
     actionLayout->addWidget(refreshHistoryButton);
+    actionLayout->addWidget(exportHistoryButton);
     actionLayout->addStretch();
     layout->addWidget(actionRow);
 
@@ -567,4 +583,43 @@ void MainWindow::handleRefreshAiInteractions() {
     if (aiResultOutput_ && !api_.statusMessage().isEmpty()) {
         aiResultOutput_->setText(api_.statusMessage());
     }
+}
+
+void MainWindow::handleExportAiInteractions() {
+    if (!aiInteractionTable_ || aiInteractionTable_->rowCount() == 0) {
+        QMessageBox::information(this, QStringLiteral("AI 审计导出"), QStringLiteral("当前没有可导出的 AI 审计记录，请先刷新或查询审计。"));
+        return;
+    }
+
+    const auto defaultName = QStringLiteral("ai-audit-") + QDateTime::currentDateTime().toString("yyyyMMddhhmmss") + QStringLiteral(".csv");
+    const auto path = QFileDialog::getSaveFileName(this, QStringLiteral("导出 AI 审计"), defaultName, QStringLiteral("CSV 文件 (*.csv)"));
+    if (path.isEmpty()) {
+        return;
+    }
+
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QMessageBox::warning(this, QStringLiteral("AI 审计导出"), QStringLiteral("无法写入导出文件：") + file.errorString());
+        return;
+    }
+
+    QString csv;
+    QStringList headers;
+    for (int column = 0; column < aiInteractionTable_->columnCount(); ++column) {
+        const auto* item = aiInteractionTable_->horizontalHeaderItem(column);
+        headers.push_back(csvCell(item ? item->text() : QString{}));
+    }
+    csv += headers.join(',') + '\n';
+
+    for (int row = 0; row < aiInteractionTable_->rowCount(); ++row) {
+        QStringList cells;
+        for (int column = 0; column < aiInteractionTable_->columnCount(); ++column) {
+            const auto* item = aiInteractionTable_->item(row, column);
+            cells.push_back(csvCell(item ? item->text() : QString{}));
+        }
+        csv += cells.join(',') + '\n';
+    }
+    file.write(csv.toUtf8());
+
+    QMessageBox::information(this, QStringLiteral("AI 审计导出"), QStringLiteral("AI 审计已导出：") + path);
 }

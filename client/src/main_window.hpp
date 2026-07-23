@@ -54,6 +54,7 @@ private:
     void handleCloseWorkOrder();
     void handleAiDiagnosis();
     void handleRefreshAiInteractions();
+    void handleExportAiInteractions();
 
     ApiClient api_;
     QLineEdit* usernameInput_{nullptr};
