@@ -25,7 +25,7 @@ copy config/ai.example.yaml config/ai.yaml
 
 ## 默认后端和 Qt 客户端
 
-默认构建使用内存会话存储，适合快速验证 Qt 客户端和后端业务模块：
+默认构建使用内存仓储和内存会话存储，适合快速验证 Qt 离线演示客户端和后端业务模块：
 
 ```powershell
 cmake -S . -B build/ninja-msvc-client -G Ninja -DINDUSPILOT_BUILD_CLIENT=ON -DCMAKE_PREFIX_PATH="D:/anaconda/Library"
@@ -59,6 +59,7 @@ ctest --preset dev-http
 - `http://127.0.0.1:8080/health`
 - `http://127.0.0.1:8080/api/v1/assets`
 - `http://127.0.0.1:8080/api/v1/ai/status`
+- `http://127.0.0.1:8080/api/v1/ai/diagnose`
 
 登录示例：
 
@@ -66,4 +67,11 @@ ctest --preset dev-http
 Invoke-RestMethod -Uri "http://127.0.0.1:8080/api/v1/auth/login" -Method Post -ContentType "application/json" -Body '{"username":"admin","password":"admin123"}'
 ```
 
-当前 HTTP 层是生产化入口的第一步。后续还需要继续接入结构化配置、真实 Redis session 配置、MySQL 仓储、认证中间件、权限守卫和请求校验。
+当前 HTTP 层已经接入结构化配置、会话守卫、权限守卫、统一错误响应、Redis-backed session 选项、MySQL 仓储切换和 AI agent 诊断编排。默认 `storage.repository_store=memory` 仍用于快速开发；验证 MySQL 仓储时先启动 `deployment/docker-compose.yml`，再覆盖：
+
+```powershell
+$env:INDUSPILOT_REPOSITORY_STORE="mysql"
+.\build\dev-http\backend\induspilot-backend.exe config\backend.example.yaml
+```
+
+生产部署前仍需要替换开发口令、补齐密码哈希策略、真实依赖集成测试、监控指标和外部 AI 推理传输。

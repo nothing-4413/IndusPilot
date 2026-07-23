@@ -26,16 +26,16 @@ redis:
   session_store: "memory"
 
 storage:
-  # memory 用于本地演示；mysql 会将身份和资产模块切换到 MySQL 仓储。
+  # memory 用于本地演示；mysql 会将身份、资产、告警、工单、运行状态和 AI 审计切换到 MySQL 仓储。
   repository_store: "memory"
 
 mongodb:
-  # 当前仅参与 TCP 健康探测，日志/AI 交互落库仍在后续模块中接入。
+  # 当前仅参与 TCP 健康探测；非结构化日志、知识片段和 AI 上下文仍在后续模块中接入。
   uri: "mongodb://127.0.0.1:27017"
   database: "induspilot"
 
 ai:
-  # provider 支持 disabled/http；http 当前作为外部模型服务适配边界。
+  # provider 支持 disabled/http；http 当前作为外部模型服务适配边界，尚未执行真实外部推理传输。
   enabled: false
   provider: "disabled"
   endpoint: "http://127.0.0.1:9000"

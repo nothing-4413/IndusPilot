@@ -1,0 +1,50 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  backend-foundation:
+    name: backend foundation
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure backend tests
+        run: cmake -S . -B build/ci-backend -G "Visual Studio 17 2022" -A x64 -DINDUSPILOT_BUILD_CLIENT=OFF -DINDUSPILOT_BUILD_TESTS=ON
+
+      - name: Build backend tests
+        run: cmake --build build/ci-backend --config Debug
+
+      - name: Run backend tests
+        run: ctest --test-dir build/ci-backend -C Debug --output-on-failure
+
+  openspec:
+    name: openspec validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install OpenSpec
+        run: npm install -g @fission-ai/openspec@1.6.0
+
+      - name: Validate specs
+        run: openspec validate --specs --strict
+
+      - name: Validate active changes
+        run: openspec validate --changes --strict

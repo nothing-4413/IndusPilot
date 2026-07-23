@@ -58,6 +58,7 @@ docker compose up -d
 - `INDUSPILOT_MONGODB_DATABASE`
 - `INDUSPILOT_MONGODB_URI`
 - `INDUSPILOT_AI_ENABLED`
+- `INDUSPILOT_AI_PROVIDER`
 - `INDUSPILOT_AI_ENDPOINT`
 
 ## 仓储运行时
@@ -74,6 +75,7 @@ docker compose up -d
 - MongoDB 当前仅用于 TCP 健康探测；AI 交互审计在 `repository_store=mysql` 时写入 MySQL，尚未写入 MongoDB。
 - `ai.enabled`、`ai.provider` 和 `ai.endpoint` 当前驱动健康探测、AI 状态接口、agent 诊断编排和降级提示；`provider=http` 已保留外部模型服务适配边界，当前仍使用本地规则降级。
 - `/health` 依赖检查当前只验证 TCP 连通性，不校验认证、schema、表结构或 MongoDB collection。
+
 ## Session Store
 
 默认示例配置使用：
@@ -124,3 +126,4 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File backend/tests/http_integ
 - MySQL 仓储已经覆盖 identity、asset、alert、work-order、runtime-state 和 AI interaction；生产部署前需执行 `database/mysql/001_foundation_schema.sql`、`002_seed_identity.sql`、`003_runtime_persistence_schema.sql`。
 - Redis session 已支持配置化接入，后续需要补充连接失败降级策略和监控指标。
 - 当前 MongoDB 仅做依赖探测，后续可用于长日志、知识片段或非结构化诊断上下文。
+- 当前 HTTP 冒烟测试默认使用内存仓储；MySQL schema、权限数据和真实依赖连通需要在部署环境中补充集成验证。
