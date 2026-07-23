@@ -38,7 +38,15 @@ ctest --preset dev-http
 - `POST /api/v1/alerts/{id}/assign`：需要 `alert:write` 权限，分派告警，字段为 `assignee`。
 - `POST /api/v1/alerts/{id}/resolve`：需要 `alert:write` 权限，解决告警。
 - `POST /api/v1/alerts/{id}/close`：需要 `alert:write` 权限，关闭告警。
-- `GET /api/v1/work-orders`：需要 `work-order:read` 权限，返回工单列表。
+- `GET /api/v1/work-orders`：需要 `work-order:read` 权限，返回工单列表；支持 `assetId`、`alertId`、`state` 查询参数。
+- `GET /api/v1/work-orders/{id}`：需要 `work-order:read` 权限，返回单个工单。
+- `POST /api/v1/work-orders`：需要 `work-order:write` 权限，创建工单。
+- `POST /api/v1/work-orders/from-alert`：需要 `work-order:write` 权限，从告警创建工单。
+- `POST /api/v1/work-orders/{id}/assign`：需要 `work-order:write` 权限，分派工单，字段为 `assignee`。
+- `POST /api/v1/work-orders/{id}/start`：需要 `work-order:write` 权限，开始处理工单。
+- `POST /api/v1/work-orders/{id}/complete`：需要 `work-order:write` 权限，完成工单，字段为 `result`。
+- `POST /api/v1/work-orders/{id}/close`：需要 `work-order:write` 权限，关闭工单。
+- `GET /api/v1/assets/{assetId}/maintenance-history`：需要 `work-order:read` 权限，返回资产已关闭维护历史。
 - `GET /api/v1/ai/status`：需要 `ai:use` 权限，返回 AI 模块状态。
 
 接口响应统一使用：`success`、`code`、`message`、`data`。
@@ -56,7 +64,7 @@ ctest --preset dev-http
 
 ## 集成测试
 
-`dev-http` preset 会在 Windows 下注册 `induspilot-http-integration-smoke` CTest。该测试会启动本地后端，覆盖健康检查、登录、受保护路由、权限拒绝、请求校验、资源不存在错误、资产层级筛选、资产生命周期状态变更、运行状态写入、运行状态详情、监控汇总、告警创建、告警筛选和告警生命周期流转。
+`dev-http` preset 会在 Windows 下注册 `induspilot-http-integration-smoke` CTest。该测试会启动本地后端，覆盖健康检查、登录、受保护路由、权限拒绝、请求校验、资源不存在错误、资产层级筛选、资产生命周期状态变更、运行状态写入、运行状态详情、监控汇总、告警创建、告警筛选、告警生命周期流转、工单创建、工单生命周期流转和资产维修历史。
 
 手动运行：
 

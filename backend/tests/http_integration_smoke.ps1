@@ -189,6 +189,49 @@ try {
 
     $closed = Invoke-RestMethod -Uri "$BaseUrl/api/v1/alerts/alert-it-001/close" -Method Post -Headers $operatorHeaders -TimeoutSec 10
     Assert-True ($closed.data.state -eq "closed") "Alert close failed."
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/work-orders" -Method Post -Status 403 -Headers $operatorHeaders -Body '{"id":"wo-denied","assetId":"asset-it-001","summary":"denied"}'
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/work-orders" -Method Post -Status 400 -Headers $maintainerHeaders -Body '{"id":"wo-bad","summary":"missing asset"}'
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/work-orders" -Method Post -Status 400 -Headers $maintainerHeaders -Body '{"id":"wo-bad-state","assetId":"asset-it-001","summary":"bad","state":"invalid"}'
+
+    $workOrderBody = '{"id":"wo-it-001","assetId":"asset-it-001","alertId":"alert-it-001","summary":"inspect pump"}'
+    $workOrder = Invoke-RestMethod -Uri "$BaseUrl/api/v1/work-orders" -Method Post -Headers $maintainerHeaders -ContentType "application/json" -Body $workOrderBody -TimeoutSec 10
+    Assert-True $workOrder.success "Work order creation failed."
+    Assert-True ($workOrder.data.state -eq "created") "Created work order was not created state."
+
+    $workOrderDetail = Invoke-RestMethod -Uri "$BaseUrl/api/v1/work-orders/wo-it-001" -Method Get -Headers $maintainerHeaders -TimeoutSec 10
+    Assert-True $workOrderDetail.success "Work order detail failed."
+    Assert-True ($workOrderDetail.data.alertId -eq "alert-it-001") "Work order alert id did not match."
+
+    $filteredOrders = Invoke-RestMethod -Uri "$BaseUrl/api/v1/work-orders?assetId=asset-it-001&alertId=alert-it-001&state=created" -Method Get -Headers $maintainerHeaders -TimeoutSec 10
+    $filteredOrderMatch = @($filteredOrders.data) | Where-Object { $_.id -eq "wo-it-001" }
+    Assert-True (@($filteredOrderMatch).Count -eq 1) "Work order filtering failed."
+
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/work-orders/not-exist" -Method Get -Status 404 -Headers $maintainerHeaders
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/work-orders/wo-it-001/assign" -Method Post -Status 400 -Headers $maintainerHeaders -Body '{}'
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/work-orders/not-exist/start" -Method Post -Status 404 -Headers $maintainerHeaders
+
+    $assignedOrder = Invoke-RestMethod -Uri "$BaseUrl/api/v1/work-orders/wo-it-001/assign" -Method Post -Headers $maintainerHeaders -ContentType "application/json" -Body '{"assignee":"maintainer"}' -TimeoutSec 10
+    Assert-True ($assignedOrder.data.state -eq "assigned") "Work order assignment failed."
+
+    $processingOrder = Invoke-RestMethod -Uri "$BaseUrl/api/v1/work-orders/wo-it-001/start" -Method Post -Headers $maintainerHeaders -TimeoutSec 10
+    Assert-True ($processingOrder.data.state -eq "processing") "Work order start failed."
+
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/work-orders/wo-it-001/complete" -Method Post -Status 400 -Headers $maintainerHeaders -Body '{}'
+    $completedOrder = Invoke-RestMethod -Uri "$BaseUrl/api/v1/work-orders/wo-it-001/complete" -Method Post -Headers $maintainerHeaders -ContentType "application/json" -Body '{"result":"bearing replaced"}' -TimeoutSec 10
+    Assert-True ($completedOrder.data.state -eq "completed") "Work order completion failed."
+    Assert-True ($completedOrder.data.result -eq "bearing replaced") "Work order result did not match."
+
+    $closedOrder = Invoke-RestMethod -Uri "$BaseUrl/api/v1/work-orders/wo-it-001/close" -Method Post -Headers $maintainerHeaders -TimeoutSec 10
+    Assert-True ($closedOrder.data.state -eq "closed") "Work order close failed."
+
+    $history = Invoke-RestMethod -Uri "$BaseUrl/api/v1/assets/asset-it-001/maintenance-history" -Method Get -Headers $maintainerHeaders -TimeoutSec 10
+    $historyMatch = @($history.data) | Where-Object { $_.id -eq "wo-it-001" }
+    Assert-True (@($historyMatch).Count -eq 1) "Maintenance history failed."
+
+    $fromAlert = Invoke-RestMethod -Uri "$BaseUrl/api/v1/work-orders/from-alert" -Method Post -Headers $maintainerHeaders -ContentType "application/json" -Body '{"alertId":"alert-it-001","summary":"follow up from alert"}' -TimeoutSec 10
+    Assert-True $fromAlert.success "Work order from alert failed."
+    Assert-True ($fromAlert.data.alertId -eq "alert-it-001") "Work order from alert did not link alert."
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/work-orders/from-alert" -Method Post -Status 404 -Headers $maintainerHeaders -Body '{"alertId":"not-exist","summary":"missing alert"}'
 } finally {
     if ($proc -and -not $proc.HasExited) {
         Stop-Process -Id $proc.Id -Force
