@@ -1,11 +1,11 @@
 #pragma once
 
+#include "induspilot/data/repositories.hpp"
 #include "induspilot/domain/domain_types.hpp"
 #include "induspilot/modules/service_status.hpp"
 #include "induspilot/modules/session_store.hpp"
 
 #include <chrono>
-#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -28,6 +28,11 @@ class IdentityService {
 public:
     IdentityService();
     explicit IdentityService(std::shared_ptr<SessionStore> sessionStore, std::chrono::seconds sessionTtl = std::chrono::hours(8));
+    IdentityService(
+        std::shared_ptr<SessionStore> sessionStore,
+        std::chrono::seconds sessionTtl,
+        std::shared_ptr<data::UserRepository> userRepository,
+        std::shared_ptr<data::PermissionRepository> permissionRepository);
 
     ServiceStatus status() const;
     AuthResult login(const LoginRequest& request);
@@ -38,14 +43,12 @@ public:
     std::vector<std::string> permissionsForRoles(const std::vector<std::string>& roles) const;
 
 private:
-    void initializeSeedData();
     std::string issueToken(const std::string& username);
 
-    std::map<std::string, std::string> passwordHashes_;
-    std::map<std::string, domain::User> users_;
-    std::map<std::string, std::vector<std::string>> rolePermissions_;
     std::shared_ptr<SessionStore> sessionStore_;
     std::chrono::seconds sessionTtl_;
+    std::shared_ptr<data::UserRepository> userRepository_;
+    std::shared_ptr<data::PermissionRepository> permissionRepository_;
     std::size_t issuedSessions_{0};
 };
 

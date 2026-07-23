@@ -121,6 +121,8 @@ void applyConfigValue(AppConfig& config, const std::string& section, const std::
         config.ai.enabled = parseBool(value, config.ai.enabled);
     } else if (section == "ai" && key == "endpoint") {
         config.ai.endpoint = value;
+    } else if (section == "storage" && key == "repository_store") {
+        config.storage.repositoryStore = value;
     }
 }
 
@@ -152,6 +154,8 @@ void applyEnvironmentOverrides(AppConfig& config) {
 
     applyBoolEnv("INDUSPILOT_AI_ENABLED", config.ai.enabled);
     applyStringEnv("INDUSPILOT_AI_ENDPOINT", config.ai.endpoint);
+
+    applyStringEnv("INDUSPILOT_REPOSITORY_STORE", config.storage.repositoryStore);
 }
 
 }  // namespace

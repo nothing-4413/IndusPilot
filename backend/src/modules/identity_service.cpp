@@ -1,5 +1,7 @@
 #include "induspilot/modules/identity_service.hpp"
 
+#include "induspilot/data/in_memory_repositories.hpp"
+
 #include <algorithm>
 #include <chrono>
 #include <sstream>
@@ -7,42 +9,48 @@
 
 namespace induspilot::modules {
 
-IdentityService::IdentityService() : IdentityService(std::make_shared<InMemorySessionStore>(), std::chrono::hours(8)) {}
+IdentityService::IdentityService()
+    : IdentityService(std::make_shared<InMemorySessionStore>(), std::chrono::hours(8)) {}
 
 IdentityService::IdentityService(std::shared_ptr<SessionStore> sessionStore, std::chrono::seconds sessionTtl)
-    : sessionStore_(std::move(sessionStore)), sessionTtl_(sessionTtl) {
+    : IdentityService(
+          std::move(sessionStore),
+          sessionTtl,
+          std::make_shared<data::InMemoryUserRepository>(),
+          std::make_shared<data::InMemoryPermissionRepository>()) {}
+
+IdentityService::IdentityService(
+    std::shared_ptr<SessionStore> sessionStore,
+    std::chrono::seconds sessionTtl,
+    std::shared_ptr<data::UserRepository> userRepository,
+    std::shared_ptr<data::PermissionRepository> permissionRepository)
+    : sessionStore_(std::move(sessionStore)),
+      sessionTtl_(sessionTtl),
+      userRepository_(std::move(userRepository)),
+      permissionRepository_(std::move(permissionRepository)) {
     if (!sessionStore_) {
         sessionStore_ = std::make_shared<InMemorySessionStore>();
     }
-    initializeSeedData();
-}
-
-void IdentityService::initializeSeedData() {
-    users_["admin"] = domain::User{"user-admin", "admin", {"admin"}};
-    users_["operator"] = domain::User{"user-operator", "operator", {"operator"}};
-    users_["maintainer"] = domain::User{"user-maintainer", "maintainer", {"maintainer"}};
-
-    // 当前为开发骨架口令，生产实现必须替换为加盐哈希和密码策略。
-    passwordHashes_["admin"] = "admin123";
-    passwordHashes_["operator"] = "operator123";
-    passwordHashes_["maintainer"] = "maintainer123";
-
-    rolePermissions_["admin"] = {"asset:read", "asset:write", "monitoring:write", "alert:read", "alert:write", "work-order:read", "work-order:write", "ai:use"};
-    rolePermissions_["operator"] = {"asset:read", "monitoring:write", "alert:read", "alert:write", "work-order:read", "ai:use"};
-    rolePermissions_["maintainer"] = {"asset:read", "alert:read", "work-order:read", "work-order:write", "ai:use"};
+    if (!userRepository_) {
+        userRepository_ = std::make_shared<data::InMemoryUserRepository>();
+    }
+    if (!permissionRepository_) {
+        permissionRepository_ = std::make_shared<data::InMemoryPermissionRepository>();
+    }
 }
 
 ServiceStatus IdentityService::status() const {
-    return ServiceStatus{"identity-access", true, "身份认证、会话和权限模块已接入可替换会话存储"};
+    return ServiceStatus{"identity-access", true, "identity repositories and session storage are ready"};
 }
 
 AuthResult IdentityService::login(const LoginRequest& request) {
-    if (!authenticate(request.username, request.password)) {
+    const auto credential = userRepository_->findByUsername(request.username);
+    if (!credential || credential->passwordHash != request.password) {
         return AuthResult{false, "用户名或密码错误", std::nullopt};
     }
 
     const auto token = issueToken(request.username);
-    auto session = SessionInfo{token, users_.at(request.username), true};
+    auto session = SessionInfo{token, credential->user, true};
     if (!sessionStore_->save(session, sessionTtl_)) {
         return AuthResult{false, "会话创建失败", std::nullopt};
     }
@@ -65,8 +73,8 @@ std::optional<SessionInfo> IdentityService::validateSession(const std::string& t
 }
 
 bool IdentityService::authenticate(const std::string& username, const std::string& password) const {
-    const auto it = passwordHashes_.find(username);
-    return it != passwordHashes_.end() && it->second == password;
+    const auto credential = userRepository_->findByUsername(username);
+    return credential.has_value() && credential->passwordHash == password;
 }
 
 bool IdentityService::hasPermission(const std::vector<std::string>& permissions, const std::string& required) const {
@@ -74,14 +82,7 @@ bool IdentityService::hasPermission(const std::vector<std::string>& permissions,
 }
 
 std::vector<std::string> IdentityService::permissionsForRoles(const std::vector<std::string>& roles) const {
-    std::vector<std::string> permissions;
-    for (const auto& role : roles) {
-        const auto it = rolePermissions_.find(role);
-        if (it == rolePermissions_.end()) {
-            continue;
-        }
-        permissions.insert(permissions.end(), it->second.begin(), it->second.end());
-    }
+    auto permissions = permissionRepository_->permissionsForRoles(roles);
     std::sort(permissions.begin(), permissions.end());
     permissions.erase(std::unique(permissions.begin(), permissions.end()), permissions.end());
     return permissions;

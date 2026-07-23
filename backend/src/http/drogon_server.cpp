@@ -4,6 +4,8 @@
 
 #include "induspilot/api/api_types.hpp"
 #include "induspilot/app/application.hpp"
+#include "induspilot/data/in_memory_repositories.hpp"
+#include "induspilot/data/mysql_repositories.hpp"
 #include "induspilot/domain/domain_types.hpp"
 #include "induspilot/modules/ai_service.hpp"
 #include "induspilot/modules/alert_service.hpp"
@@ -333,17 +335,40 @@ std::string bearerToken(const drogon::HttpRequestPtr& request) {
 }
 
 
-std::shared_ptr<modules::IdentityService> createIdentityService(const app::AppConfig& config) {
-    auto ttl = std::chrono::seconds(config.redis.sessionTtlSeconds > 0 ? config.redis.sessionTtlSeconds : 28800);
+std::shared_ptr<modules::SessionStore> createSessionStore(const app::AppConfig& config) {
 #ifdef INDUSPILOT_WITH_REDIS
     if (config.redis.sessionStore == "redis") {
-        return std::make_shared<modules::IdentityService>(
-            modules::makeRedisSessionStore(config.redis.uri, config.redis.sessionKeyPrefix), ttl);
+        return modules::makeRedisSessionStore(config.redis.uri, config.redis.sessionKeyPrefix);
     }
 #endif
-    return std::make_shared<modules::IdentityService>(std::make_shared<modules::InMemorySessionStore>(), ttl);
+    return std::make_shared<modules::InMemorySessionStore>();
 }
 
+std::shared_ptr<modules::IdentityService> createIdentityService(const app::AppConfig& config, const drogon::orm::DbClientPtr& mysqlClient) {
+    auto ttl = std::chrono::seconds(config.redis.sessionTtlSeconds > 0 ? config.redis.sessionTtlSeconds : 28800);
+    auto sessionStore = createSessionStore(config);
+
+    if (config.storage.repositoryStore == "mysql") {
+        return std::make_shared<modules::IdentityService>(
+            sessionStore,
+            ttl,
+            std::make_shared<data::MySqlUserRepository>(mysqlClient),
+            std::make_shared<data::MySqlPermissionRepository>(mysqlClient));
+    }
+
+    return std::make_shared<modules::IdentityService>(
+        sessionStore,
+        ttl,
+        std::make_shared<data::InMemoryUserRepository>(),
+        std::make_shared<data::InMemoryPermissionRepository>());
+}
+
+std::shared_ptr<data::AssetRepository> createAssetRepository(const app::AppConfig& config, const drogon::orm::DbClientPtr& mysqlClient) {
+    if (config.storage.repositoryStore == "mysql") {
+        return std::make_shared<data::MySqlAssetRepository>(mysqlClient);
+    }
+    return std::make_shared<data::InMemoryAssetRepository>();
+}
 std::optional<modules::SessionInfo> requireSession(
     const std::shared_ptr<modules::IdentityService>& identity,
     const drogon::HttpRequestPtr& request,
@@ -965,8 +990,14 @@ void registerRoutes(
 
 int runDrogonServer(const app::AppConfig& config) {
     auto application = std::make_shared<app::Application>(config);
-    auto identity = createIdentityService(config);
-    auto assets = std::make_shared<modules::AssetService>();
+
+    drogon::orm::DbClientPtr mysqlClient;
+    if (config.storage.repositoryStore == "mysql") {
+        mysqlClient = data::makeMysqlClient(config.mysql, 2);
+    }
+
+    auto identity = createIdentityService(config, mysqlClient);
+    auto assets = std::make_shared<modules::AssetService>(createAssetRepository(config, mysqlClient));
     auto monitoring = std::make_shared<modules::MonitoringService>();
     auto alerts = std::make_shared<modules::AlertService>();
     auto maintenance = std::make_shared<modules::MaintenanceService>();

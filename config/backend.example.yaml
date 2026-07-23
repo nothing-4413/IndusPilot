@@ -20,6 +20,9 @@ redis:
   session_ttl_seconds: 28800
   session_store: "memory"
 
+storage:
+  repository_store: "memory"
+
 mongodb:
   uri: "mongodb://127.0.0.1:27017"
   database: "induspilot"

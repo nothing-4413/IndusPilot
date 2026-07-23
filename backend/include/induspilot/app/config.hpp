@@ -29,6 +29,10 @@ struct AiConfig {
     std::string endpoint{"http://127.0.0.1:9000"};
 };
 
+struct StorageConfig {
+    std::string repositoryStore{"memory"};
+};
+
 struct AppConfig {
     std::string host{"0.0.0.0"};
     int port{8080};
@@ -37,6 +41,7 @@ struct AppConfig {
     RedisConfig redis{};
     DatabaseConfig mongodb{"127.0.0.1", 27017, "induspilot", "", "", "mongodb://127.0.0.1:27017"};
     AiConfig ai{};
+    StorageConfig storage{};
 };
 
 AppConfig loadConfig(const std::string& path);
