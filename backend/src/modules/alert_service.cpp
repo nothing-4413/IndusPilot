@@ -18,7 +18,7 @@ std::string currentTimestamp() {
 #ifdef _WIN32
     localtime_s(&localTime, &time);
 #else
-    localtime_r(&localTime, &time);
+    localtime_r(&time, &localTime);
 #endif
     std::ostringstream out;
     out << std::put_time(&localTime, "%Y-%m-%dT%H:%M:%S");
