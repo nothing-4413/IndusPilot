@@ -2,11 +2,32 @@
 
 #include "induspilot/data/in_memory_repositories.hpp"
 
+#include <chrono>
+#include <ctime>
+#include <iomanip>
+#include <sstream>
 #include <utility>
 
 namespace induspilot::modules {
 namespace {
 
+std::string currentTimestamp() {
+    const auto now = std::chrono::system_clock::now();
+    const auto time = std::chrono::system_clock::to_time_t(now);
+    std::tm localTime{};
+#ifdef _WIN32
+    localtime_s(&localTime, &time);
+#else
+    localtime_r(&localTime, &time);
+#endif
+    std::ostringstream out;
+    out << std::put_time(&localTime, "%Y-%m-%dT%H:%M:%S");
+    return out.str();
+}
+
+bool isSupportedNotificationChannel(const std::string& channel) {
+    return channel == "console" || channel == "email" || channel == "webhook";
+}
 int severityRank(const std::string& severity) {
     if (severity == "critical") {
         return 3;
@@ -149,6 +170,41 @@ std::vector<domain::AlertNotification> AlertService::notifications() const {
     return repository_->listNotifications();
 }
 
+NotificationDispatchSummary AlertService::dispatchQueuedNotifications() {
+    NotificationDispatchSummary summary;
+    for (auto notification : repository_->listNotifications()) {
+        if (notification.status != "queued" && notification.status != "retrying") {
+            ++summary.skipped;
+            continue;
+        }
+        notification = deliverNotification(std::move(notification));
+        if (notification.status == "sent") {
+            ++summary.sent;
+        } else if (notification.status == "failed") {
+            ++summary.failed;
+        } else {
+            ++summary.skipped;
+        }
+    }
+    return summary;
+}
+
+std::optional<domain::AlertNotification> AlertService::retryNotification(const std::string& id) {
+    for (auto notification : repository_->listNotifications()) {
+        if (notification.id != id) {
+            continue;
+        }
+        if (notification.status == "sent") {
+            return notification;
+        }
+        notification.status = "retrying";
+        notification.lastError.clear();
+        notification = repository_->saveNotification(std::move(notification));
+        return deliverNotification(std::move(notification));
+    }
+    return std::nullopt;
+}
+
 void AlertService::createNotificationsFor(const domain::Alert& alert) {
     for (const auto& rule : repository_->listRules()) {
         if (!matchesRule(alert, rule)) {
@@ -161,8 +217,33 @@ void AlertService::createNotificationsFor(const domain::Alert& alert) {
             rule.channel,
             rule.target,
             "queued",
-            "告警 " + alert.id + " 命中规则 " + rule.name});
+            "告警 " + alert.id + " 命中规则 " + rule.name,
+            0,
+            "",
+            ""});
     }
+}
+
+
+domain::AlertNotification AlertService::deliverNotification(domain::AlertNotification notification) {
+    notification.attemptCount += 1;
+    if (notification.channel.empty() || notification.target.empty()) {
+        notification.status = "failed";
+        notification.lastError = "通知通道和目标不能为空";
+        notification.deliveredAt.clear();
+        return repository_->saveNotification(std::move(notification));
+    }
+    if (!isSupportedNotificationChannel(notification.channel)) {
+        notification.status = "failed";
+        notification.lastError = "不支持的通知通道：" + notification.channel;
+        notification.deliveredAt.clear();
+        return repository_->saveNotification(std::move(notification));
+    }
+
+    notification.status = "sent";
+    notification.lastError.clear();
+    notification.deliveredAt = currentTimestamp();
+    return repository_->saveNotification(std::move(notification));
 }
 
 std::optional<domain::Alert> AlertService::acknowledge(const std::string& id, const std::string& operatorId) {

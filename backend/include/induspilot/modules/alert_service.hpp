@@ -17,6 +17,11 @@ struct AlertQuery {
     std::optional<domain::AlertState> state;
 };
 
+struct NotificationDispatchSummary {
+    int sent{0};
+    int failed{0};
+    int skipped{0};
+};
 class AlertService {
 public:
     AlertService();
@@ -29,6 +34,8 @@ public:
     domain::AlertRule createRule(domain::AlertRule rule);
     std::vector<domain::AlertRule> rules() const;
     std::vector<domain::AlertNotification> notifications() const;
+    NotificationDispatchSummary dispatchQueuedNotifications();
+    std::optional<domain::AlertNotification> retryNotification(const std::string& id);
     std::optional<domain::Alert> acknowledge(const std::string& id, const std::string& operatorId);
     std::optional<domain::Alert> assign(const std::string& id, const std::string& assignee);
     std::optional<domain::Alert> resolve(const std::string& id);
@@ -36,6 +43,7 @@ public:
 
 private:
     void createNotificationsFor(const domain::Alert& alert);
+    domain::AlertNotification deliverNotification(domain::AlertNotification notification);
 
     std::shared_ptr<data::AlertRepository> repository_;
 };

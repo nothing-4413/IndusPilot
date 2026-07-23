@@ -207,7 +207,10 @@ domain::AlertNotification alertNotificationFromRow(const drogon::orm::Row& row) 
         row["channel"].as<std::string>(),
         row["target"].as<std::string>(),
         row["status"].as<std::string>(),
-        row["message"].as<std::string>()};
+        row["message"].as<std::string>(),
+        row["attempt_count"].as<int>(),
+        nullableString(row, "last_error"),
+        nullableString(row, "delivered_at")};
 }
 domain::WorkOrder workOrderFromRow(const drogon::orm::Row& row) {
     return domain::WorkOrder{
@@ -450,22 +453,25 @@ std::vector<domain::AlertRule> MySqlAlertRepository::listRules() const {
 
 domain::AlertNotification MySqlAlertRepository::saveNotification(domain::AlertNotification notification) {
     client_->execSqlSync(
-        "INSERT INTO alert_notifications(notification_code, alert_id, rule_id, channel, target, status, message) "
-        "VALUES(?, (SELECT id FROM alerts WHERE alert_code = ?), (SELECT id FROM alert_rules WHERE rule_code = ?), ?, ?, ?, ?) "
-        "ON DUPLICATE KEY UPDATE status = VALUES(status), message = VALUES(message)",
+        "INSERT INTO alert_notifications(notification_code, alert_id, rule_id, channel, target, status, message, attempt_count, last_error, delivered_at) "
+        "VALUES(?, (SELECT id FROM alerts WHERE alert_code = ?), (SELECT id FROM alert_rules WHERE rule_code = ?), ?, ?, ?, ?, ?, ?, ?) "
+        "ON DUPLICATE KEY UPDATE status = VALUES(status), message = VALUES(message), attempt_count = VALUES(attempt_count), last_error = VALUES(last_error), delivered_at = VALUES(delivered_at)",
         notification.id,
         notification.alertId,
         notification.ruleId,
         notification.channel,
         notification.target,
         notification.status,
-        notification.message);
+        notification.message,
+        notification.attemptCount,
+        notification.lastError,
+        notification.deliveredAt);
     return notification;
 }
 
 std::vector<domain::AlertNotification> MySqlAlertRepository::listNotifications() const {
     const auto result = client_->execSqlSync(
-        "SELECT n.notification_code, a.alert_code, r.rule_code, n.channel, n.target, n.status, n.message "
+        "SELECT n.notification_code, a.alert_code, r.rule_code, n.channel, n.target, n.status, n.message, n.attempt_count, n.last_error, n.delivered_at "
         "FROM alert_notifications n "
         "JOIN alerts a ON a.id = n.alert_id "
         "JOIN alert_rules r ON r.id = n.rule_id "

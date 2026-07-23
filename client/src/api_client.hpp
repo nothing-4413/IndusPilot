@@ -50,7 +50,9 @@ public:
     QVector<TableRow> alertRules();
     bool createAlertRule(const QString& ruleId, const QString& name, const QString& assetId, const QString& minSeverity, const QString& channel, const QString& target, bool enabled);
     QVector<TableRow> alertNotifications();
-    bool createAlert(const QString& alertId, const QString& assetId, const QString& severity, const QString& state, const QString& title, const QString& assignedTo);
+    bool dispatchAlertNotifications();
+    bool retryAlertNotification(const QString& notificationId);
+bool createAlert(const QString& alertId, const QString& assetId, const QString& severity, const QString& state, const QString& title, const QString& assignedTo);
     bool acknowledgeAlert(const QString& alertId);
     bool assignAlert(const QString& alertId, const QString& assignee);
     bool resolveAlert(const QString& alertId);

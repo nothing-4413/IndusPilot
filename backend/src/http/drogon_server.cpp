@@ -204,9 +204,19 @@ Json::Value alertNotificationToJson(const domain::AlertNotification& notificatio
     value["target"] = notification.target;
     value["status"] = notification.status;
     value["message"] = notification.message;
+    value["attemptCount"] = notification.attemptCount;
+    value["lastError"] = notification.lastError;
+    value["deliveredAt"] = notification.deliveredAt;
     return value;
 }
 
+Json::Value notificationDispatchSummaryToJson(const modules::NotificationDispatchSummary& summary) {
+    Json::Value value;
+    value["sent"] = summary.sent;
+    value["failed"] = summary.failed;
+    value["skipped"] = summary.skipped;
+    return value;
+}
 std::optional<modules::AlertQuery> alertQueryFromRequest(const drogon::HttpRequestPtr& request, std::string& error) {
     modules::AlertQuery query;
     const auto assetId = request->getParameter("assetId");
@@ -837,6 +847,29 @@ void registerRoutes(
         }
         callback(jsonResponse(responseEnvelope(true, "OK", "alert notifications returned", rows)));
     }, {drogon::Get});
+    server.registerHandler("/api/v1/alert-notifications/dispatch", [identity, alerts](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+        const auto session = requireSession(identity, request, callback);
+        if (!session || !requirePermission(identity, *session, "alert:write", callback)) {
+            return;
+        }
+        writeRequestLog(request, session);
+        const auto summary = alerts->dispatchQueuedNotifications();
+        callback(jsonResponse(responseEnvelope(true, "OK", "alert notifications dispatched", notificationDispatchSummaryToJson(summary))));
+    }, {drogon::Post});
+
+    server.registerHandler("/api/v1/alert-notifications/{1}/retry", [identity, alerts](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback, const std::string& notificationId) {
+        const auto session = requireSession(identity, request, callback);
+        if (!session || !requirePermission(identity, *session, "alert:write", callback)) {
+            return;
+        }
+        writeRequestLog(request, session);
+        const auto notification = alerts->retryNotification(notificationId);
+        if (!notification) {
+            callback(notFound("alert notification not found"));
+            return;
+        }
+        callback(jsonResponse(responseEnvelope(true, "OK", "alert notification retried", alertNotificationToJson(*notification))));
+    }, {drogon::Post});
     server.registerHandler("/api/v1/alerts/{1}", [identity, alerts](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback, const std::string& alertId) {
         const auto session = requireSession(identity, request, callback);
         if (!session || !requirePermission(identity, *session, "alert:read", callback)) {

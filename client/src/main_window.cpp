@@ -551,11 +551,35 @@ void MainWindow::handleAlertNotifications() {
     dialog.setWindowTitle(QStringLiteral("告警通知"));
     auto* layout = new QVBoxLayout(&dialog);
     auto* table = new QTableWidget(&dialog);
-    fillTable(table, {"编号", "告警", "规则", "通道", "目标", "状态", "消息"}, api_.alertNotifications());
+    const QStringList headers{"编号", "告警", "规则", "通道", "目标", "状态", "消息", "尝试", "错误", "投递时间"};
+    fillTable(table, headers, api_.alertNotifications());
     layout->addWidget(table);
-    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
-    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    layout->addWidget(buttons);
+
+    auto* actionRow = new QWidget(&dialog);
+    auto* actionLayout = new QHBoxLayout(actionRow);
+    auto* dispatchButton = new QPushButton(QStringLiteral("投递队列"), actionRow);
+    auto* retryButton = new QPushButton(QStringLiteral("重试选中"), actionRow);
+    auto* closeButton = new QPushButton(QStringLiteral("关闭"), actionRow);
+    connect(dispatchButton, &QPushButton::clicked, this, [this, table, headers]() {
+        api_.dispatchAlertNotifications();
+        fillTable(table, headers, api_.alertNotifications());
+        QMessageBox::information(this, QStringLiteral("告警通知"), api_.statusMessage());
+    });
+    connect(retryButton, &QPushButton::clicked, this, [this, table, headers]() {
+        if (!table || table->currentRow() < 0 || !table->item(table->currentRow(), 0)) {
+            QMessageBox::information(this, QStringLiteral("告警通知"), QStringLiteral("请先选择通知记录"));
+            return;
+        }
+        api_.retryAlertNotification(table->item(table->currentRow(), 0)->text());
+        fillTable(table, headers, api_.alertNotifications());
+        QMessageBox::information(this, QStringLiteral("告警通知"), api_.statusMessage());
+    });
+    connect(closeButton, &QPushButton::clicked, &dialog, &QDialog::reject);
+    actionLayout->addWidget(dispatchButton);
+    actionLayout->addWidget(retryButton);
+    actionLayout->addStretch();
+    actionLayout->addWidget(closeButton);
+    layout->addWidget(actionRow);
     dialog.exec();
 }
 void MainWindow::handleAcknowledgeAlert() {

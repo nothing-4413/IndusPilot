@@ -55,6 +55,9 @@ struct AlertNotification {
     std::string target;
     std::string status{"queued"};
     std::string message;
+    int attemptCount{0};
+    std::string lastError;
+    std::string deliveredAt;
 };
 
 struct WorkOrderAttachment {

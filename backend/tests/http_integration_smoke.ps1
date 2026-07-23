@@ -190,6 +190,19 @@ try {
     Assert-True ($notificationMatch[0].channel -eq "console") "Alert notification channel did not match."
     Assert-True ($notificationMatch[0].target -eq "shift-lead") "Alert notification target did not match."
     Assert-True ($notificationMatch[0].status -eq "queued") "Alert notification status did not match."
+    Assert-True ($notificationMatch[0].attemptCount -eq 0) "Alert notification attempt count should start at zero."
+
+    $dispatch = Invoke-RestMethod -Uri "$BaseUrl/api/v1/alert-notifications/dispatch" -Method Post -Headers $operatorHeaders -TimeoutSec 10
+    Assert-True $dispatch.success "Alert notification dispatch failed."
+    Assert-True ($dispatch.data.sent -ge 1) "Alert notification dispatch did not send queued notification."
+
+    $sentNotifications = Invoke-RestMethod -Uri "$BaseUrl/api/v1/alert-notifications" -Method Get -Headers $operatorHeaders -TimeoutSec 10
+    $sentNotificationMatch = @($sentNotifications.data) | Where-Object { $_.alertId -eq "alert-it-001" -and $_.ruleId -eq "rule-it-critical" }
+    Assert-True (@($sentNotificationMatch).Count -eq 1) "Sent alert notification query failed."
+    Assert-True ($sentNotificationMatch[0].status -eq "sent") "Alert notification was not marked sent."
+    Assert-True ($sentNotificationMatch[0].attemptCount -eq 1) "Alert notification attempt count did not increment."
+    Assert-True (-not [string]::IsNullOrWhiteSpace($sentNotificationMatch[0].deliveredAt)) "Alert notification deliveredAt was not set."
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/alert-notifications/not-exist/retry" -Method Post -Status 404 -Headers $operatorHeaders
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/alerts/alert-it-001/assign" -Method Post -Status 400 -Headers $operatorHeaders -Body '{}'
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/alerts/not-exist/acknowledge" -Method Post -Status 404 -Headers $operatorHeaders
 

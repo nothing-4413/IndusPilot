@@ -56,7 +56,10 @@ TableRow alertNotificationRow(const QJsonObject& item) {
         stringValue(item, "channel"),
         stringValue(item, "target"),
         stringValue(item, "status"),
-        stringValue(item, "message")}};
+        stringValue(item, "message"),
+        QString::number(item.value("attemptCount").toInt()),
+        stringValue(item, "lastError"),
+        stringValue(item, "deliveredAt")}};
 }
 
 QStringList jsonStringArray(const QJsonArray& array) {
@@ -379,6 +382,23 @@ QVector<TableRow> ApiClient::alertNotifications() {
     }
     statusMessage_ = rows.isEmpty() ? QStringLiteral("当前暂无告警通知记录") : QStringLiteral("告警通知记录已同步");
     return rows;
+}
+bool ApiClient::dispatchAlertNotifications() {
+    if (token_.isEmpty()) {
+        statusMessage_ = QStringLiteral("请先连接后端再投递告警通知");
+        return false;
+    }
+    return !postEnvelope("/api/v1/alert-notifications/dispatch", QJsonObject{}, QJsonValue::Object, QStringLiteral("告警通知投递完成"), QStringLiteral("告警通知投递失败")).isEmpty();
+}
+
+bool ApiClient::retryAlertNotification(const QString& notificationId) {
+    const auto normalizedId = notificationId.trimmed();
+    if (token_.isEmpty() || normalizedId.isEmpty()) {
+        statusMessage_ = QStringLiteral("请先连接后端并选择通知记录");
+        return false;
+    }
+    const auto path = "/api/v1/alert-notifications/" + QString::fromUtf8(QUrl::toPercentEncoding(normalizedId)) + "/retry";
+    return !postEnvelope(path, QJsonObject{}, QJsonValue::Object, QStringLiteral("告警通知重试完成"), QStringLiteral("告警通知重试失败")).isEmpty();
 }
 bool ApiClient::createAlert(const QString& alertId, const QString& assetId, const QString& severity, const QString& state, const QString& title, const QString& assignedTo) {
     const auto normalizedAlertId = alertId.trimmed();
@@ -796,7 +816,7 @@ QVector<TableRow> ApiClient::offlineAlertRules() const {
 }
 
 QVector<TableRow> ApiClient::offlineAlertNotifications() const {
-    return {{{"notice-alert-001-rule-critical-pump", "alert-001", "rule-critical-pump", "console", "值班长", "queued", "告警 alert-001 命中规则 关键设备严重告警"}}};
+    return {{{"notice-alert-001-rule-critical-pump", "alert-001", "rule-critical-pump", "console", "值班长", "queued", "告警 alert-001 命中规则 关键设备严重告警", "0", "", ""}}};
 }
 
 QVector<TableRow> ApiClient::offlineWorkOrders() const {
