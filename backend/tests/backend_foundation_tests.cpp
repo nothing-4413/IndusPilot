@@ -40,12 +40,14 @@ int main() {
     _putenv_s("INDUSPILOT_REDIS_SESSION_KEY_PREFIX", "test:session:");
     _putenv_s("INDUSPILOT_REDIS_SESSION_STORE", "redis");
     _putenv_s("INDUSPILOT_REPOSITORY_STORE", "mysql");
+    _putenv_s("INDUSPILOT_AI_PROVIDER", "http");
 #else
     setenv("INDUSPILOT_SERVER_PORT", "18080", 1);
     setenv("INDUSPILOT_REDIS_SESSION_TTL_SECONDS", "60", 1);
     setenv("INDUSPILOT_REDIS_SESSION_KEY_PREFIX", "test:session:", 1);
     setenv("INDUSPILOT_REDIS_SESSION_STORE", "redis", 1);
     setenv("INDUSPILOT_REPOSITORY_STORE", "mysql", 1);
+    setenv("INDUSPILOT_AI_PROVIDER", "http", 1);
 #endif
     const auto loadedConfig = induspilot::app::loadConfig("config/backend.example.yaml");
     assert(loadedConfig.port == 18080);
@@ -53,18 +55,21 @@ int main() {
     assert(loadedConfig.redis.sessionKeyPrefix == "test:session:");
     assert(loadedConfig.redis.sessionStore == "redis");
     assert(loadedConfig.storage.repositoryStore == "mysql");
+    assert(loadedConfig.ai.provider == "http");
 #ifdef _WIN32
     _putenv_s("INDUSPILOT_SERVER_PORT", "");
     _putenv_s("INDUSPILOT_REDIS_SESSION_TTL_SECONDS", "");
     _putenv_s("INDUSPILOT_REDIS_SESSION_KEY_PREFIX", "");
     _putenv_s("INDUSPILOT_REDIS_SESSION_STORE", "");
     _putenv_s("INDUSPILOT_REPOSITORY_STORE", "");
+    _putenv_s("INDUSPILOT_AI_PROVIDER", "");
 #else
     unsetenv("INDUSPILOT_SERVER_PORT");
     unsetenv("INDUSPILOT_REDIS_SESSION_TTL_SECONDS");
     unsetenv("INDUSPILOT_REDIS_SESSION_KEY_PREFIX");
     unsetenv("INDUSPILOT_REDIS_SESSION_STORE");
     unsetenv("INDUSPILOT_REPOSITORY_STORE");
+    unsetenv("INDUSPILOT_AI_PROVIDER");
 #endif
 
     induspilot::app::Application app(induspilot::app::AppConfig{});
@@ -131,6 +136,15 @@ int main() {
     assert(configuredAi.status().message.find("http://127.0.0.1:9000") != std::string::npos);
     const auto suggestion = ai.troubleshoot({"alert", "alert-001", "温度异常", {"设备：一号产线主电机"}});
     assert(!suggestion.available);
+    const auto diagnosis = ai.diagnose(induspilot::modules::DiagnosisRequest{
+        "alert",
+        "alert-001",
+        "一号产线主电机温度异常",
+        induspilot::modules::DiagnosisContext{"asset-001", "温度异常", "warning", "critical", "温度偏高", "近期无关闭工单", "现场闻到异味", {"设备：一号产线主电机"}}});
+    assert(diagnosis.riskLevel == "critical");
+    assert(diagnosis.requiresHumanReview);
+    assert(!diagnosis.possibleCauses.empty());
+    assert(!diagnosis.recommendedActions.empty());
     assert(!ai.interactions().empty());
 
     app.stop();

@@ -119,6 +119,8 @@ void applyConfigValue(AppConfig& config, const std::string& section, const std::
         config.mongodb.uri = value;
     } else if (section == "ai" && key == "enabled") {
         config.ai.enabled = parseBool(value, config.ai.enabled);
+    } else if (section == "ai" && key == "provider") {
+        config.ai.provider = value;
     } else if (section == "ai" && key == "endpoint") {
         config.ai.endpoint = value;
     } else if (section == "storage" && key == "repository_store") {
@@ -153,6 +155,7 @@ void applyEnvironmentOverrides(AppConfig& config) {
     applyStringEnv("INDUSPILOT_MONGODB_URI", config.mongodb.uri);
 
     applyBoolEnv("INDUSPILOT_AI_ENABLED", config.ai.enabled);
+    applyStringEnv("INDUSPILOT_AI_PROVIDER", config.ai.provider);
     applyStringEnv("INDUSPILOT_AI_ENDPOINT", config.ai.endpoint);
 
     applyStringEnv("INDUSPILOT_REPOSITORY_STORE", config.storage.repositoryStore);

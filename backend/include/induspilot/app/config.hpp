@@ -26,6 +26,7 @@ struct RedisConfig {
 
 struct AiConfig {
     bool enabled{false};
+    std::string provider{"disabled"};
     std::string endpoint{"http://127.0.0.1:9000"};
 };
 
