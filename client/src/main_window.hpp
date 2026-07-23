@@ -33,13 +33,16 @@ private:
     QLabel* statusBadge(const QString& text, const QString& tone);
     void fillTable(QTableWidget* table, const QStringList& headers, const QVector<TableRow>& rows);
     void refreshOnlineTables();
+    void refreshAssetTable();
     void refreshMonitoringTable();
     void refreshAlertTable();
     void refreshWorkOrderTable();
     void refreshAiInteractionTable();
+    QString selectedAssetId() const;
     QString selectedAlertId() const;
     QString selectedWorkOrderId() const;
     void handleLogin();
+    void handleUpdateAssetStatus();
     void handleSubmitMonitoringState();
     void handleCreateAlert();
     void handleAcknowledgeAlert();

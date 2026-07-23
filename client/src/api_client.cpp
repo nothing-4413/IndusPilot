@@ -172,6 +172,27 @@ QVector<TableRow> ApiClient::assets() {
     return rows;
 }
 
+bool ApiClient::updateAssetStatus(const QString& assetId, const QString& status) {
+    const auto normalizedAssetId = assetId.trimmed();
+    const auto normalizedStatus = status.trimmed();
+    if (token_.isEmpty()) {
+        statusMessage_ = QStringLiteral("请先连接后端再更新资产状态");
+        return false;
+    }
+    if (normalizedAssetId.isEmpty()) {
+        statusMessage_ = QStringLiteral("请先选择需要更新状态的资产");
+        return false;
+    }
+    if (!QStringList{"active", "inactive", "maintenance", "retired"}.contains(normalizedStatus)) {
+        statusMessage_ = QStringLiteral("资产状态只允许 active、inactive、maintenance、retired");
+        return false;
+    }
+
+    QJsonObject payload;
+    payload["status"] = normalizedStatus;
+    const auto path = "/api/v1/assets/" + QString::fromUtf8(QUrl::toPercentEncoding(normalizedAssetId)) + "/status";
+    return !postEnvelope(path, payload, QJsonValue::Object, QStringLiteral("资产状态更新成功"), QStringLiteral("资产状态更新失败"), QStringLiteral("PATCH")).isEmpty();
+}
 QVector<TableRow> ApiClient::monitoringStates() {
     if (token_.isEmpty()) {
         return offlineMonitoringStates();
@@ -601,8 +622,8 @@ QJsonObject ApiClient::responseEnvelope(const QString& path, QJsonValue::Type da
     return envelope;
 }
 
-QJsonObject ApiClient::postEnvelope(const QString& path, const QJsonObject& payload, QJsonValue::Type dataType, const QString& successMessage, const QString& failureMessage) {
-    const auto response = requestJson("POST", path, QJsonDocument(payload).toJson(QJsonDocument::Compact));
+QJsonObject ApiClient::postEnvelope(const QString& path, const QJsonObject& payload, QJsonValue::Type dataType, const QString& successMessage, const QString& failureMessage, const QString& method) {
+    const auto response = requestJson(method, path, QJsonDocument(payload).toJson(QJsonDocument::Compact));
     if (response.isEmpty()) {
         return {};
     }
@@ -646,6 +667,8 @@ QByteArray ApiClient::requestJson(const QString& method, const QString& path, co
     QNetworkReply* reply = nullptr;
     if (method == "POST") {
         reply = network_->post(request, body);
+    } else if (method == "PATCH") {
+        reply = network_->sendCustomRequest(request, "PATCH", body);
     } else {
         reply = network_->get(request);
     }

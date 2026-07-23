@@ -96,9 +96,16 @@ QWidget* MainWindow::buildAssetPage() {
     assetTable_ = new QTableWidget(page);
     fillTable(assetTable_, {"编号", "名称", "类型", "产线", "状态"}, api_.assets());
     layout->addWidget(assetTable_);
+
+    auto* actionRow = new QWidget(page);
+    auto* actionLayout = new QHBoxLayout(actionRow);
+    auto* updateStatusButton = new QPushButton(QStringLiteral("更新状态"), actionRow);
+    connect(updateStatusButton, &QPushButton::clicked, this, &MainWindow::handleUpdateAssetStatus);
+    actionLayout->addWidget(updateStatusButton);
+    actionLayout->addStretch();
+    layout->addWidget(actionRow);
     return page;
 }
-
 QWidget* MainWindow::buildMonitoringPage() {
     auto* page = new QWidget(this);
     auto* layout = new QVBoxLayout(page);
@@ -292,7 +299,7 @@ void MainWindow::fillTable(QTableWidget* table, const QStringList& headers, cons
 
 void MainWindow::refreshOnlineTables() {
     if (assetTable_) {
-        fillTable(assetTable_, {"编号", "名称", "类型", "产线", "状态"}, api_.assets());
+        refreshAssetTable();
     }
     if (monitoringTable_) {
         refreshMonitoringTable();
@@ -319,6 +326,11 @@ void MainWindow::refreshOnlineTables() {
     }
 }
 
+void MainWindow::refreshAssetTable() {
+    if (assetTable_) {
+        fillTable(assetTable_, {"编号", "名称", "类型", "产线", "状态"}, api_.assets());
+    }
+}
 void MainWindow::refreshMonitoringTable() {
     if (monitoringTable_) {
         fillTable(monitoringTable_, {QStringLiteral("设备"), QStringLiteral("状态"), QStringLiteral("严重度"), QStringLiteral("指标"), QStringLiteral("更新时间")}, api_.monitoringStates());
@@ -344,6 +356,13 @@ void MainWindow::refreshAiInteractionTable() {
     }
 }
 
+QString MainWindow::selectedAssetId() const {
+    if (!assetTable_ || assetTable_->currentRow() < 0) {
+        return {};
+    }
+    const auto* item = assetTable_->item(assetTable_->currentRow(), 0);
+    return item ? item->text() : QString{};
+}
 QString MainWindow::selectedAlertId() const {
     if (!alertTable_ || alertTable_->currentRow() < 0) {
         return {};
@@ -372,6 +391,23 @@ void MainWindow::handleLogin() {
 
 
 
+void MainWindow::handleUpdateAssetStatus() {
+    const auto assetId = selectedAssetId();
+    if (assetId.isEmpty()) {
+        api_.updateAssetStatus(assetId, QString{});
+        QMessageBox::information(this, QStringLiteral("资产操作"), api_.statusMessage());
+        return;
+    }
+    bool ok = false;
+    const auto status = QInputDialog::getItem(this, QStringLiteral("更新资产状态"), QStringLiteral("资产状态"), {"active", "inactive", "maintenance", "retired"}, 0, false, &ok);
+    if (!ok) {
+        return;
+    }
+    if (api_.updateAssetStatus(assetId, status)) {
+        refreshAssetTable();
+    }
+    QMessageBox::information(this, QStringLiteral("资产操作"), api_.statusMessage());
+}
 void MainWindow::handleSubmitMonitoringState() {
     const auto assetId = monitoringAssetIdInput_ ? monitoringAssetIdInput_->text() : QString{};
     const auto state = monitoringStateInput_ ? monitoringStateInput_->currentText() : QString{};

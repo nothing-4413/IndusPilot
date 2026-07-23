@@ -36,6 +36,7 @@ public:
     QString statusMessage() const;
     bool online() const;
     QVector<TableRow> assets();
+    bool updateAssetStatus(const QString& assetId, const QString& status);
     QVector<TableRow> monitoringStates();
     bool writeMonitoringState(const QString& assetId, const QString& state, const QString& metricSummary, const QString& severity);
     QVector<TableRow> alerts();
@@ -68,7 +69,8 @@ private:
         const QJsonObject& payload,
         QJsonValue::Type dataType,
         const QString& successMessage = QString(),
-        const QString& failureMessage = QString());
+        const QString& failureMessage = QString(),
+        const QString& method = QStringLiteral("POST"));
     QUrl endpoint(const QString& path) const;
     QByteArray requestJson(const QString& method, const QString& path, const QByteArray& body = QByteArray());
     void loadConfig();
