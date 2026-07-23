@@ -1,6 +1,7 @@
 #include "induspilot/modules/identity_service.hpp"
 
 #include "induspilot/data/in_memory_repositories.hpp"
+#include "induspilot/modules/password_hasher.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -45,7 +46,7 @@ ServiceStatus IdentityService::status() const {
 
 AuthResult IdentityService::login(const LoginRequest& request) {
     const auto credential = userRepository_->findByUsername(request.username);
-    if (!credential || credential->passwordHash != request.password) {
+    if (!credential || !verifyPassword(request.password, credential->passwordHash)) {
         return AuthResult{false, "用户名或密码错误", std::nullopt};
     }
 
@@ -74,7 +75,7 @@ std::optional<SessionInfo> IdentityService::validateSession(const std::string& t
 
 bool IdentityService::authenticate(const std::string& username, const std::string& password) const {
     const auto credential = userRepository_->findByUsername(username);
-    return credential.has_value() && credential->passwordHash == password;
+    return credential.has_value() && verifyPassword(password, credential->passwordHash);
 }
 
 bool IdentityService::hasPermission(const std::vector<std::string>& permissions, const std::string& required) const {

@@ -67,7 +67,7 @@ docker compose up -d
 
 ## 身份口令边界
 
-内存仓储保留 `admin/admin123`、`operator/operator123`、`maintainer/maintainer123` 作为开发演示口令。MySQL 初始化脚本只写入 `CHANGE_ME_HASH` 占位值；生产部署前必须通过正式密码策略生成加盐哈希，并补充密码轮换、锁定、审计和最小权限账户治理。
+内存仓储保留 `admin/admin123`、`operator/operator123`、`maintainer/maintainer123` 作为开发演示口令，并通过显式 `plain:` 兼容格式标识。MySQL 初始化脚本写入 PBKDF2-SHA256 演示哈希，便于本地依赖链路登录验证；生产部署前必须为每个账号生成唯一盐哈希，并补充密码轮换、锁定、审计和最小权限账户治理。
 
 ## 当前配置边界
 
@@ -122,7 +122,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File backend/tests/http_integ
 
 ## 生产注意事项
 
-- 开发口令仍是骨架数据，生产必须替换为加盐哈希和密码策略。
+- 开发口令和 MySQL 演示哈希仍是骨架数据，生产必须替换为唯一盐哈希、密码轮换、登录失败锁定和审计策略。
 - MySQL 仓储已经覆盖 identity、asset、alert、work-order、runtime-state 和 AI interaction；生产部署前需执行 `database/mysql/001_foundation_schema.sql`、`002_seed_identity.sql`、`003_runtime_persistence_schema.sql`。
 - Redis session 已支持配置化接入，后续需要补充连接失败降级策略和监控指标。
 - 当前 MongoDB 仅做依赖探测，后续可用于长日志、知识片段或非结构化诊断上下文。

@@ -12,6 +12,7 @@
 #include "induspilot/modules/identity_service.hpp"
 #include "induspilot/modules/maintenance_service.hpp"
 #include "induspilot/modules/monitoring_service.hpp"
+#include "induspilot/modules/password_hasher.hpp"
 
 #include <cassert>
 #include <chrono>
@@ -86,6 +87,11 @@ int main() {
     const auto permissions = identity.permissionsForRoles(login.session->user.roles);
     assert(identity.hasPermission(permissions, "asset:write"));
     assert(identity.hasPermission(permissions, "monitoring:write"));
+    assert(identity.authenticate("admin", "admin123"));
+    assert(!identity.authenticate("admin", "wrong-password"));
+    assert(induspilot::modules::verifyPassword("admin123", "plain:admin123"));
+    assert(induspilot::modules::verifyPassword("admin123", "pbkdf2_sha256$1000$identity-test-salt$3d8943413e05ec9118c53174a59bf506b84c558ead29bc37acd901f632a256f1"));
+    assert(!induspilot::modules::verifyPassword("wrong-password", "pbkdf2_sha256$1000$identity-test-salt$3d8943413e05ec9118c53174a59bf506b84c558ead29bc37acd901f632a256f1"));
     assert(identity.logout(login.session->token));
     assert(!identity.validateSession(login.session->token).has_value());
 

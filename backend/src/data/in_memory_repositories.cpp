@@ -6,9 +6,9 @@
 namespace induspilot::data {
 
 InMemoryUserRepository::InMemoryUserRepository() {
-    users_["admin"] = UserCredential{domain::User{"user-admin", "admin", {"admin"}}, "admin123"};
-    users_["operator"] = UserCredential{domain::User{"user-operator", "operator", {"operator"}}, "operator123"};
-    users_["maintainer"] = UserCredential{domain::User{"user-maintainer", "maintainer", {"maintainer"}}, "maintainer123"};
+    users_["admin"] = UserCredential{domain::User{"user-admin", "admin", {"admin"}}, "plain:admin123"};
+    users_["operator"] = UserCredential{domain::User{"user-operator", "operator", {"operator"}}, "plain:operator123"};
+    users_["maintainer"] = UserCredential{domain::User{"user-maintainer", "maintainer", {"maintainer"}}, "plain:maintainer123"};
 }
 
 std::optional<UserCredential> InMemoryUserRepository::findByUsername(const std::string& username) const {

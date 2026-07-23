@@ -12,6 +12,7 @@ set(INDUSPILOT_BACKEND_CORE_SOURCES
   src/modules/identity_service.cpp
   src/modules/maintenance_service.cpp
   src/modules/monitoring_service.cpp
+  src/modules/password_hasher.cpp
   src/modules/session_store.cpp
 )
 

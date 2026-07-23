@@ -74,4 +74,4 @@ $env:INDUSPILOT_REPOSITORY_STORE="mysql"
 .\build\dev-http\backend\induspilot-backend.exe config\backend.example.yaml
 ```
 
-生产部署前仍需要替换开发口令、补齐密码哈希策略、真实依赖集成测试、监控指标和外部 AI 推理传输。
+生产部署前仍需要替换开发口令和演示盐值、补齐登录失败锁定、真实依赖集成测试、监控指标和外部 AI 推理传输。
