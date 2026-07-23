@@ -48,6 +48,9 @@ ctest --preset dev-http
 - `POST /api/v1/work-orders/{id}/close`：需要 `work-order:write` 权限，关闭工单。
 - `GET /api/v1/assets/{assetId}/maintenance-history`：需要 `work-order:read` 权限，返回资产已关闭维护历史。
 - `GET /api/v1/ai/status`：需要 `ai:use` 权限，返回 AI 模块状态。
+- `POST /api/v1/ai/troubleshoot`：需要 `ai:use` 权限，提交 `relatedType`、`relatedId`、`prompt` 和可选 `contextItems`，返回非权威故障排查建议或不可用说明。
+- `POST /api/v1/ai/summarize-logs`：需要 `ai:use` 权限，提交日志或上下文摘要请求。
+- `GET /api/v1/ai/interactions`：需要 `ai:use` 权限，查询 AI 交互审计记录；支持 `relatedType` 和 `relatedId` 查询参数。
 
 接口响应统一使用：`success`、`code`、`message`、`data`。
 
@@ -64,7 +67,7 @@ ctest --preset dev-http
 
 ## 集成测试
 
-`dev-http` preset 会在 Windows 下注册 `induspilot-http-integration-smoke` CTest。该测试会启动本地后端，覆盖健康检查、登录、受保护路由、权限拒绝、请求校验、资源不存在错误、资产层级筛选、资产生命周期状态变更、运行状态写入、运行状态详情、监控汇总、告警创建、告警筛选、告警生命周期流转、工单创建、工单生命周期流转和资产维修历史。
+`dev-http` preset 会在 Windows 下注册 `induspilot-http-integration-smoke` CTest。该测试会启动本地后端，覆盖健康检查、登录、受保护路由、权限拒绝、请求校验、资源不存在错误、资产层级筛选、资产生命周期状态变更、运行状态写入、运行状态详情、监控汇总、告警创建、告警筛选、告警生命周期流转、工单创建、工单生命周期流转、资产维修历史、AI 辅助请求和 AI 交互审计。
 
 手动运行：
 

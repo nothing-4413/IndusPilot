@@ -232,6 +232,22 @@ try {
     Assert-True $fromAlert.success "Work order from alert failed."
     Assert-True ($fromAlert.data.alertId -eq "alert-it-001") "Work order from alert did not link alert."
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/work-orders/from-alert" -Method Post -Status 404 -Headers $maintainerHeaders -Body '{"alertId":"not-exist","summary":"missing alert"}'
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/ai/troubleshoot" -Method Post -Status 401 -Body '{"relatedType":"alert","relatedId":"alert-it-001","prompt":"explain"}'
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/ai/troubleshoot" -Method Post -Status 400 -Headers $operatorHeaders -Body '{"relatedType":"alert"}'
+
+    $aiBody = '{"relatedType":"alert","relatedId":"alert-it-001","prompt":"explain critical temperature","contextItems":["asset-it-001","temperature high"]}'
+    $aiSuggestion = Invoke-RestMethod -Uri "$BaseUrl/api/v1/ai/troubleshoot" -Method Post -Headers $operatorHeaders -ContentType "application/json" -Body $aiBody -TimeoutSec 10
+    Assert-True $aiSuggestion.success "AI troubleshooting failed."
+    Assert-True (-not $aiSuggestion.data.available) "AI troubleshooting should report unavailable in local mode."
+    Assert-True (-not [string]::IsNullOrWhiteSpace($aiSuggestion.data.content)) "AI troubleshooting content was empty."
+
+    $logSummary = Invoke-RestMethod -Uri "$BaseUrl/api/v1/ai/summarize-logs" -Method Post -Headers $operatorHeaders -ContentType "application/json" -Body '{"relatedType":"work-order","relatedId":"wo-it-001","prompt":"summarize maintenance log"}' -TimeoutSec 10
+    Assert-True $logSummary.success "AI log summary failed."
+    Assert-True (-not $logSummary.data.available) "AI log summary should report unavailable in local mode."
+
+    $aiInteractions = Invoke-RestMethod -Uri "$BaseUrl/api/v1/ai/interactions?relatedType=alert&relatedId=alert-it-001" -Method Get -Headers $operatorHeaders -TimeoutSec 10
+    $aiMatch = @($aiInteractions.data) | Where-Object { $_.relatedId -eq "alert-it-001" }
+    Assert-True (@($aiMatch).Count -ge 1) "AI interaction audit query failed."
 } finally {
     if ($proc -and -not $proc.HasExited) {
         Stop-Process -Id $proc.Id -Force
