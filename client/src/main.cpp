@@ -4,7 +4,7 @@
 
 int main(int argc, char* argv[]) {
     QApplication app(argc, argv);
-    QApplication::setApplicationName("IndusPilot 离线演示客户端");
+    QApplication::setApplicationName("IndusPilot 客户端");
     QApplication::setOrganizationName("IndusPilot");
 
     MainWindow window;

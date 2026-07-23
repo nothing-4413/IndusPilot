@@ -15,7 +15,7 @@
 #include <QVBoxLayout>
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
-    setWindowTitle("IndusPilot 工业智能运维支持平台（离线演示）");
+    setWindowTitle("IndusPilot 工业智能运维支持平台");
     resize(1280, 760);
 
     auto* splitter = new QSplitter(this);
@@ -27,7 +27,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 
     pages_->addWidget(buildLoginPage());
     pages_->addWidget(buildDashboardPage());
-    pages_->addWidget(buildTablePage("设备资产", {"编号", "名称", "类型", "产线", "状态"}, api_.assets()));
+    pages_->addWidget(buildAssetPage());
     pages_->addWidget(buildTablePage("运行监控", {"设备", "状态", "指标", "更新时间"}, api_.monitoringStates()));
     pages_->addWidget(buildTablePage("告警中心", {"级别", "设备", "标题", "状态", "负责人"}, api_.alerts()));
     pages_->addWidget(buildTablePage("维护工单", {"工单", "设备", "来源告警", "状态", "处理人"}, api_.workOrders()));
@@ -44,12 +44,12 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 QWidget* MainWindow::buildLoginPage() {
     auto* page = new QWidget(this);
     auto* layout = new QFormLayout(page);
-    layout->addRow(new QLabel("IndusPilot 离线演示登录"));
+    layout->addRow(new QLabel("IndusPilot 后端登录"));
     usernameInput_ = new QLineEdit("admin");
     passwordInput_ = new QLineEdit("admin123");
     passwordInput_->setEchoMode(QLineEdit::Password);
-    loginMessage_ = new QLabel("等待离线演示登录");
-    auto* loginButton = new QPushButton("进入离线演示");
+    loginMessage_ = new QLabel(api_.statusMessage());
+    auto* loginButton = new QPushButton("登录并同步资产");
     connect(loginButton, &QPushButton::clicked, this, &MainWindow::handleLogin);
     layout->addRow("账号", usernameInput_);
     layout->addRow("密码", passwordInput_);
@@ -62,9 +62,20 @@ QWidget* MainWindow::buildDashboardPage() {
     auto* page = new QWidget(this);
     auto* layout = new QVBoxLayout(page);
     layout->addWidget(new QLabel("设备运行总览"));
-    layout->addWidget(new QLabel("离线演示数据：在线设备 1    活跃告警 1    待处理工单 1    AI 建议入口已预留"));
+    layout->addWidget(new QLabel("基础联机阶段：登录和资产列表可接入后端，其他模块保留离线演示数据。"));
     layout->addWidget(statusBadge("critical", "danger"));
     layout->addStretch();
+    return page;
+}
+
+QWidget* MainWindow::buildAssetPage() {
+    auto* page = new QWidget(this);
+    auto* layout = new QVBoxLayout(page);
+    assetModeLabel_ = new QLabel("设备资产（离线演示数据）", page);
+    layout->addWidget(assetModeLabel_);
+    assetTable_ = new QTableWidget(page);
+    fillTable(assetTable_, {"编号", "名称", "类型", "产线", "状态"}, api_.assets());
+    layout->addWidget(assetTable_);
     return page;
 }
 
@@ -72,16 +83,8 @@ QWidget* MainWindow::buildTablePage(const QString& title, const QStringList& hea
     auto* page = new QWidget(this);
     auto* layout = new QVBoxLayout(page);
     layout->addWidget(new QLabel(title + "（离线演示数据）"));
-    auto* table = new QTableWidget(rows.size(), headers.size(), page);
-    table->setHorizontalHeaderLabels(headers);
-    for (int row = 0; row < rows.size(); ++row) {
-        for (int column = 0; column < rows[row].columns.size() && column < headers.size(); ++column) {
-            table->setItem(row, column, new QTableWidgetItem(rows[row].columns[column]));
-        }
-    }
-    table->horizontalHeader()->setStretchLastSection(true);
-    table->setAlternatingRowColors(true);
-    table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    auto* table = new QTableWidget(page);
+    fillTable(table, headers, rows);
     layout->addWidget(table);
     return page;
 }
@@ -104,11 +107,38 @@ QLabel* MainWindow::statusBadge(const QString& text, const QString& tone) {
     return label;
 }
 
+void MainWindow::fillTable(QTableWidget* table, const QStringList& headers, const QVector<TableRow>& rows) {
+    table->clear();
+    table->setRowCount(rows.size());
+    table->setColumnCount(headers.size());
+    table->setHorizontalHeaderLabels(headers);
+    for (int row = 0; row < rows.size(); ++row) {
+        for (int column = 0; column < rows[row].columns.size() && column < headers.size(); ++column) {
+            table->setItem(row, column, new QTableWidgetItem(rows[row].columns[column]));
+        }
+    }
+    table->horizontalHeader()->setStretchLastSection(true);
+    table->setAlternatingRowColors(true);
+    table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+}
+
+void MainWindow::refreshAssetTable() {
+    if (!assetTable_) {
+        return;
+    }
+    fillTable(assetTable_, {"编号", "名称", "类型", "产线", "状态"}, api_.assets());
+    if (assetModeLabel_) {
+        assetModeLabel_->setText(api_.online() ? "设备资产（后端同步）" : "设备资产（离线演示数据）");
+    }
+}
+
 void MainWindow::handleLogin() {
     if (api_.login(usernameInput_->text(), passwordInput_->text())) {
-        loginMessage_->setText("离线演示登录成功：" + api_.currentUser());
+        loginMessage_->setText(api_.statusMessage() + "；当前用户：" + api_.currentUser());
+        refreshAssetTable();
         navigation_->setCurrentRow(1);
     } else {
-        loginMessage_->setText("离线演示登录失败：请输入账号和密码");
+        loginMessage_->setText("登录失败：" + api_.statusMessage());
     }
 }

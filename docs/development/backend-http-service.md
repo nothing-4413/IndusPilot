@@ -59,6 +59,14 @@ ctest --preset dev-http
 
 当前 HTTP 层已经接入会话守卫、权限守卫、统一错误响应和仓储边界。`storage.repository_store` 为 `memory` 时使用内存仓储；设置为 `mysql` 时，身份认证、资产、告警、工单、运行状态和 AI 交互审计使用 MySQL 仓储。AI 模块会读取 `ai.enabled`、`ai.provider` 与 `ai.endpoint`，通过 Provider 边界生成结构化 agent 诊断结果并写入审计；当前 `disabled/http` provider 都使用本地规则降级，尚未执行外部推理传输。
 
+## Qt 客户端联机
+
+Qt 客户端会读取 `config/client.example.json` 中的 `apiBaseUrl`。第一阶段已接入：
+
+- `POST /api/v1/auth/login`：登录成功后保存 Bearer token。
+- `GET /api/v1/assets`：登录后同步资产列表。
+
+如果后端不可达，客户端会保留离线演示数据并在登录页提示当前模式。运行监控、告警、工单和 AI 页面仍为离线兜底，后续按模块接入。
 ## 错误响应
 
 - INVALID_REQUEST：请求体缺少必要字段或格式无效。
