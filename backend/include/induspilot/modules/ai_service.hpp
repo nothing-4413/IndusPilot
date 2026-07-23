@@ -89,6 +89,8 @@ public:
         std::shared_ptr<AiProvider> provider = nullptr);
 
     ServiceStatus status() const;
+    std::string providerName() const;
+    std::string providerEndpoint() const;
     AiSuggestion explainAlert(const std::string& alertSummary);
     AiSuggestion troubleshoot(const AiRequest& request);
     AiSuggestion summarizeLogs(const AiRequest& request);

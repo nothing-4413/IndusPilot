@@ -35,6 +35,7 @@ mongodb:
   database: "induspilot"
 
 ai:
-  # enabled/endpoint 当前驱动健康探测和 AI 服务状态；外部推理调用尚未接入。
+  # provider 支持 disabled/http；http 当前作为外部模型服务适配边界。
   enabled: false
+  provider: "disabled"
   endpoint: "http://127.0.0.1:9000"

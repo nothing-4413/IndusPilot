@@ -50,13 +50,14 @@ ctest --preset dev-http
 - `GET /api/v1/ai/status`：需要 `ai:use` 权限，返回 AI 模块状态。
 - `POST /api/v1/ai/troubleshoot`：需要 `ai:use` 权限，提交 `relatedType`、`relatedId`、`prompt` 和可选 `contextItems`，返回非权威故障排查建议或不可用说明。
 - `POST /api/v1/ai/summarize-logs`：需要 `ai:use` 权限，提交日志或上下文摘要请求。
+- `POST /api/v1/ai/diagnose`：需要 `ai:use` 权限，提交 `relatedType`、`relatedId`、`prompt` 和 `context`，返回结构化诊断结果。
 - `GET /api/v1/ai/interactions`：需要 `ai:use` 权限，查询 AI 交互审计记录；支持 `relatedType` 和 `relatedId` 查询参数。
 
 接口响应统一使用：`success`、`code`、`message`、`data`。
 
 ## 后续约束
 
-当前 HTTP 层已经接入会话守卫、权限守卫、统一错误响应和仓储边界。`storage.repository_store` 为 `memory` 时使用内存仓储；设置为 `mysql` 时，身份认证、资产、告警、工单、运行状态和 AI 交互审计使用 MySQL 仓储。AI 模块会读取 `ai.enabled` 与 `ai.endpoint` 并在状态/降级建议中说明当前边界，但尚未调用外部推理服务。
+当前 HTTP 层已经接入会话守卫、权限守卫、统一错误响应和仓储边界。`storage.repository_store` 为 `memory` 时使用内存仓储；设置为 `mysql` 时，身份认证、资产、告警、工单、运行状态和 AI 交互审计使用 MySQL 仓储。AI 模块会读取 `ai.enabled`、`ai.provider` 与 `ai.endpoint`，通过 Provider 边界生成结构化 agent 诊断结果并写入审计；当前 `disabled/http` provider 都使用本地规则降级，尚未执行外部推理传输。
 
 ## 错误响应
 

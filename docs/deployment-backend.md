@@ -72,7 +72,7 @@ docker compose up -d
 
 - Redis session 已支持通过 `redis.uri` 接入；`redis.password` 和 `redis.database` 会被解析，但当前连接实现不单独消费这两个字段，如需认证或选择 DB，请把信息嵌入 `redis.uri`。
 - MongoDB 当前仅用于 TCP 健康探测；AI 交互审计在 `repository_store=mysql` 时写入 MySQL，尚未写入 MongoDB。
-- `ai.enabled` 和 `ai.endpoint` 当前驱动健康探测、AI 状态接口和降级提示；外部推理 HTTP 调用尚未实现。
+- `ai.enabled`、`ai.provider` 和 `ai.endpoint` 当前驱动健康探测、AI 状态接口、agent 诊断编排和降级提示；`provider=http` 已保留外部模型服务适配边界，当前仍使用本地规则降级。
 - `/health` 依赖检查当前只验证 TCP 连通性，不校验认证、schema、表结构或 MongoDB collection。
 ## Session Store
 

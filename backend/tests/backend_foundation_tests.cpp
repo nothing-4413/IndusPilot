@@ -132,7 +132,7 @@ int main() {
 
     induspilot::modules::AiService ai;
     assert(ai.status().message.find("AI 未启用") != std::string::npos);
-    induspilot::modules::AiService configuredAi(induspilot::app::AiConfig{true, "http://127.0.0.1:9000"});
+    induspilot::modules::AiService configuredAi(induspilot::app::AiConfig{true, "http", "http://127.0.0.1:9000"});
     assert(configuredAi.status().message.find("http://127.0.0.1:9000") != std::string::npos);
     const auto suggestion = ai.troubleshoot({"alert", "alert-001", "温度异常", {"设备：一号产线主电机"}});
     assert(!suggestion.available);

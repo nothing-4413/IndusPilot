@@ -172,6 +172,14 @@ ServiceStatus AiService::status() const {
     return ServiceStatus{"ai-diagnosis-assistance", true, "AI provider=" + config_.provider + "；" + providerStatus.message};
 }
 
+std::string AiService::providerName() const {
+    return config_.enabled ? config_.provider : "disabled";
+}
+
+std::string AiService::providerEndpoint() const {
+    return config_.endpoint;
+}
+
 AiSuggestion AiService::explainAlert(const std::string& alertSummary) {
     return troubleshoot(AiRequest{"alert", "unknown", alertSummary, {alertSummary}});
 }
