@@ -62,6 +62,11 @@ if(INDUSPILOT_BUILD_TESTS)
   )
   add_test(NAME induspilot-backend-tests COMMAND induspilot-backend-tests)
 
+  if(WIN32)
+    add_test(NAME induspilot-deployment-preflight
+      COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_SOURCE_DIR}/deployment/preflight.ps1)
+  endif()
+
   if(INDUSPILOT_WITH_DROGON AND WIN32)
     add_test(NAME induspilot-http-integration-smoke
       COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/tests/http_integration_smoke.ps1

@@ -51,3 +51,7 @@ FROM users u
 JOIN roles r ON r.code = u.username
 WHERE u.username IN ('admin', 'operator', 'maintainer')
 ON DUPLICATE KEY UPDATE user_id = VALUES(user_id);
+
+INSERT INTO schema_migrations(version, description) VALUES
+  ('002_seed_identity', '演示身份、角色和权限种子数据')
+ON DUPLICATE KEY UPDATE description = VALUES(description);

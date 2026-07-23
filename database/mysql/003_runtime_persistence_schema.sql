@@ -20,3 +20,7 @@ CREATE TABLE IF NOT EXISTS ai_interactions (
   output TEXT NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+INSERT INTO schema_migrations(version, description) VALUES
+  ('003_runtime_persistence_schema', '运行状态和 AI 交互审计 schema')
+ON DUPLICATE KEY UPDATE description = VALUES(description);

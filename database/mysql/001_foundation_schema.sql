@@ -1,6 +1,12 @@
 CREATE DATABASE IF NOT EXISTS induspilot CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE induspilot;
 
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  version VARCHAR(64) PRIMARY KEY,
+  description VARCHAR(255) NOT NULL,
+  applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS users (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   username VARCHAR(64) NOT NULL UNIQUE,
@@ -86,3 +92,7 @@ CREATE TABLE IF NOT EXISTS work_orders (
   CONSTRAINT fk_work_order_alert FOREIGN KEY (alert_id) REFERENCES alerts(id),
   CONSTRAINT fk_work_order_assignee FOREIGN KEY (assignee) REFERENCES users(id)
 );
+
+INSERT INTO schema_migrations(version, description) VALUES
+  ('001_foundation_schema', '基础身份、资产、告警和工单 schema')
+ON DUPLICATE KEY UPDATE description = VALUES(description);
