@@ -25,12 +25,18 @@ private:
     QWidget* buildAssetPage();
     QWidget* buildMonitoringPage();
     QWidget* buildAlertPage();
+    QWidget* buildWorkOrderPage();
     QWidget* buildTablePage(const QString& title, const QStringList& headers, const QVector<TableRow>& rows);
     QWidget* buildAiPage();
     QLabel* statusBadge(const QString& text, const QString& tone);
     void fillTable(QTableWidget* table, const QStringList& headers, const QVector<TableRow>& rows);
     void refreshOnlineTables();
+    void refreshWorkOrderTable();
+    QString selectedWorkOrderId() const;
     void handleLogin();
+    void handleStartWorkOrder();
+    void handleCompleteWorkOrder();
+    void handleCloseWorkOrder();
 
     ApiClient api_;
     QLineEdit* usernameInput_{nullptr};
@@ -39,9 +45,11 @@ private:
     QLabel* assetModeLabel_{nullptr};
     QLabel* monitoringModeLabel_{nullptr};
     QLabel* alertModeLabel_{nullptr};
+    QLabel* workOrderModeLabel_{nullptr};
     QListWidget* navigation_{nullptr};
     QStackedWidget* pages_{nullptr};
     QTableWidget* assetTable_{nullptr};
     QTableWidget* monitoringTable_{nullptr};
     QTableWidget* alertTable_{nullptr};
+    QTableWidget* workOrderTable_{nullptr};
 };

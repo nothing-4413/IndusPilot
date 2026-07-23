@@ -3,8 +3,11 @@
 #include <QAbstractItemView>
 #include <QFormLayout>
 #include <QHeaderView>
+#include <QHBoxLayout>
 #include <QLabel>
+#include <QInputDialog>
 #include <QLineEdit>
+#include <QMessageBox>
 #include <QListWidget>
 #include <QPushButton>
 #include <QSplitter>
@@ -30,7 +33,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     pages_->addWidget(buildAssetPage());
     pages_->addWidget(buildMonitoringPage());
     pages_->addWidget(buildAlertPage());
-    pages_->addWidget(buildTablePage("维护工单", {"工单", "设备", "来源告警", "状态", "处理人"}, api_.workOrders()));
+    pages_->addWidget(buildWorkOrderPage());
     pages_->addWidget(buildAiPage());
 
     connect(navigation_, &QListWidget::currentRowChanged, pages_, &QStackedWidget::setCurrentIndex);
@@ -62,7 +65,7 @@ QWidget* MainWindow::buildDashboardPage() {
     auto* page = new QWidget(this);
     auto* layout = new QVBoxLayout(page);
     layout->addWidget(new QLabel("设备运行总览"));
-    layout->addWidget(new QLabel("基础联机阶段：登录、资产、运行监控和告警列表可接入后端，工单与 AI 保留离线演示数据。"));
+    layout->addWidget(new QLabel("基础联机阶段：登录、资产、运行监控、告警和工单可接入后端，AI 保留离线演示入口。"));
     layout->addWidget(statusBadge("critical", "danger"));
     layout->addStretch();
     return page;
@@ -98,6 +101,32 @@ QWidget* MainWindow::buildAlertPage() {
     alertTable_ = new QTableWidget(page);
     fillTable(alertTable_, {"级别", "设备", "标题", "状态", "负责人"}, api_.alerts());
     layout->addWidget(alertTable_);
+    return page;
+}
+
+QWidget* MainWindow::buildWorkOrderPage() {
+    auto* page = new QWidget(this);
+    auto* layout = new QVBoxLayout(page);
+    workOrderModeLabel_ = new QLabel("维护工单（离线演示数据）", page);
+    layout->addWidget(workOrderModeLabel_);
+
+    workOrderTable_ = new QTableWidget(page);
+    fillTable(workOrderTable_, {"工单", "设备", "来源告警", "状态", "处理人"}, api_.workOrders());
+    layout->addWidget(workOrderTable_);
+
+    auto* actionRow = new QWidget(page);
+    auto* actionLayout = new QHBoxLayout(actionRow);
+    auto* startButton = new QPushButton("开始处理", actionRow);
+    auto* completeButton = new QPushButton("完成", actionRow);
+    auto* closeButton = new QPushButton("关闭", actionRow);
+    connect(startButton, &QPushButton::clicked, this, &MainWindow::handleStartWorkOrder);
+    connect(completeButton, &QPushButton::clicked, this, &MainWindow::handleCompleteWorkOrder);
+    connect(closeButton, &QPushButton::clicked, this, &MainWindow::handleCloseWorkOrder);
+    actionLayout->addWidget(startButton);
+    actionLayout->addWidget(completeButton);
+    actionLayout->addWidget(closeButton);
+    actionLayout->addStretch();
+    layout->addWidget(actionRow);
     return page;
 }
 
@@ -155,6 +184,7 @@ void MainWindow::refreshOnlineTables() {
     if (alertTable_) {
         fillTable(alertTable_, {"级别", "设备", "标题", "状态", "负责人"}, api_.alerts());
     }
+    refreshWorkOrderTable();
 
     const auto modeText = api_.online() ? "后端同步" : "离线演示数据";
     if (assetModeLabel_) {
@@ -166,6 +196,23 @@ void MainWindow::refreshOnlineTables() {
     if (alertModeLabel_) {
         alertModeLabel_->setText(QStringLiteral("告警中心（") + modeText + QStringLiteral("）"));
     }
+    if (workOrderModeLabel_) {
+        workOrderModeLabel_->setText(QStringLiteral("维护工单（") + modeText + QStringLiteral("）"));
+    }
+}
+
+void MainWindow::refreshWorkOrderTable() {
+    if (workOrderTable_) {
+        fillTable(workOrderTable_, {"工单", "设备", "来源告警", "状态", "处理人"}, api_.workOrders());
+    }
+}
+
+QString MainWindow::selectedWorkOrderId() const {
+    if (!workOrderTable_ || workOrderTable_->currentRow() < 0) {
+        return {};
+    }
+    const auto* item = workOrderTable_->item(workOrderTable_->currentRow(), 0);
+    return item ? item->text() : QString{};
 }
 
 void MainWindow::handleLogin() {
@@ -176,4 +223,38 @@ void MainWindow::handleLogin() {
     } else {
         loginMessage_->setText("登录失败：" + api_.statusMessage());
     }
+}
+
+void MainWindow::handleStartWorkOrder() {
+    const auto orderId = selectedWorkOrderId();
+    if (api_.startWorkOrder(orderId)) {
+        refreshWorkOrderTable();
+    }
+    QMessageBox::information(this, "工单操作", api_.statusMessage());
+}
+
+void MainWindow::handleCompleteWorkOrder() {
+    const auto orderId = selectedWorkOrderId();
+    if (orderId.isEmpty()) {
+        api_.completeWorkOrder(orderId, QString{});
+        QMessageBox::information(this, "工单操作", api_.statusMessage());
+        return;
+    }
+    bool ok = false;
+    const auto result = QInputDialog::getText(this, "完成工单", "处理结果", QLineEdit::Normal, "已完成现场处理", &ok);
+    if (!ok) {
+        return;
+    }
+    if (api_.completeWorkOrder(orderId, result)) {
+        refreshWorkOrderTable();
+    }
+    QMessageBox::information(this, "工单操作", api_.statusMessage());
+}
+
+void MainWindow::handleCloseWorkOrder() {
+    const auto orderId = selectedWorkOrderId();
+    if (api_.closeWorkOrder(orderId)) {
+        refreshWorkOrderTable();
+    }
+    QMessageBox::information(this, "工单操作", api_.statusMessage());
 }

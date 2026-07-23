@@ -17,6 +17,10 @@ QString stringValue(const QJsonObject& object, const QString& key) {
     return object.value(key).toString();
 }
 
+QString workOrderActionPath(const QString& orderId, const QString& action) {
+    return "/api/v1/work-orders/" + QString::fromUtf8(QUrl::toPercentEncoding(orderId)) + "/" + action;
+}
+
 QString configPath() {
     const auto appDir = QCoreApplication::applicationDirPath();
     const QStringList candidates{
@@ -168,12 +172,60 @@ QVector<TableRow> ApiClient::alerts() {
     return rows;
 }
 
-QVector<TableRow> ApiClient::workOrders() const {
-    return {{{"wo-from-alert-001", "一号产线主电机", "alert-001", "处理中", "maintainer"}}};
+QVector<TableRow> ApiClient::workOrders() {
+    if (token_.isEmpty()) {
+        return offlineWorkOrders();
+    }
+
+    const auto envelope = responseEnvelope("/api/v1/work-orders", QJsonValue::Array);
+    if (envelope.isEmpty()) {
+        statusMessage_ = "工单列表同步失败，已显示离线演示数据";
+        return offlineWorkOrders();
+    }
+
+    QVector<TableRow> rows;
+    const auto orders = envelope.value("data").toArray();
+    for (const auto& value : orders) {
+        const auto order = value.toObject();
+        rows.push_back(TableRow{{
+            stringValue(order, "id"),
+            stringValue(order, "assetId"),
+            stringValue(order, "alertId"),
+            stringValue(order, "state"),
+            stringValue(order, "assignee")}});
+    }
+    return rows;
+}
+
+bool ApiClient::startWorkOrder(const QString& orderId) {
+    if (token_.isEmpty() || orderId.isEmpty()) {
+        statusMessage_ = "请先连接后端并选择工单";
+        return false;
+    }
+    return !postEnvelope(workOrderActionPath(orderId, "start"), QJsonObject{}, QJsonValue::Object).isEmpty();
+}
+
+bool ApiClient::completeWorkOrder(const QString& orderId, const QString& result) {
+    const auto normalizedResult = result.trimmed();
+    if (token_.isEmpty() || orderId.isEmpty() || normalizedResult.isEmpty()) {
+        statusMessage_ = "完成工单需要选择工单并填写处理结果";
+        return false;
+    }
+    QJsonObject payload;
+    payload["result"] = normalizedResult;
+    return !postEnvelope(workOrderActionPath(orderId, "complete"), payload, QJsonValue::Object).isEmpty();
+}
+
+bool ApiClient::closeWorkOrder(const QString& orderId) {
+    if (token_.isEmpty() || orderId.isEmpty()) {
+        statusMessage_ = "请先连接后端并选择工单";
+        return false;
+    }
+    return !postEnvelope(workOrderActionPath(orderId, "close"), QJsonObject{}, QJsonValue::Object).isEmpty();
 }
 
 QString ApiClient::aiUnavailableMessage() const {
-    return "当前客户端已接入登录、资产、运行监控和告警列表；AI 诊断页仍使用离线演示入口，核心告警和工单流程不受影响。";
+    return "当前客户端已接入登录、资产、运行监控、告警和工单列表；AI 诊断页仍使用离线演示入口，核心告警和工单流程不受影响。";
 }
 
 QVector<TableRow> ApiClient::offlineAssets() const {
@@ -186,6 +238,10 @@ QVector<TableRow> ApiClient::offlineMonitoringStates() const {
 
 QVector<TableRow> ApiClient::offlineAlerts() const {
     return {{{"critical", "asset-001", "温度异常", "已分派", "maintainer"}}};
+}
+
+QVector<TableRow> ApiClient::offlineWorkOrders() const {
+    return {{{"wo-from-alert-001", "asset-001", "alert-001", "processing", "maintainer"}}};
 }
 
 QJsonObject ApiClient::responseEnvelope(const QString& path, QJsonValue::Type dataType) {
@@ -202,6 +258,25 @@ QJsonObject ApiClient::responseEnvelope(const QString& path, QJsonValue::Type da
         }
         return {};
     }
+    return envelope;
+}
+
+QJsonObject ApiClient::postEnvelope(const QString& path, const QJsonObject& payload, QJsonValue::Type dataType) {
+    const auto response = requestJson("POST", path, QJsonDocument(payload).toJson(QJsonDocument::Compact));
+    if (response.isEmpty()) {
+        return {};
+    }
+
+    const auto envelope = QJsonDocument::fromJson(response).object();
+    const auto data = envelope.value("data");
+    if (!envelope.value("success").toBool(false) || data.type() != dataType) {
+        if (envelope.value("code").toString().startsWith("AUTH")) {
+            token_.clear();
+        }
+        statusMessage_ = envelope.value("message").toString("工单操作失败");
+        return {};
+    }
+    statusMessage_ = "工单操作成功";
     return envelope;
 }
 
