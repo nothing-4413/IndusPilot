@@ -8,6 +8,7 @@
 #endif
 #include "induspilot/modules/ai_service.hpp"
 #include "induspilot/modules/alert_service.hpp"
+#include "induspilot/modules/audit_service.hpp"
 #include "induspilot/modules/asset_service.hpp"
 #include "induspilot/modules/identity_service.hpp"
 #include "induspilot/modules/maintenance_service.hpp"
@@ -25,6 +26,7 @@ static_assert(std::has_virtual_destructor_v<induspilot::data::AssetRepository>);
 static_assert(std::has_virtual_destructor_v<induspilot::data::AlertRepository>);
 static_assert(std::has_virtual_destructor_v<induspilot::data::WorkOrderRepository>);
 static_assert(std::has_virtual_destructor_v<induspilot::data::AiInteractionRepository>);
+static_assert(std::has_virtual_destructor_v<induspilot::data::OperationAuditRepository>);
 #ifdef INDUSPILOT_WITH_DROGON
 static_assert(std::is_base_of_v<induspilot::data::UserRepository, induspilot::data::MySqlUserRepository>);
 static_assert(std::is_base_of_v<induspilot::data::AssetRepository, induspilot::data::MySqlAssetRepository>);
@@ -136,6 +138,11 @@ int main() {
     assert(maintenance.close(order.id).has_value());
     assert(!maintenance.historyForAsset("asset-001").empty());
 
+    induspilot::modules::AuditService audit;
+    const auto auditEvent = audit.record(induspilot::domain::OperationAuditEvent{"audit-record-001", "admin", "test.record", "test", "test-001", "success", "trace-test", ""});
+    assert(auditEvent.id == "audit-record-001");
+    assert(!auditEvent.occurredAt.empty());
+    assert(!audit.events().empty());
     induspilot::modules::AiService ai;
     assert(ai.status().message.find("AI 未启用") != std::string::npos);
     induspilot::modules::AiService configuredAi(induspilot::app::AiConfig{true, "http", "http://127.0.0.1:9000"});

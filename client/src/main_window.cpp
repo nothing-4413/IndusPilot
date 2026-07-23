@@ -43,7 +43,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     navigation_ = new QListWidget(splitter);
     pages_ = new QStackedWidget(splitter);
 
-    navigation_->addItems({"登录", "总览", "设备资产", "运行监控", "告警中心", "维护工单", "AI 辅助"});
+    navigation_->addItems({"登录", "总览", "设备资产", "运行监控", "告警中心", "维护工单", "AI 辅助", "操作审计"});
     navigation_->setFixedWidth(180);
 
     pages_->addWidget(buildLoginPage());
@@ -53,6 +53,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     pages_->addWidget(buildAlertPage());
     pages_->addWidget(buildWorkOrderPage());
     pages_->addWidget(buildAiPage());
+    pages_->addWidget(buildAuditPage());
 
     connect(navigation_, &QListWidget::currentRowChanged, pages_, &QStackedWidget::setCurrentIndex);
     navigation_->setCurrentRow(0);
@@ -307,6 +308,15 @@ QWidget* MainWindow::buildAiPage() {
     return page;
 }
 
+QWidget* MainWindow::buildAuditPage() {
+    auto* page = new QWidget(this);
+    auto* layout = new QVBoxLayout(page);
+    layout->addWidget(new QLabel(QStringLiteral("操作审计"), page));
+    auditTable_ = new QTableWidget(page);
+    layout->addWidget(auditTable_);
+    refreshAuditTable();
+    return page;
+}
 QLabel* MainWindow::statusBadge(const QString& text, const QString& tone) {
     auto* label = new QLabel(text, this);
     const auto color = tone == "danger" ? "#b42318" : "#175cd3";
@@ -340,6 +350,7 @@ void MainWindow::refreshOnlineTables() {
     refreshAlertTable();
     refreshWorkOrderTable();
     refreshAiInteractionTable();
+    refreshAuditTable();
 
     const auto modeText = api_.online() ? "后端同步" : "离线演示数据";
     if (assetModeLabel_) {
@@ -412,6 +423,11 @@ void MainWindow::refreshAiInteractionTable() {
     }
 }
 
+void MainWindow::refreshAuditTable() {
+    if (auditTable_) {
+        fillTable(auditTable_, {"编号", "用户", "动作", "资源类型", "资源编号", "结果", "追踪", "时间"}, api_.auditEvents());
+    }
+}
 QString MainWindow::selectedAssetId() const {
     if (!assetTable_ || assetTable_->currentRow() < 0) {
         return {};

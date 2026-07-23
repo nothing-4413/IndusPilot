@@ -75,3 +75,9 @@ $env:INDUSPILOT_REPOSITORY_STORE="mysql"
 ```
 
 生产部署前仍需要替换开发口令和演示盐值、补齐登录失败锁定、真实依赖集成测试、监控指标、外部 AI 推理传输，同时补充真实外部通知通道适配器、异步重试队列和更细粒度审计能力。
+
+## 操作审计本地验证
+
+启动后端并登录管理员后，可以调用 `GET /api/v1/audit/events` 查看登录、告警通知派发和重试事件。Qt 客户端登录成功后会同步“操作审计”页面；如果当前账号没有 `audit:read` 权限，后端会返回 403，客户端保留离线兜底记录。
+
+使用 MySQL 仓储时请确保 `database/mysql/007_operation_audit_events_schema.sql` 已执行，部署前可运行 `deployment/preflight.ps1` 检查 schema 版本清单。

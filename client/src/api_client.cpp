@@ -62,6 +62,17 @@ TableRow alertNotificationRow(const QJsonObject& item) {
         stringValue(item, "deliveredAt")}};
 }
 
+TableRow auditEventRow(const QJsonObject& item) {
+    return TableRow{{
+        stringValue(item, "id"),
+        stringValue(item, "actor"),
+        stringValue(item, "action"),
+        stringValue(item, "resourceType"),
+        stringValue(item, "resourceId"),
+        stringValue(item, "result"),
+        stringValue(item, "traceId"),
+        stringValue(item, "occurredAt")}};
+}
 QStringList jsonStringArray(const QJsonArray& array) {
     QStringList result;
     for (const auto& value : array) {
@@ -800,6 +811,25 @@ QString ApiClient::aiUnavailableMessage() const {
     return "当前客户端已接入登录、资产、运行监控、告警、工单和 AI 诊断入口；AI Provider 不可用时会展示降级建议，核心告警和工单流程不受影响。";
 }
 
+QVector<TableRow> ApiClient::auditEvents() {
+    if (token_.isEmpty()) {
+        return offlineAuditEvents();
+    }
+
+    const auto envelope = responseEnvelope("/api/v1/audit/events", QJsonValue::Array);
+    if (envelope.isEmpty()) {
+        statusMessage_ = QStringLiteral("操作审计同步失败，已显示离线演示数据");
+        return offlineAuditEvents();
+    }
+
+    QVector<TableRow> rows;
+    const auto events = envelope.value("data").toArray();
+    for (const auto& value : events) {
+        rows.push_back(auditEventRow(value.toObject()));
+    }
+    statusMessage_ = rows.isEmpty() ? QStringLiteral("当前暂无操作审计记录") : QStringLiteral("操作审计已同步");
+    return rows;
+}
 QVector<TableRow> ApiClient::offlineAssets() const {
     return {{{"asset-001", "一号产线主电机", "motor", "一号产线", "维护中"}}};
 }
@@ -824,6 +854,9 @@ QVector<TableRow> ApiClient::offlineWorkOrders() const {
 }
 QVector<TableRow> ApiClient::offlineAiInteractions() const {
     return {{{"ai-interaction-demo", "alert", "alert-001", "温度异常上下文", "离线兜底诊断建议已生成，等待后端审计同步"}}};
+}
+QVector<TableRow> ApiClient::offlineAuditEvents() const {
+    return {{{"audit-demo", "operator", "alert-notification.dispatch", "alert-notification", "queued", "success", "trace-demo", "now"}}};
 }
 QString ApiClient::offlineAiDiagnosis(const AiDiagnosisInput& input) const {
     const auto relatedId = input.relatedId.trimmed().isEmpty() ? QStringLiteral("未指定对象") : input.relatedId.trimmed();

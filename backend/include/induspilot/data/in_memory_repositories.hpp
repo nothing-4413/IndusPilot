@@ -80,6 +80,14 @@ public:
 private:
     std::map<std::string, domain::RuntimeState> states_;
 };
+class InMemoryOperationAuditRepository final : public OperationAuditRepository {
+public:
+    domain::OperationAuditEvent save(domain::OperationAuditEvent event) override;
+    std::vector<domain::OperationAuditEvent> list() const override;
+
+private:
+    std::vector<domain::OperationAuditEvent> events_;
+};
 class InMemoryAiInteractionRepository final : public AiInteractionRepository {
 public:
     domain::AiInteraction save(domain::AiInteraction interaction) override;

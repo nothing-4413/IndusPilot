@@ -242,6 +242,17 @@ domain::RuntimeState runtimeStateFromRow(const drogon::orm::Row& row) {
         row["severity"].as<std::string>()};
 }
 
+domain::OperationAuditEvent operationAuditEventFromRow(const drogon::orm::Row& row) {
+    return domain::OperationAuditEvent{
+        row["event_code"].as<std::string>(),
+        row["actor"].as<std::string>(),
+        row["action"].as<std::string>(),
+        row["resource_type"].as<std::string>(),
+        row["resource_id"].as<std::string>(),
+        row["result"].as<std::string>(),
+        nullableString(row, "trace_id"),
+        row["occurred_at"].as<std::string>()};
+}
 domain::AiInteraction aiInteractionFromRow(const drogon::orm::Row& row) {
     return domain::AiInteraction{
         row["interaction_code"].as<std::string>(),
@@ -626,6 +637,35 @@ std::optional<domain::RuntimeState> MySqlRuntimeStateRepository::findByAssetId(c
     return runtimeStateFromRow(result[0]);
 }
 
+MySqlOperationAuditRepository::MySqlOperationAuditRepository(drogon::orm::DbClientPtr client) : client_(std::move(client)) {}
+
+domain::OperationAuditEvent MySqlOperationAuditRepository::save(domain::OperationAuditEvent event) {
+    client_->execSqlSync(
+        "INSERT INTO operation_audit_events(event_code, actor, action, resource_type, resource_id, result, trace_id, occurred_at) "
+        "VALUES(?, ?, ?, ?, ?, ?, ?, ?) "
+        "ON DUPLICATE KEY UPDATE actor = VALUES(actor), action = VALUES(action), resource_type = VALUES(resource_type), "
+        "resource_id = VALUES(resource_id), result = VALUES(result), trace_id = VALUES(trace_id), occurred_at = VALUES(occurred_at)",
+        event.id,
+        event.actor,
+        event.action,
+        event.resourceType,
+        event.resourceId,
+        event.result,
+        event.traceId,
+        event.occurredAt);
+    return event;
+}
+
+std::vector<domain::OperationAuditEvent> MySqlOperationAuditRepository::list() const {
+    const auto result = client_->execSqlSync(
+        "SELECT event_code, actor, action, resource_type, resource_id, result, trace_id, DATE_FORMAT(occurred_at, '%Y-%m-%dT%H:%i:%s') AS occurred_at "
+        "FROM operation_audit_events ORDER BY occurred_at DESC, event_code DESC LIMIT 500");
+    std::vector<domain::OperationAuditEvent> events;
+    for (const auto& row : result) {
+        events.push_back(operationAuditEventFromRow(row));
+    }
+    return events;
+}
 MySqlAiInteractionRepository::MySqlAiInteractionRepository(drogon::orm::DbClientPtr client) : client_(std::move(client)) {}
 
 domain::AiInteraction MySqlAiInteractionRepository::save(domain::AiInteraction interaction) {

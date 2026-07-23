@@ -8,6 +8,7 @@ set(INDUSPILOT_BACKEND_CORE_SOURCES
   src/data/in_memory_repositories.cpp
   src/modules/ai_service.cpp
   src/modules/alert_service.cpp
+  src/modules/audit_service.cpp
   src/modules/asset_service.cpp
   src/modules/identity_service.cpp
   src/modules/maintenance_service.cpp

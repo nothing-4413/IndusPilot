@@ -90,6 +90,16 @@ private:
     drogon::orm::DbClientPtr client_;
 };
 
+class MySqlOperationAuditRepository final : public OperationAuditRepository {
+public:
+    explicit MySqlOperationAuditRepository(drogon::orm::DbClientPtr client);
+
+    domain::OperationAuditEvent save(domain::OperationAuditEvent event) override;
+    std::vector<domain::OperationAuditEvent> list() const override;
+
+private:
+    drogon::orm::DbClientPtr client_;
+};
 class MySqlAiInteractionRepository final : public AiInteractionRepository {
 public:
     explicit MySqlAiInteractionRepository(drogon::orm::DbClientPtr client);

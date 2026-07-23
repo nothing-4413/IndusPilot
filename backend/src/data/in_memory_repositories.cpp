@@ -28,7 +28,7 @@ std::vector<domain::User> InMemoryUserRepository::listUsers() const {
 }
 
 InMemoryPermissionRepository::InMemoryPermissionRepository() {
-    rolePermissions_["admin"] = {"asset:read", "asset:write", "monitoring:write", "alert:read", "alert:write", "work-order:read", "work-order:write", "ai:use"};
+    rolePermissions_["admin"] = {"asset:read", "asset:write", "monitoring:write", "alert:read", "alert:write", "work-order:read", "work-order:write", "ai:use", "audit:read"};
     rolePermissions_["operator"] = {"asset:read", "monitoring:write", "alert:read", "alert:write", "work-order:read", "ai:use"};
     rolePermissions_["maintainer"] = {"asset:read", "alert:read", "work-order:read", "work-order:write", "ai:use"};
 }
@@ -182,6 +182,21 @@ std::optional<domain::RuntimeState> InMemoryRuntimeStateRepository::findByAssetI
         return std::nullopt;
     }
     return it->second;
+}
+domain::OperationAuditEvent InMemoryOperationAuditRepository::save(domain::OperationAuditEvent event) {
+    auto existing = std::find_if(events_.begin(), events_.end(), [&event](const auto& item) { return item.id == event.id; });
+    if (existing != events_.end()) {
+        *existing = event;
+    } else {
+        events_.push_back(event);
+    }
+    return event;
+}
+
+std::vector<domain::OperationAuditEvent> InMemoryOperationAuditRepository::list() const {
+    auto events = events_;
+    std::reverse(events.begin(), events.end());
+    return events;
 }
 domain::AiInteraction InMemoryAiInteractionRepository::save(domain::AiInteraction interaction) {
     interactions_.push_back(interaction);

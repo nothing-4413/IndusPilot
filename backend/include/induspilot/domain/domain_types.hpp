@@ -88,6 +88,16 @@ struct RuntimeState {
     std::string severity{"info"};
 };
 
+struct OperationAuditEvent {
+    std::string id;
+    std::string actor;
+    std::string action;
+    std::string resourceType;
+    std::string resourceId;
+    std::string result{"success"};
+    std::string traceId;
+    std::string occurredAt;
+};
 struct AiInteraction {
     std::string id;
     std::string relatedType;

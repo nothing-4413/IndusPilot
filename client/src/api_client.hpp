@@ -71,6 +71,7 @@ bool createAlert(const QString& alertId, const QString& assetId, const QString& 
     QVector<TableRow> aiInteractions(const QString& relatedType = QString(), const QString& relatedId = QString());
     AiInteractionPage aiInteractionPage(const QString& relatedType, const QString& relatedId, int limit, int offset);
     QString aiUnavailableMessage() const;
+    QVector<TableRow> auditEvents();
 
 private:
     QVector<TableRow> offlineAssets() const;
@@ -80,6 +81,7 @@ private:
     QVector<TableRow> offlineAlertNotifications() const;
     QVector<TableRow> offlineWorkOrders() const;
     QVector<TableRow> offlineAiInteractions() const;
+    QVector<TableRow> offlineAuditEvents() const;
     QString offlineAiDiagnosis(const AiDiagnosisInput& input) const;
     QJsonObject responseEnvelope(const QString& path, QJsonValue::Type dataType);
     QJsonObject postEnvelope(

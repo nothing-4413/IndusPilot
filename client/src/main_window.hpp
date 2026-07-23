@@ -32,6 +32,7 @@ private:
     QWidget* buildWorkOrderPage();
     QWidget* buildTablePage(const QString& title, const QStringList& headers, const QVector<TableRow>& rows);
     QWidget* buildAiPage();
+    QWidget* buildAuditPage();
     QLabel* statusBadge(const QString& text, const QString& tone);
     void fillTable(QTableWidget* table, const QStringList& headers, const QVector<TableRow>& rows);
     void refreshOnlineTables();
@@ -40,6 +41,7 @@ private:
     void refreshAlertTable();
     void refreshWorkOrderTable();
     void refreshAiInteractionTable();
+    void refreshAuditTable();
     QString selectedAssetId() const;
     QString selectedAlertId() const;
     QString selectedWorkOrderId() const;
@@ -105,4 +107,5 @@ private:
     int aiAuditOffset_{0};
     int aiAuditTotal_{0};
     QTableWidget* aiInteractionTable_{nullptr};
+    QTableWidget* auditTable_{nullptr};
 };

@@ -1,4 +1,4 @@
-USE induspilot;
+﻿USE induspilot;
 
 INSERT INTO roles(code, name, description) VALUES
   ('admin', '系统管理员', '拥有平台全部管理权限'),
@@ -14,7 +14,8 @@ INSERT INTO permissions(code, name) VALUES
   ('alert:write', '处理告警'),
   ('work-order:read', '查看工单'),
   ('work-order:write', '处理工单'),
-  ('ai:use', '使用 AI 辅助诊断')
+  ('ai:use', '使用 AI 辅助诊断'),
+  ('audit:read', '查看操作审计')
 ON DUPLICATE KEY UPDATE name = VALUES(name);
 
 INSERT INTO role_permissions(role_id, permission_id)

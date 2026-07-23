@@ -53,3 +53,7 @@ $env:INDUSPILOT_REPOSITORY_STORE="mysql"
 ```
 
 更多说明见 `docs/deployment-backend.md`、`docs/development/backend-http-service.md` 和 `docs/production-readiness.md`。
+
+## 操作审计闭环
+
+本阶段新增统一操作审计模块：后端会记录登录成功、告警通知派发和告警通知重试事件，并通过 `GET /api/v1/audit/events` 向具备 `audit:read` 权限的管理员开放查询。Qt 客户端新增“操作审计”导航页，在线模式读取后端审计事件，离线或查询失败时展示本地兜底数据。MySQL 持久化由 `database/mysql/007_operation_audit_events_schema.sql` 提供，并已纳入部署前预检。

@@ -9,6 +9,7 @@
 #include "induspilot/domain/domain_types.hpp"
 #include "induspilot/modules/ai_service.hpp"
 #include "induspilot/modules/alert_service.hpp"
+#include "induspilot/modules/audit_service.hpp"
 #include "induspilot/modules/asset_service.hpp"
 #include "induspilot/modules/identity_service.hpp"
 #include "induspilot/modules/maintenance_service.hpp"
@@ -324,6 +325,18 @@ Json::Value aiSuggestionToJson(const modules::AiSuggestion& suggestion) {
     return value;
 }
 
+Json::Value operationAuditEventToJson(const domain::OperationAuditEvent& event) {
+    Json::Value value;
+    value["id"] = event.id;
+    value["actor"] = event.actor;
+    value["action"] = event.action;
+    value["resourceType"] = event.resourceType;
+    value["resourceId"] = event.resourceId;
+    value["result"] = event.result;
+    value["traceId"] = event.traceId;
+    value["occurredAt"] = event.occurredAt;
+    return value;
+}
 Json::Value aiInteractionToJson(const domain::AiInteraction& interaction) {
     Json::Value value;
     value["id"] = interaction.id;
@@ -522,11 +535,30 @@ std::shared_ptr<data::RuntimeStateRepository> createRuntimeStateRepository(const
     return std::make_shared<data::InMemoryRuntimeStateRepository>();
 }
 
+std::shared_ptr<data::OperationAuditRepository> createOperationAuditRepository(const app::AppConfig& config, const drogon::orm::DbClientPtr& mysqlClient) {
+    if (config.storage.repositoryStore == "mysql") {
+        return std::make_shared<data::MySqlOperationAuditRepository>(mysqlClient);
+    }
+    return std::make_shared<data::InMemoryOperationAuditRepository>();
+}
 std::shared_ptr<data::AiInteractionRepository> createAiInteractionRepository(const app::AppConfig& config, const drogon::orm::DbClientPtr& mysqlClient) {
     if (config.storage.repositoryStore == "mysql") {
         return std::make_shared<data::MySqlAiInteractionRepository>(mysqlClient);
     }
     return std::make_shared<data::InMemoryAiInteractionRepository>();
+}
+void recordAuditEvent(
+    const std::shared_ptr<modules::AuditService>& audit,
+    const std::string& actor,
+    const std::string& action,
+    const std::string& resourceType,
+    const std::string& resourceId,
+    const std::string& result,
+    const std::string& traceId) {
+    if (!audit) {
+        return;
+    }
+    audit->record(domain::OperationAuditEvent{"", actor, action, resourceType, resourceId, result, traceId, ""});
 }
 std::optional<modules::SessionInfo> requireSession(
     const std::shared_ptr<modules::IdentityService>& identity,
@@ -559,7 +591,8 @@ void registerRoutes(
     const std::shared_ptr<modules::MonitoringService>& monitoring,
     const std::shared_ptr<modules::AlertService>& alerts,
     const std::shared_ptr<modules::MaintenanceService>& maintenance,
-    const std::shared_ptr<modules::AiService>& ai) {
+    const std::shared_ptr<modules::AiService>& ai,
+    const std::shared_ptr<modules::AuditService>& audit) {
     auto& server = drogon::app();
 
     server.registerHandler("/health", [application](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
@@ -582,7 +615,7 @@ void registerRoutes(
         callback(jsonResponse(data));
     }, {drogon::Get});
 
-    server.registerHandler("/api/v1/auth/login", [identity](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+    server.registerHandler("/api/v1/auth/login", [identity, audit](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
         writeRequestLog(request);
         const auto payload = request->getJsonObject();
         if (!payload || !payload->isMember("username") || !payload->isMember("password")) {
@@ -597,6 +630,9 @@ void registerRoutes(
         }
 
         writeRequestLog(request, result.session);
+        if (result.success && result.session) {
+            recordAuditEvent(audit, result.session->user.username, "auth.login", "session", result.session->token, "success", traceIdFor(request));
+        }
         callback(jsonResponse(responseEnvelope(true, "OK", "login succeeded", sessionToJson(*result.session))));
     }, {drogon::Post});
 
@@ -847,17 +883,20 @@ void registerRoutes(
         }
         callback(jsonResponse(responseEnvelope(true, "OK", "alert notifications returned", rows)));
     }, {drogon::Get});
-    server.registerHandler("/api/v1/alert-notifications/dispatch", [identity, alerts](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+    server.registerHandler("/api/v1/alert-notifications/dispatch", [identity, alerts, audit](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
         const auto session = requireSession(identity, request, callback);
         if (!session || !requirePermission(identity, *session, "alert:write", callback)) {
             return;
         }
         writeRequestLog(request, session);
         const auto summary = alerts->dispatchQueuedNotifications();
+        const auto result = summary.failed > 0 ? "partial_failed" : "success";
+        const auto resourceId = "sent=" + std::to_string(summary.sent) + ";failed=" + std::to_string(summary.failed) + ";skipped=" + std::to_string(summary.skipped);
+        recordAuditEvent(audit, session->user.username, "alert-notification.dispatch", "alert-notification-batch", resourceId, result, traceIdFor(request));
         callback(jsonResponse(responseEnvelope(true, "OK", "alert notifications dispatched", notificationDispatchSummaryToJson(summary))));
     }, {drogon::Post});
 
-    server.registerHandler("/api/v1/alert-notifications/{1}/retry", [identity, alerts](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback, const std::string& notificationId) {
+    server.registerHandler("/api/v1/alert-notifications/{1}/retry", [identity, alerts, audit](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback, const std::string& notificationId) {
         const auto session = requireSession(identity, request, callback);
         if (!session || !requirePermission(identity, *session, "alert:write", callback)) {
             return;
@@ -868,6 +907,7 @@ void registerRoutes(
             callback(notFound("alert notification not found"));
             return;
         }
+        recordAuditEvent(audit, session->user.username, "alert-notification.retry", "alert-notification", notificationId, notification->status, traceIdFor(request));
         callback(jsonResponse(responseEnvelope(true, "OK", "alert notification retried", alertNotificationToJson(*notification))));
     }, {drogon::Post});
     server.registerHandler("/api/v1/alerts/{1}", [identity, alerts](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback, const std::string& alertId) {
@@ -1213,6 +1253,18 @@ void registerRoutes(
         }
         callback(jsonResponse(responseEnvelope(true, "OK", "maintenance history returned", rows)));
     }, {drogon::Get});
+    server.registerHandler("/api/v1/audit/events", [identity, audit](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+        const auto session = requireSession(identity, request, callback);
+        if (!session || !requirePermission(identity, *session, "audit:read", callback)) {
+            return;
+        }
+        writeRequestLog(request, session);
+        Json::Value rows(Json::arrayValue);
+        for (const auto& event : audit->events()) {
+            rows.append(operationAuditEventToJson(event));
+        }
+        callback(jsonResponse(responseEnvelope(true, "OK", "operation audit events returned", rows)));
+    }, {drogon::Get});
     server.registerHandler("/api/v1/ai/status", [identity, ai](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
         const auto session = requireSession(identity, request, callback);
         if (!session || !requirePermission(identity, *session, "ai:use", callback)) {
@@ -1359,9 +1411,10 @@ int runDrogonServer(const app::AppConfig& config) {
     auto alerts = std::make_shared<modules::AlertService>(createAlertRepository(config, mysqlClient));
     auto maintenance = std::make_shared<modules::MaintenanceService>(createWorkOrderRepository(config, mysqlClient));
     auto ai = std::make_shared<modules::AiService>(config.ai, createAiInteractionRepository(config, mysqlClient));
+    auto audit = std::make_shared<modules::AuditService>(createOperationAuditRepository(config, mysqlClient));
 
     application->start();
-    registerRoutes(application, identity, assets, monitoring, alerts, maintenance, ai);
+    registerRoutes(application, identity, assets, monitoring, alerts, maintenance, ai, audit);
 
     drogon::app().addListener(config.host, config.port).run();
     application->stop();

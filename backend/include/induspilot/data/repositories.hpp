@@ -70,6 +70,13 @@ public:
     virtual std::vector<domain::RuntimeState> list() const = 0;
     virtual std::optional<domain::RuntimeState> findByAssetId(const std::string& assetId) const = 0;
 };
+class OperationAuditRepository {
+public:
+    virtual ~OperationAuditRepository() = default;
+
+    virtual domain::OperationAuditEvent save(domain::OperationAuditEvent event) = 0;
+    virtual std::vector<domain::OperationAuditEvent> list() const = 0;
+};
 class AiInteractionRepository {
 public:
     virtual ~AiInteractionRepository() = default;

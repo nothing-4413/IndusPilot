@@ -108,6 +108,12 @@ try {
     $adminToken = $adminLogin.data.token
     $adminHeaders = @{ Authorization = "Bearer $adminToken"; "X-Trace-Id" = "trace-it-admin" }
 
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/audit/events" -Method Get -Status 403 -Headers $operatorHeaders
+    $loginAudit = Invoke-RestMethod -Uri "$BaseUrl/api/v1/audit/events" -Method Get -Headers $adminHeaders -TimeoutSec 10
+    Assert-True $loginAudit.success "Operation audit query failed."
+    $adminLoginAudit = @($loginAudit.data) | Where-Object { $_.actor -eq "admin" -and $_.action -eq "auth.login" }
+    Assert-True (@($adminLoginAudit).Count -ge 1) "Admin login audit event was not recorded."
+
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/assets" -Method Post -Status 400 -Headers $adminHeaders -Body '{"name":"missing id"}'
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/assets/not-exist" -Method Get -Status 404 -Headers $adminHeaders
 
@@ -203,6 +209,9 @@ try {
     Assert-True ($sentNotificationMatch[0].attemptCount -eq 1) "Alert notification attempt count did not increment."
     Assert-True (-not [string]::IsNullOrWhiteSpace($sentNotificationMatch[0].deliveredAt)) "Alert notification deliveredAt was not set."
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/alert-notifications/not-exist/retry" -Method Post -Status 404 -Headers $operatorHeaders
+    $dispatchAudit = Invoke-RestMethod -Uri "$BaseUrl/api/v1/audit/events" -Method Get -Headers $adminHeaders -TimeoutSec 10
+    $dispatchAuditMatch = @($dispatchAudit.data) | Where-Object { $_.actor -eq "operator" -and $_.action -eq "alert-notification.dispatch" }
+    Assert-True (@($dispatchAuditMatch).Count -ge 1) "Alert notification dispatch audit event was not recorded."
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/alerts/alert-it-001/assign" -Method Post -Status 400 -Headers $operatorHeaders -Body '{}'
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/alerts/not-exist/acknowledge" -Method Post -Status 404 -Headers $operatorHeaders
 

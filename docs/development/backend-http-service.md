@@ -120,3 +120,12 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File backend/tests/http_integ
 ```
 
 如果已经启动 Redis，可额外传入 `-SessionStore redis` 验证 Redis-backed session。
+
+## 操作审计接口
+
+- `GET /api/v1/audit/events`：需要 `audit:read` 权限，返回最近操作审计事件数组。
+- 登录成功会写入 `auth.login` 审计事件。
+- `POST /api/v1/alert-notifications/dispatch` 会写入 `alert-notification.dispatch` 审计事件，资源编号包含 `sent/failed/skipped` 摘要。
+- `POST /api/v1/alert-notifications/{id}/retry` 会写入 `alert-notification.retry` 审计事件。
+
+默认内存权限仅为 `admin` 授予 `audit:read`；MySQL 种子脚本会把 `audit:read` 加入权限表，并由管理员角色自动继承。
