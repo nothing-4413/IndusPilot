@@ -110,10 +110,13 @@ try {
 
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/audit/events" -Method Get -Status 403 -Headers $operatorHeaders
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/audit/events/export" -Method Get -Status 403 -Headers $operatorHeaders
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/audit/integrity" -Method Get -Status 403 -Headers $operatorHeaders
     $loginAudit = Invoke-RestMethod -Uri "$BaseUrl/api/v1/audit/events" -Method Get -Headers $adminHeaders -TimeoutSec 10
     Assert-True $loginAudit.success "Operation audit query failed."
     $adminLoginAudit = @($loginAudit.data) | Where-Object { $_.actor -eq "admin" -and $_.action -eq "auth.login" }
     Assert-True (@($adminLoginAudit).Count -ge 1) "Admin login audit event was not recorded."
+    Assert-True (-not [string]::IsNullOrWhiteSpace(@($adminLoginAudit)[0].previousHash)) "Admin login audit previous hash was not returned."
+    Assert-True (-not [string]::IsNullOrWhiteSpace(@($adminLoginAudit)[0].eventHash)) "Admin login audit event hash was not returned."
     $pagedLoginAudit = Invoke-RestMethod -Uri "$BaseUrl/api/v1/audit/events?actor=admin&action=auth.login&limit=1&offset=0" -Method Get -Headers $adminHeaders -TimeoutSec 10
     Assert-True $pagedLoginAudit.success "Operation audit filtered page query failed."
     Assert-True ($pagedLoginAudit.data.total -ge 1) "Operation audit filtered page total was not returned."
@@ -121,8 +124,13 @@ try {
     Assert-True ($pagedLoginAudit.data.offset -eq 0) "Operation audit filtered page offset did not match."
     Assert-True (@($pagedLoginAudit.data.items).Count -eq 1) "Operation audit filtered page size did not match."
     $loginAuditCsv = Invoke-RestMethod -Uri "$BaseUrl/api/v1/audit/events/export?actor=admin&action=auth.login" -Method Get -Headers $adminHeaders -TimeoutSec 10
-    Assert-True ($loginAuditCsv -like "id,actor,action,resourceType,resourceId,result,traceId,occurredAt*") "Operation audit CSV header was not returned."
+    Assert-True ($loginAuditCsv -like "id,actor,action,resourceType,resourceId,result,traceId,occurredAt,previousHash,eventHash*") "Operation audit CSV header was not returned."
     Assert-True ($loginAuditCsv -like "*auth.login*") "Operation audit CSV content did not include login event."
+    $auditIntegrity = Invoke-RestMethod -Uri "$BaseUrl/api/v1/audit/integrity" -Method Get -Headers $adminHeaders -TimeoutSec 10
+    Assert-True $auditIntegrity.success "Operation audit integrity query failed."
+    Assert-True $auditIntegrity.data.verified "Operation audit hash chain was not verified."
+    Assert-True ($auditIntegrity.data.total -ge 1) "Operation audit integrity total was not returned."
+    Assert-True (-not [string]::IsNullOrWhiteSpace($auditIntegrity.data.latestHash)) "Operation audit integrity latest hash was empty."
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/audit/events?limit=0" -Method Get -Status 400 -Headers $adminHeaders
 
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/assets" -Method Post -Status 400 -Headers $adminHeaders -Body '{"name":"missing id"}'

@@ -74,6 +74,7 @@ private:
     void handleNextAuditPage();
     void handleAuditLimitChanged(int value);
     void handleExportAuditEvents();
+    void handleVerifyAuditIntegrity();
 
     ApiClient api_;
     QLineEdit* usernameInput_{nullptr};
@@ -118,6 +119,7 @@ private:
     QComboBox* auditResultInput_{nullptr};
     QSpinBox* auditLimitInput_{nullptr};
     QLabel* auditPageLabel_{nullptr};
+    QLabel* auditIntegrityLabel_{nullptr};
     QPushButton* auditPrevButton_{nullptr};
     QPushButton* auditNextButton_{nullptr};
     int auditOffset_{0};

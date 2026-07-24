@@ -61,6 +61,7 @@ $requiredFiles = @(
     "database/mysql/006_alert_notification_delivery_schema.sql",
     "database/mysql/007_operation_audit_events_schema.sql",
     "database/mysql/008_operation_audit_export_permission.sql",
+    "database/mysql/009_operation_audit_integrity_schema.sql",
     "database/mongodb/init_collections.js"
 )
 
@@ -101,7 +102,8 @@ $schemaScripts = @(
     "database/mysql/005_alert_rules_notifications_schema.sql",
     "database/mysql/006_alert_notification_delivery_schema.sql",
     "database/mysql/007_operation_audit_events_schema.sql",
-    "database/mysql/008_operation_audit_export_permission.sql"
+    "database/mysql/008_operation_audit_export_permission.sql",
+    "database/mysql/009_operation_audit_integrity_schema.sql"
 )
 $expectedMigrations = @(
     "001_foundation_schema",
@@ -111,7 +113,8 @@ $expectedMigrations = @(
     "005_alert_rules_notifications_schema",
     "006_alert_notification_delivery_schema",
     "007_operation_audit_events_schema",
-    "008_operation_audit_export_permission"
+    "008_operation_audit_export_permission",
+    "009_operation_audit_integrity_schema"
 )
 foreach ($migration in $expectedMigrations) {
     $found = $false

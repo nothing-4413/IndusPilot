@@ -142,6 +142,15 @@ int main() {
     const auto auditEvent = audit.record(induspilot::domain::OperationAuditEvent{"audit-record-001", "admin", "test.record", "test", "test-001", "success", "trace-test", ""});
     assert(auditEvent.id == "audit-record-001");
     assert(!auditEvent.occurredAt.empty());
+    assert(auditEvent.previousHash == "genesis");
+    assert(!auditEvent.eventHash.empty());
+    const auto secondAuditEvent = audit.record(induspilot::domain::OperationAuditEvent{"audit-record-002", "admin", "test.second", "test", "test-002", "success", "trace-test-2", ""});
+    assert(secondAuditEvent.previousHash == auditEvent.eventHash);
+    assert(!secondAuditEvent.eventHash.empty());
+    const auto auditIntegrity = audit.integrityReport();
+    assert(auditIntegrity.verified);
+    assert(auditIntegrity.total == 2);
+    assert(auditIntegrity.latestHash == secondAuditEvent.eventHash);
     assert(!audit.events().empty());
     induspilot::modules::OperationAuditQuery auditQuery;
     auditQuery.actor = "admin";

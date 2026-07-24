@@ -99,7 +99,9 @@ TableRow auditEventRow(const QJsonObject& item) {
         stringValue(item, "resourceId"),
         stringValue(item, "result"),
         stringValue(item, "traceId"),
-        stringValue(item, "occurredAt")}};
+        stringValue(item, "occurredAt"),
+        stringValue(item, "previousHash"),
+        stringValue(item, "eventHash")}};
 }
 QStringList jsonStringArray(const QJsonArray& array) {
     QStringList result;
@@ -891,6 +893,28 @@ OperationAuditPage ApiClient::auditEventPage(const OperationAuditQuery& query, i
     statusMessage_ = page.rows.isEmpty() ? QStringLiteral("当前筛选条件暂无操作审计记录") : QStringLiteral("操作审计分页已同步");
     return page;
 }
+QString ApiClient::auditIntegrityStatus() {
+    if (token_.isEmpty()) {
+        return QStringLiteral("完整性状态：离线演示数据未校验");
+    }
+
+    const auto envelope = responseEnvelope("/api/v1/audit/integrity", QJsonValue::Object);
+    const auto data = envelope.value("data").toObject();
+    if (envelope.isEmpty()) {
+        return QStringLiteral("完整性状态：校验失败，") + statusMessage_;
+    }
+
+    const auto total = data.value("total").toInt();
+    const auto latestHash = stringValue(data, "latestHash");
+    if (data.value("verified").toBool(false)) {
+        statusMessage_ = QStringLiteral("操作审计完整性校验通过");
+        return QStringLiteral("完整性状态：通过，记录 %1 条，最新哈希 %2").arg(total).arg(latestHash.left(16));
+    }
+
+    const auto brokenEventId = stringValue(data, "brokenEventId");
+    statusMessage_ = QStringLiteral("操作审计完整性校验未通过");
+    return QStringLiteral("完整性状态：异常，断点 %1，已验证到 %2").arg(brokenEventId, latestHash.left(16));
+}
 QByteArray ApiClient::downloadAuditEventsCsv(const OperationAuditQuery& query) {
     if (token_.isEmpty()) {
         statusMessage_ = QStringLiteral("请先登录后端再导出操作审计");
@@ -935,7 +959,7 @@ QVector<TableRow> ApiClient::offlineAiInteractions() const {
     return {{{"ai-interaction-demo", "alert", "alert-001", "温度异常上下文", "离线兜底诊断建议已生成，等待后端审计同步"}}};
 }
 QVector<TableRow> ApiClient::offlineAuditEvents() const {
-    return {{{"audit-demo", "operator", "alert-notification.dispatch", "alert-notification", "queued", "success", "trace-demo", "now"}}};
+    return {{{"audit-demo", "operator", "alert-notification.dispatch", "alert-notification", "queued", "success", "trace-demo", "now", "genesis", "offline-demo-hash"}}};
 }
 QString ApiClient::offlineAiDiagnosis(const AiDiagnosisInput& input) const {
     const auto relatedId = input.relatedId.trimmed().isEmpty() ? QStringLiteral("未指定对象") : input.relatedId.trimmed();

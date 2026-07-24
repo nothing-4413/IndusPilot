@@ -1,6 +1,7 @@
 #include "induspilot/modules/audit_service.hpp"
 
 #include "induspilot/data/in_memory_repositories.hpp"
+#include "induspilot/modules/password_hasher.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -35,6 +36,23 @@ std::string nextAuditId() {
     return "audit-" + std::to_string(epochMillis) + "-" + std::to_string(sequence.fetch_add(1) + 1);
 }
 
+std::string canonicalAuditPayload(const domain::OperationAuditEvent& event, const std::string& previousHash) {
+    std::ostringstream out;
+    out << event.id << '\n'
+        << event.actor << '\n'
+        << event.action << '\n'
+        << event.resourceType << '\n'
+        << event.resourceId << '\n'
+        << event.result << '\n'
+        << event.traceId << '\n'
+        << event.occurredAt << '\n'
+        << previousHash;
+    return out.str();
+}
+
+std::string calculateAuditHash(const domain::OperationAuditEvent& event, const std::string& previousHash) {
+    return sha256Hex(canonicalAuditPayload(event, previousHash));
+}
 bool matches(const domain::OperationAuditEvent& event, const OperationAuditQuery& query) {
     return (!query.actor || event.actor == *query.actor) &&
         (!query.action || event.action == *query.action) &&
@@ -66,6 +84,9 @@ domain::OperationAuditEvent AuditService::record(domain::OperationAuditEvent eve
     if (event.result.empty()) {
         event.result = "success";
     }
+    const auto existingEvents = repository_->list();
+    event.previousHash = existingEvents.empty() ? "genesis" : existingEvents.front().eventHash;
+    event.eventHash = calculateAuditHash(event, event.previousHash);
     return repository_->save(std::move(event));
 }
 
@@ -76,4 +97,22 @@ std::vector<domain::OperationAuditEvent> AuditService::events(const OperationAud
     return result;
 }
 
+OperationAuditIntegrityReport AuditService::integrityReport() const {
+    auto events = repository_->list();
+    std::reverse(events.begin(), events.end());
+    OperationAuditIntegrityReport report;
+    report.total = events.size();
+    std::string previousHash = "genesis";
+    for (const auto& event : events) {
+        if (event.previousHash != previousHash || event.eventHash != calculateAuditHash(event, event.previousHash)) {
+            report.verified = false;
+            report.brokenEventId = event.id;
+            report.latestHash = previousHash;
+            return report;
+        }
+        previousHash = event.eventHash;
+    }
+    report.latestHash = previousHash;
+    return report;
+}
 }  // namespace induspilot::modules

@@ -368,7 +368,7 @@ std::string csvCell(std::string value) {
 
 std::string operationAuditEventsToCsv(const std::vector<domain::OperationAuditEvent>& events) {
     std::ostringstream out;
-    out << "id,actor,action,resourceType,resourceId,result,traceId,occurredAt\n";
+    out << "id,actor,action,resourceType,resourceId,result,traceId,occurredAt,previousHash,eventHash\n";
     for (const auto& event : events) {
         out << csvCell(event.id) << ','
             << csvCell(event.actor) << ','
@@ -377,7 +377,9 @@ std::string operationAuditEventsToCsv(const std::vector<domain::OperationAuditEv
             << csvCell(event.resourceId) << ','
             << csvCell(event.result) << ','
             << csvCell(event.traceId) << ','
-            << csvCell(event.occurredAt) << '\n';
+            << csvCell(event.occurredAt) << ','
+            << csvCell(event.previousHash) << ','
+            << csvCell(event.eventHash) << '\n';
     }
     return out.str();
 }
@@ -391,6 +393,16 @@ Json::Value operationAuditEventToJson(const domain::OperationAuditEvent& event) 
     value["result"] = event.result;
     value["traceId"] = event.traceId;
     value["occurredAt"] = event.occurredAt;
+    value["previousHash"] = event.previousHash;
+    value["eventHash"] = event.eventHash;
+    return value;
+}
+Json::Value operationAuditIntegrityToJson(const modules::OperationAuditIntegrityReport& report) {
+    Json::Value value;
+    value["verified"] = report.verified;
+    value["total"] = static_cast<Json::UInt64>(report.total);
+    value["brokenEventId"] = report.brokenEventId;
+    value["latestHash"] = report.latestHash;
     return value;
 }
 Json::Value aiInteractionToJson(const domain::AiInteraction& interaction) {
@@ -1350,6 +1362,15 @@ void registerRoutes(
         page["limit"] = effectiveLimit;
         page["offset"] = effectiveOffset;
         callback(jsonResponse(responseEnvelope(true, "OK", "operation audit events returned", page)));
+    }, {drogon::Get});
+    server.registerHandler("/api/v1/audit/integrity", [identity, audit](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+        const auto session = requireSession(identity, request, callback);
+        if (!session || !requirePermission(identity, *session, "audit:read", callback)) {
+            return;
+        }
+        writeRequestLog(request, session);
+        const auto report = audit->integrityReport();
+        callback(jsonResponse(responseEnvelope(true, "OK", "operation audit integrity returned", operationAuditIntegrityToJson(report))));
     }, {drogon::Get});
     server.registerHandler("/api/v1/audit/events/export", [identity, audit](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
         const auto session = requireSession(identity, request, callback);

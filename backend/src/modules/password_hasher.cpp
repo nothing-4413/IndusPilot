@@ -199,6 +199,10 @@ bool parseIterations(const std::string& value, int& iterations) {
 
 }  // namespace
 
+std::string sha256Hex(const std::string& value) {
+    return toHex(digestToBytes(sha256(bytesFromString(value))));
+}
+
 std::string pbkdf2Sha256PasswordHash(const std::string& password, const std::string& salt, int iterations) {
     if (iterations < 1) {
         return {};

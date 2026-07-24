@@ -251,7 +251,9 @@ domain::OperationAuditEvent operationAuditEventFromRow(const drogon::orm::Row& r
         row["resource_id"].as<std::string>(),
         row["result"].as<std::string>(),
         nullableString(row, "trace_id"),
-        row["occurred_at"].as<std::string>()};
+        row["occurred_at"].as<std::string>(),
+        nullableString(row, "previous_hash"),
+        nullableString(row, "event_hash")};
 }
 domain::AiInteraction aiInteractionFromRow(const drogon::orm::Row& row) {
     return domain::AiInteraction{
@@ -641,10 +643,11 @@ MySqlOperationAuditRepository::MySqlOperationAuditRepository(drogon::orm::DbClie
 
 domain::OperationAuditEvent MySqlOperationAuditRepository::save(domain::OperationAuditEvent event) {
     client_->execSqlSync(
-        "INSERT INTO operation_audit_events(event_code, actor, action, resource_type, resource_id, result, trace_id, occurred_at) "
-        "VALUES(?, ?, ?, ?, ?, ?, ?, ?) "
+        "INSERT INTO operation_audit_events(event_code, actor, action, resource_type, resource_id, result, trace_id, occurred_at, previous_hash, event_hash) "
+        "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
         "ON DUPLICATE KEY UPDATE actor = VALUES(actor), action = VALUES(action), resource_type = VALUES(resource_type), "
-        "resource_id = VALUES(resource_id), result = VALUES(result), trace_id = VALUES(trace_id), occurred_at = VALUES(occurred_at)",
+        "resource_id = VALUES(resource_id), result = VALUES(result), trace_id = VALUES(trace_id), occurred_at = VALUES(occurred_at), "
+        "previous_hash = VALUES(previous_hash), event_hash = VALUES(event_hash)",
         event.id,
         event.actor,
         event.action,
@@ -652,14 +655,16 @@ domain::OperationAuditEvent MySqlOperationAuditRepository::save(domain::Operatio
         event.resourceId,
         event.result,
         event.traceId,
-        event.occurredAt);
+        event.occurredAt,
+        event.previousHash,
+        event.eventHash);
     return event;
 }
 
 std::vector<domain::OperationAuditEvent> MySqlOperationAuditRepository::list() const {
     const auto result = client_->execSqlSync(
-        "SELECT event_code, actor, action, resource_type, resource_id, result, trace_id, DATE_FORMAT(occurred_at, '%Y-%m-%dT%H:%i:%s') AS occurred_at "
-        "FROM operation_audit_events ORDER BY occurred_at DESC, event_code DESC LIMIT 500");
+        "SELECT event_code, actor, action, resource_type, resource_id, result, trace_id, DATE_FORMAT(occurred_at, '%Y-%m-%dT%H:%i:%s') AS occurred_at, previous_hash, event_hash "
+        "FROM operation_audit_events ORDER BY id DESC LIMIT 500");
     std::vector<domain::OperationAuditEvent> events;
     for (const auto& row : result) {
         events.push_back(operationAuditEventFromRow(row));

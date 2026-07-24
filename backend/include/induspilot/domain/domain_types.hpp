@@ -97,6 +97,8 @@ struct OperationAuditEvent {
     std::string result{"success"};
     std::string traceId;
     std::string occurredAt;
+    std::string previousHash;
+    std::string eventHash;
 };
 struct AiInteraction {
     std::string id;

@@ -324,8 +324,10 @@ QWidget* MainWindow::buildAuditPage() {
     auditResultInput_ = new QComboBox(filterRow);
     auditResultInput_->addItems({QStringLiteral(""), QStringLiteral("success"), QStringLiteral("partial_failed"), QStringLiteral("failed")});
     auto* refreshButton = new QPushButton(QStringLiteral("刷新"), filterRow);
+    auto* verifyButton = new QPushButton(QStringLiteral("校验"), filterRow);
     auto* exportButton = new QPushButton(QStringLiteral("导出"), filterRow);
     connect(refreshButton, &QPushButton::clicked, this, &MainWindow::handleRefreshAuditEvents);
+    connect(verifyButton, &QPushButton::clicked, this, &MainWindow::handleVerifyAuditIntegrity);
     connect(exportButton, &QPushButton::clicked, this, &MainWindow::handleExportAuditEvents);
     connect(auditResultInput_, &QComboBox::currentTextChanged, this, &MainWindow::handleRefreshAuditEvents);
     filterLayout->addWidget(auditActorInput_);
@@ -333,8 +335,11 @@ QWidget* MainWindow::buildAuditPage() {
     filterLayout->addWidget(auditResourceTypeInput_);
     filterLayout->addWidget(auditResultInput_);
     filterLayout->addWidget(refreshButton);
+    filterLayout->addWidget(verifyButton);
     filterLayout->addWidget(exportButton);
     layout->addWidget(filterRow);
+    auditIntegrityLabel_ = new QLabel(QStringLiteral("完整性状态：未校验"), page);
+    layout->addWidget(auditIntegrityLabel_);
 
     auto* pagerRow = new QWidget(page);
     auto* pagerLayout = new QHBoxLayout(pagerRow);
@@ -486,7 +491,10 @@ void MainWindow::refreshAuditTable() {
 
     auditOffset_ = page.offset;
     auditTotal_ = page.total;
-    fillTable(auditTable_, {"编号", "用户", "动作", "资源类型", "资源编号", "结果", "追踪", "时间"}, page.rows);
+    fillTable(auditTable_, {"编号", "用户", "动作", "资源类型", "资源编号", "结果", "追踪", "时间", "上一哈希", "事件哈希"}, page.rows);
+    if (auditIntegrityLabel_) {
+        auditIntegrityLabel_->setText(api_.auditIntegrityStatus());
+    }
 
     if (auditPageLabel_) {
         const auto first = page.total == 0 ? 0 : page.offset + 1;
@@ -966,6 +974,12 @@ void MainWindow::handleNextAuditPage() {
 void MainWindow::handleAuditLimitChanged(int) {
     auditOffset_ = 0;
     refreshAuditTable();
+}
+
+void MainWindow::handleVerifyAuditIntegrity() {
+    if (auditIntegrityLabel_) {
+        auditIntegrityLabel_->setText(api_.auditIntegrityStatus());
+    }
 }
 
 void MainWindow::handleExportAuditEvents() {

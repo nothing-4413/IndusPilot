@@ -10,10 +10,13 @@ CREATE TABLE IF NOT EXISTS operation_audit_events (
   result VARCHAR(32) NOT NULL DEFAULT 'success',
   trace_id VARCHAR(128) NULL,
   occurred_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  previous_hash VARCHAR(64) NULL,
+  event_hash VARCHAR(64) NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_operation_audit_occurred_at (occurred_at),
   INDEX idx_operation_audit_actor (actor),
-  INDEX idx_operation_audit_action (action)
+  INDEX idx_operation_audit_action (action),
+  INDEX idx_operation_audit_event_hash (event_hash)
 );
 
 INSERT INTO schema_migrations(version, description) VALUES

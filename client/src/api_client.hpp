@@ -89,6 +89,7 @@ bool createAlert(const QString& alertId, const QString& assetId, const QString& 
     QVector<TableRow> auditEvents();
     OperationAuditPage auditEventPage(const OperationAuditQuery& query, int limit, int offset);
     QByteArray downloadAuditEventsCsv(const OperationAuditQuery& query);
+    QString auditIntegrityStatus();
 
 private:
     QVector<TableRow> offlineAssets() const;
