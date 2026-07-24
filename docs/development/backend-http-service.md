@@ -129,3 +129,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File backend/tests/http_integ
 - `POST /api/v1/alert-notifications/{id}/retry` 会写入 `alert-notification.retry` 审计事件。
 
 默认内存权限仅为 `admin` 授予 `audit:read`；MySQL 种子脚本会把 `audit:read` 加入权限表，并由管理员角色自动继承。
+
+## 操作审计筛选与分页
+
+`GET /api/v1/audit/events` 支持 `actor`、`action`、`resourceType`、`result` 查询参数。为了兼容既有调用，未传 `limit` 和 `offset` 时 `data` 仍为数组；传入分页参数时 `data` 为 `{ items, total, limit, offset }`。`limit` 合法范围为 1 到 100，`offset` 合法范围为 0 到 1000000。

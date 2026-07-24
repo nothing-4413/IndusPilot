@@ -81,3 +81,7 @@ $env:INDUSPILOT_REPOSITORY_STORE="mysql"
 启动后端并登录管理员后，可以调用 `GET /api/v1/audit/events` 查看登录、告警通知派发和重试事件。Qt 客户端登录成功后会同步“操作审计”页面；如果当前账号没有 `audit:read` 权限，后端会返回 403，客户端保留离线兜底记录。
 
 使用 MySQL 仓储时请确保 `database/mysql/007_operation_audit_events_schema.sql` 已执行，部署前可运行 `deployment/preflight.ps1` 检查 schema 版本清单。
+
+## 操作审计筛选调试
+
+管理员登录后可直接调试分页筛选：`GET /api/v1/audit/events?actor=operator&action=alert-notification.dispatch&limit=20&offset=0`。Qt 客户端在“操作审计”页提供用户、动作、资源类型和结果筛选输入，并展示当前页范围与总数。

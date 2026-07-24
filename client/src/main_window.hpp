@@ -69,6 +69,10 @@ private:
     void handleNextAiAuditPage();
     void handleAiAuditLimitChanged(int value);
     void handleExportAiInteractions();
+    void handleRefreshAuditEvents();
+    void handlePreviousAuditPage();
+    void handleNextAuditPage();
+    void handleAuditLimitChanged(int value);
 
     ApiClient api_;
     QLineEdit* usernameInput_{nullptr};
@@ -107,5 +111,15 @@ private:
     int aiAuditOffset_{0};
     int aiAuditTotal_{0};
     QTableWidget* aiInteractionTable_{nullptr};
+    QLineEdit* auditActorInput_{nullptr};
+    QLineEdit* auditActionInput_{nullptr};
+    QLineEdit* auditResourceTypeInput_{nullptr};
+    QComboBox* auditResultInput_{nullptr};
+    QSpinBox* auditLimitInput_{nullptr};
+    QLabel* auditPageLabel_{nullptr};
+    QPushButton* auditPrevButton_{nullptr};
+    QPushButton* auditNextButton_{nullptr};
+    int auditOffset_{0};
+    int auditTotal_{0};
     QTableWidget* auditTable_{nullptr};
 };

@@ -143,6 +143,10 @@ int main() {
     assert(auditEvent.id == "audit-record-001");
     assert(!auditEvent.occurredAt.empty());
     assert(!audit.events().empty());
+    induspilot::modules::OperationAuditQuery auditQuery;
+    auditQuery.actor = "admin";
+    auditQuery.action = "test.record";
+    assert(audit.events(auditQuery).size() == 1);
     induspilot::modules::AiService ai;
     assert(ai.status().message.find("AI 未启用") != std::string::npos);
     induspilot::modules::AiService configuredAi(induspilot::app::AiConfig{true, "http", "http://127.0.0.1:9000"});

@@ -20,6 +20,20 @@ struct AiInteractionPage {
     int offset{0};
 };
 
+struct OperationAuditQuery {
+    QString actor;
+    QString action;
+    QString resourceType;
+    QString result;
+};
+
+struct OperationAuditPage {
+    QVector<TableRow> rows;
+    int total{0};
+    int limit{20};
+    int offset{0};
+};
+
 struct AiDiagnosisInput {
     QString relatedType{"alert"};
     QString relatedId;
@@ -72,6 +86,7 @@ bool createAlert(const QString& alertId, const QString& assetId, const QString& 
     AiInteractionPage aiInteractionPage(const QString& relatedType, const QString& relatedId, int limit, int offset);
     QString aiUnavailableMessage() const;
     QVector<TableRow> auditEvents();
+    OperationAuditPage auditEventPage(const OperationAuditQuery& query, int limit, int offset);
 
 private:
     QVector<TableRow> offlineAssets() const;

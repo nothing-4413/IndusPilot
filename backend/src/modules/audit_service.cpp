@@ -2,10 +2,12 @@
 
 #include "induspilot/data/in_memory_repositories.hpp"
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <ctime>
 #include <iomanip>
+#include <iterator>
 #include <sstream>
 #include <utility>
 
@@ -31,6 +33,13 @@ std::string nextAuditId() {
     const auto now = std::chrono::system_clock::now().time_since_epoch();
     const auto epochMillis = std::chrono::duration_cast<std::chrono::milliseconds>(now).count();
     return "audit-" + std::to_string(epochMillis) + "-" + std::to_string(sequence.fetch_add(1) + 1);
+}
+
+bool matches(const domain::OperationAuditEvent& event, const OperationAuditQuery& query) {
+    return (!query.actor || event.actor == *query.actor) &&
+        (!query.action || event.action == *query.action) &&
+        (!query.resourceType || event.resourceType == *query.resourceType) &&
+        (!query.result || event.result == *query.result);
 }
 
 }  // namespace
@@ -60,8 +69,11 @@ domain::OperationAuditEvent AuditService::record(domain::OperationAuditEvent eve
     return repository_->save(std::move(event));
 }
 
-std::vector<domain::OperationAuditEvent> AuditService::events() const {
-    return repository_->list();
+std::vector<domain::OperationAuditEvent> AuditService::events(const OperationAuditQuery& query) const {
+    std::vector<domain::OperationAuditEvent> result;
+    const auto events = repository_->list();
+    std::copy_if(events.begin(), events.end(), std::back_inserter(result), [&query](const auto& event) { return matches(event, query); });
+    return result;
 }
 
 }  // namespace induspilot::modules

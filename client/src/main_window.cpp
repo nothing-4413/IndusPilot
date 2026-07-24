@@ -312,6 +312,47 @@ QWidget* MainWindow::buildAuditPage() {
     auto* page = new QWidget(this);
     auto* layout = new QVBoxLayout(page);
     layout->addWidget(new QLabel(QStringLiteral("操作审计"), page));
+
+    auto* filterRow = new QWidget(page);
+    auto* filterLayout = new QHBoxLayout(filterRow);
+    auditActorInput_ = new QLineEdit(filterRow);
+    auditActorInput_->setPlaceholderText(QStringLiteral("用户"));
+    auditActionInput_ = new QLineEdit(filterRow);
+    auditActionInput_->setPlaceholderText(QStringLiteral("动作"));
+    auditResourceTypeInput_ = new QLineEdit(filterRow);
+    auditResourceTypeInput_->setPlaceholderText(QStringLiteral("资源类型"));
+    auditResultInput_ = new QComboBox(filterRow);
+    auditResultInput_->addItems({QStringLiteral(""), QStringLiteral("success"), QStringLiteral("partial_failed"), QStringLiteral("failed")});
+    auto* refreshButton = new QPushButton(QStringLiteral("刷新"), filterRow);
+    connect(refreshButton, &QPushButton::clicked, this, &MainWindow::handleRefreshAuditEvents);
+    connect(auditResultInput_, &QComboBox::currentTextChanged, this, &MainWindow::handleRefreshAuditEvents);
+    filterLayout->addWidget(auditActorInput_);
+    filterLayout->addWidget(auditActionInput_);
+    filterLayout->addWidget(auditResourceTypeInput_);
+    filterLayout->addWidget(auditResultInput_);
+    filterLayout->addWidget(refreshButton);
+    layout->addWidget(filterRow);
+
+    auto* pagerRow = new QWidget(page);
+    auto* pagerLayout = new QHBoxLayout(pagerRow);
+    auditLimitInput_ = new QSpinBox(pagerRow);
+    auditLimitInput_->setRange(1, 100);
+    auditLimitInput_->setValue(20);
+    auditPrevButton_ = new QPushButton(QStringLiteral("上一页"), pagerRow);
+    auditNextButton_ = new QPushButton(QStringLiteral("下一页"), pagerRow);
+    auditPageLabel_ = new QLabel(QStringLiteral("第 0-0 / 共 0 条"), pagerRow);
+    connect(auditPrevButton_, &QPushButton::clicked, this, &MainWindow::handlePreviousAuditPage);
+    connect(auditNextButton_, &QPushButton::clicked, this, &MainWindow::handleNextAuditPage);
+    connect(auditLimitInput_, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::handleAuditLimitChanged);
+    pagerLayout->addWidget(new QLabel(QStringLiteral("每页"), pagerRow));
+    pagerLayout->addWidget(auditLimitInput_);
+    pagerLayout->addWidget(new QLabel(QStringLiteral("条"), pagerRow));
+    pagerLayout->addWidget(auditPrevButton_);
+    pagerLayout->addWidget(auditNextButton_);
+    pagerLayout->addWidget(auditPageLabel_);
+    pagerLayout->addStretch();
+    layout->addWidget(pagerRow);
+
     auditTable_ = new QTableWidget(page);
     layout->addWidget(auditTable_);
     refreshAuditTable();
@@ -424,8 +465,36 @@ void MainWindow::refreshAiInteractionTable() {
 }
 
 void MainWindow::refreshAuditTable() {
-    if (auditTable_) {
-        fillTable(auditTable_, {"编号", "用户", "动作", "资源类型", "资源编号", "结果", "追踪", "时间"}, api_.auditEvents());
+    if (!auditTable_) {
+        return;
+    }
+
+    OperationAuditQuery query;
+    query.actor = auditActorInput_ ? auditActorInput_->text() : QString{};
+    query.action = auditActionInput_ ? auditActionInput_->text() : QString{};
+    query.resourceType = auditResourceTypeInput_ ? auditResourceTypeInput_->text() : QString{};
+    query.result = auditResultInput_ ? auditResultInput_->currentText() : QString{};
+    const auto limit = auditLimitInput_ ? auditLimitInput_->value() : 20;
+    auto page = api_.auditEventPage(query, limit, auditOffset_);
+    if (page.total > 0 && page.offset >= page.total) {
+        auditOffset_ = ((page.total - 1) / limit) * limit;
+        page = api_.auditEventPage(query, limit, auditOffset_);
+    }
+
+    auditOffset_ = page.offset;
+    auditTotal_ = page.total;
+    fillTable(auditTable_, {"编号", "用户", "动作", "资源类型", "资源编号", "结果", "追踪", "时间"}, page.rows);
+
+    if (auditPageLabel_) {
+        const auto first = page.total == 0 ? 0 : page.offset + 1;
+        const auto last = page.offset + page.rows.size();
+        auditPageLabel_->setText(QStringLiteral("第 %1-%2 / 共 %3 条").arg(first).arg(last).arg(page.total));
+    }
+    if (auditPrevButton_) {
+        auditPrevButton_->setEnabled(page.offset > 0);
+    }
+    if (auditNextButton_) {
+        auditNextButton_->setEnabled(page.offset + page.limit < page.total);
     }
 }
 QString MainWindow::selectedAssetId() const {
@@ -867,6 +936,33 @@ void MainWindow::handleNextAiAuditPage() {
 void MainWindow::handleAiAuditLimitChanged(int) {
     aiAuditOffset_ = 0;
     refreshAiInteractionTable();
+}
+
+void MainWindow::handleRefreshAuditEvents() {
+    auditOffset_ = 0;
+    refreshAuditTable();
+}
+
+void MainWindow::handlePreviousAuditPage() {
+    const auto limit = auditLimitInput_ ? auditLimitInput_->value() : 20;
+    auditOffset_ -= limit;
+    if (auditOffset_ < 0) {
+        auditOffset_ = 0;
+    }
+    refreshAuditTable();
+}
+
+void MainWindow::handleNextAuditPage() {
+    const auto limit = auditLimitInput_ ? auditLimitInput_->value() : 20;
+    if (auditOffset_ + limit < auditTotal_) {
+        auditOffset_ += limit;
+    }
+    refreshAuditTable();
+}
+
+void MainWindow::handleAuditLimitChanged(int) {
+    auditOffset_ = 0;
+    refreshAuditTable();
 }
 
 void MainWindow::handleExportAiInteractions() {

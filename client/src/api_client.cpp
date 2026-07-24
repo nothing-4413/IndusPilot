@@ -830,6 +830,61 @@ QVector<TableRow> ApiClient::auditEvents() {
     statusMessage_ = rows.isEmpty() ? QStringLiteral("当前暂无操作审计记录") : QStringLiteral("操作审计已同步");
     return rows;
 }
+OperationAuditPage ApiClient::auditEventPage(const OperationAuditQuery& query, int limit, int offset) {
+    OperationAuditPage page;
+    page.limit = limit < 1 ? 20 : (limit > 100 ? 100 : limit);
+    page.offset = offset < 0 ? 0 : offset;
+
+    if (token_.isEmpty()) {
+        page.rows = offlineAuditEvents();
+        page.total = page.rows.size();
+        page.offset = 0;
+        statusMessage_ = QStringLiteral("请先登录后端再查询操作审计，已显示离线演示数据");
+        return page;
+    }
+
+    QString path = "/api/v1/audit/events";
+    QUrlQuery requestQuery;
+    const auto actor = query.actor.trimmed();
+    const auto action = query.action.trimmed();
+    const auto resourceType = query.resourceType.trimmed();
+    const auto result = query.result.trimmed();
+    if (!actor.isEmpty()) {
+        requestQuery.addQueryItem("actor", actor);
+    }
+    if (!action.isEmpty()) {
+        requestQuery.addQueryItem("action", action);
+    }
+    if (!resourceType.isEmpty()) {
+        requestQuery.addQueryItem("resourceType", resourceType);
+    }
+    if (!result.isEmpty()) {
+        requestQuery.addQueryItem("result", result);
+    }
+    requestQuery.addQueryItem("limit", QString::number(page.limit));
+    requestQuery.addQueryItem("offset", QString::number(page.offset));
+    path += "?" + requestQuery.toString(QUrl::FullyEncoded);
+
+    const auto envelope = responseEnvelope(path, QJsonValue::Object);
+    const auto data = envelope.value("data").toObject();
+    if (envelope.isEmpty() || !data.value("items").isArray()) {
+        page.rows = offlineAuditEvents();
+        page.total = page.rows.size();
+        page.offset = 0;
+        statusMessage_ = QStringLiteral("操作审计分页同步失败，已显示离线演示数据");
+        return page;
+    }
+
+    const auto events = data.value("items").toArray();
+    for (const auto& value : events) {
+        page.rows.push_back(auditEventRow(value.toObject()));
+    }
+    page.total = data.value("total").toInt(page.rows.size());
+    page.limit = data.value("limit").toInt(page.limit);
+    page.offset = data.value("offset").toInt(page.offset);
+    statusMessage_ = page.rows.isEmpty() ? QStringLiteral("当前筛选条件暂无操作审计记录") : QStringLiteral("操作审计分页已同步");
+    return page;
+}
 QVector<TableRow> ApiClient::offlineAssets() const {
     return {{{"asset-001", "一号产线主电机", "motor", "一号产线", "维护中"}}};
 }

@@ -1259,11 +1259,57 @@ void registerRoutes(
             return;
         }
         writeRequestLog(request, session);
-        Json::Value rows(Json::arrayValue);
-        for (const auto& event : audit->events()) {
-            rows.append(operationAuditEventToJson(event));
+        modules::OperationAuditQuery query;
+        const auto actor = request->getParameter("actor");
+        const auto action = request->getParameter("action");
+        const auto resourceType = request->getParameter("resourceType");
+        const auto result = request->getParameter("result");
+        if (!actor.empty()) {
+            query.actor = actor;
         }
-        callback(jsonResponse(responseEnvelope(true, "OK", "operation audit events returned", rows)));
+        if (!action.empty()) {
+            query.action = action;
+        }
+        if (!resourceType.empty()) {
+            query.resourceType = resourceType;
+        }
+        if (!result.empty()) {
+            query.result = result;
+        }
+
+        std::optional<int> limit;
+        std::optional<int> offset;
+        std::string pageError;
+        if (!parsePaginationParameter(request, "limit", 1, 100, limit, pageError) ||
+            !parsePaginationParameter(request, "offset", 0, 1000000, offset, pageError)) {
+            callback(invalidRequest(pageError));
+            return;
+        }
+
+        const auto events = audit->events(query);
+        Json::Value rows(Json::arrayValue);
+        if (!limit && !offset) {
+            for (const auto& event : events) {
+                rows.append(operationAuditEventToJson(event));
+            }
+            callback(jsonResponse(responseEnvelope(true, "OK", "operation audit events returned", rows)));
+            return;
+        }
+
+        const auto effectiveLimit = limit.value_or(20);
+        const auto effectiveOffset = offset.value_or(0);
+        const auto start = std::min<std::size_t>(static_cast<std::size_t>(effectiveOffset), events.size());
+        const auto end = std::min<std::size_t>(start + static_cast<std::size_t>(effectiveLimit), events.size());
+        for (auto index = start; index < end; ++index) {
+            rows.append(operationAuditEventToJson(events[index]));
+        }
+
+        Json::Value page(Json::objectValue);
+        page["items"] = rows;
+        page["total"] = static_cast<Json::UInt64>(events.size());
+        page["limit"] = effectiveLimit;
+        page["offset"] = effectiveOffset;
+        callback(jsonResponse(responseEnvelope(true, "OK", "operation audit events returned", page)));
     }, {drogon::Get});
     server.registerHandler("/api/v1/ai/status", [identity, ai](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
         const auto session = requireSession(identity, request, callback);

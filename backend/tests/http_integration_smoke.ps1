@@ -113,6 +113,13 @@ try {
     Assert-True $loginAudit.success "Operation audit query failed."
     $adminLoginAudit = @($loginAudit.data) | Where-Object { $_.actor -eq "admin" -and $_.action -eq "auth.login" }
     Assert-True (@($adminLoginAudit).Count -ge 1) "Admin login audit event was not recorded."
+    $pagedLoginAudit = Invoke-RestMethod -Uri "$BaseUrl/api/v1/audit/events?actor=admin&action=auth.login&limit=1&offset=0" -Method Get -Headers $adminHeaders -TimeoutSec 10
+    Assert-True $pagedLoginAudit.success "Operation audit filtered page query failed."
+    Assert-True ($pagedLoginAudit.data.total -ge 1) "Operation audit filtered page total was not returned."
+    Assert-True ($pagedLoginAudit.data.limit -eq 1) "Operation audit filtered page limit did not match."
+    Assert-True ($pagedLoginAudit.data.offset -eq 0) "Operation audit filtered page offset did not match."
+    Assert-True (@($pagedLoginAudit.data.items).Count -eq 1) "Operation audit filtered page size did not match."
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/audit/events?limit=0" -Method Get -Status 400 -Headers $adminHeaders
 
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/assets" -Method Post -Status 400 -Headers $adminHeaders -Body '{"name":"missing id"}'
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/assets/not-exist" -Method Get -Status 404 -Headers $adminHeaders
@@ -212,6 +219,10 @@ try {
     $dispatchAudit = Invoke-RestMethod -Uri "$BaseUrl/api/v1/audit/events" -Method Get -Headers $adminHeaders -TimeoutSec 10
     $dispatchAuditMatch = @($dispatchAudit.data) | Where-Object { $_.actor -eq "operator" -and $_.action -eq "alert-notification.dispatch" }
     Assert-True (@($dispatchAuditMatch).Count -ge 1) "Alert notification dispatch audit event was not recorded."
+    $dispatchAuditPage = Invoke-RestMethod -Uri "$BaseUrl/api/v1/audit/events?actor=operator&action=alert-notification.dispatch&resourceType=alert-notification-batch&result=success&limit=5&offset=0" -Method Get -Headers $adminHeaders -TimeoutSec 10
+    Assert-True ($dispatchAuditPage.data.total -ge 1) "Alert notification dispatch audit filtered page failed."
+    $dispatchPageMatch = @($dispatchAuditPage.data.items) | Where-Object { $_.actor -eq "operator" -and $_.action -eq "alert-notification.dispatch" }
+    Assert-True (@($dispatchPageMatch).Count -ge 1) "Alert notification dispatch audit page item did not match filters."
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/alerts/alert-it-001/assign" -Method Post -Status 400 -Headers $operatorHeaders -Body '{}'
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/alerts/not-exist/acknowledge" -Method Post -Status 404 -Headers $operatorHeaders
 
