@@ -133,3 +133,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File backend/tests/http_integ
 ## 操作审计筛选与分页
 
 `GET /api/v1/audit/events` 支持 `actor`、`action`、`resourceType`、`result` 查询参数。为了兼容既有调用，未传 `limit` 和 `offset` 时 `data` 仍为数组；传入分页参数时 `data` 为 `{ items, total, limit, offset }`。`limit` 合法范围为 1 到 100，`offset` 合法范围为 0 到 1000000。
+
+## 操作审计 CSV 导出
+
+`GET /api/v1/audit/events/export` 需要 `audit:export` 权限，返回 `text/csv; charset=utf-8` 内容，并支持与审计查询一致的 `actor`、`action`、`resourceType`、`result` 筛选参数。默认管理员拥有该权限，operator 和 maintainer 不具备。导出成功后系统会写入 `operation-audit.export` 审计事件，资源编号包含导出数量摘要。

@@ -61,3 +61,7 @@ $env:INDUSPILOT_REPOSITORY_STORE="mysql"
 ## 操作审计筛选分页
 
 操作审计接口支持 `actor`、`action`、`resourceType`、`result` 精确筛选。`GET /api/v1/audit/events` 未传分页参数时保持数组响应；传入 `limit` 或 `offset` 时返回 `{ items, total, limit, offset }`，Qt 客户端“操作审计”页面已接入筛选输入框和上一页/下一页控件。
+
+## 操作审计 CSV 导出
+
+操作审计新增 `audit:export` 独立权限和 `GET /api/v1/audit/events/export` CSV 导出接口，支持复用 `actor`、`action`、`resourceType`、`result` 筛选条件。Qt 客户端“操作审计”页面提供导出按钮，导出成功会在后端记录 `operation-audit.export` 审计事件。

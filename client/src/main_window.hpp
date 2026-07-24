@@ -73,6 +73,7 @@ private:
     void handlePreviousAuditPage();
     void handleNextAuditPage();
     void handleAuditLimitChanged(int value);
+    void handleExportAuditEvents();
 
     ApiClient api_;
     QLineEdit* usernameInput_{nullptr};

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QByteArray>
 #include <QString>
 #include <QStringList>
 #include <QUrl>
@@ -87,6 +88,7 @@ bool createAlert(const QString& alertId, const QString& assetId, const QString& 
     QString aiUnavailableMessage() const;
     QVector<TableRow> auditEvents();
     OperationAuditPage auditEventPage(const OperationAuditQuery& query, int limit, int offset);
+    QByteArray downloadAuditEventsCsv(const OperationAuditQuery& query);
 
 private:
     QVector<TableRow> offlineAssets() const;

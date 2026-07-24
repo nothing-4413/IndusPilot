@@ -28,7 +28,7 @@ std::vector<domain::User> InMemoryUserRepository::listUsers() const {
 }
 
 InMemoryPermissionRepository::InMemoryPermissionRepository() {
-    rolePermissions_["admin"] = {"asset:read", "asset:write", "monitoring:write", "alert:read", "alert:write", "work-order:read", "work-order:write", "ai:use", "audit:read"};
+    rolePermissions_["admin"] = {"asset:read", "asset:write", "monitoring:write", "alert:read", "alert:write", "work-order:read", "work-order:write", "ai:use", "audit:read", "audit:export"};
     rolePermissions_["operator"] = {"asset:read", "monitoring:write", "alert:read", "alert:write", "work-order:read", "ai:use"};
     rolePermissions_["maintainer"] = {"asset:read", "alert:read", "work-order:read", "work-order:write", "ai:use"};
 }

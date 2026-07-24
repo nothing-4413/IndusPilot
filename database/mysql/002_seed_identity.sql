@@ -15,7 +15,8 @@ INSERT INTO permissions(code, name) VALUES
   ('work-order:read', '查看工单'),
   ('work-order:write', '处理工单'),
   ('ai:use', '使用 AI 辅助诊断'),
-  ('audit:read', '查看操作审计')
+  ('audit:read', '查看操作审计'),
+  ('audit:export', '导出操作审计')
 ON DUPLICATE KEY UPDATE name = VALUES(name);
 
 INSERT INTO role_permissions(role_id, permission_id)

@@ -109,6 +109,7 @@ try {
     $adminHeaders = @{ Authorization = "Bearer $adminToken"; "X-Trace-Id" = "trace-it-admin" }
 
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/audit/events" -Method Get -Status 403 -Headers $operatorHeaders
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/audit/events/export" -Method Get -Status 403 -Headers $operatorHeaders
     $loginAudit = Invoke-RestMethod -Uri "$BaseUrl/api/v1/audit/events" -Method Get -Headers $adminHeaders -TimeoutSec 10
     Assert-True $loginAudit.success "Operation audit query failed."
     $adminLoginAudit = @($loginAudit.data) | Where-Object { $_.actor -eq "admin" -and $_.action -eq "auth.login" }
@@ -119,6 +120,9 @@ try {
     Assert-True ($pagedLoginAudit.data.limit -eq 1) "Operation audit filtered page limit did not match."
     Assert-True ($pagedLoginAudit.data.offset -eq 0) "Operation audit filtered page offset did not match."
     Assert-True (@($pagedLoginAudit.data.items).Count -eq 1) "Operation audit filtered page size did not match."
+    $loginAuditCsv = Invoke-RestMethod -Uri "$BaseUrl/api/v1/audit/events/export?actor=admin&action=auth.login" -Method Get -Headers $adminHeaders -TimeoutSec 10
+    Assert-True ($loginAuditCsv -like "id,actor,action,resourceType,resourceId,result,traceId,occurredAt*") "Operation audit CSV header was not returned."
+    Assert-True ($loginAuditCsv -like "*auth.login*") "Operation audit CSV content did not include login event."
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/audit/events?limit=0" -Method Get -Status 400 -Headers $adminHeaders
 
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/assets" -Method Post -Status 400 -Headers $adminHeaders -Body '{"name":"missing id"}'

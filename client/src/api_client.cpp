@@ -62,6 +62,34 @@ TableRow alertNotificationRow(const QJsonObject& item) {
         stringValue(item, "deliveredAt")}};
 }
 
+QString auditQueryPath(const OperationAuditQuery& query, bool includePaging, int limit = 20, int offset = 0) {
+    QString path = "/api/v1/audit/events";
+    QUrlQuery requestQuery;
+    const auto actor = query.actor.trimmed();
+    const auto action = query.action.trimmed();
+    const auto resourceType = query.resourceType.trimmed();
+    const auto result = query.result.trimmed();
+    if (!actor.isEmpty()) {
+        requestQuery.addQueryItem("actor", actor);
+    }
+    if (!action.isEmpty()) {
+        requestQuery.addQueryItem("action", action);
+    }
+    if (!resourceType.isEmpty()) {
+        requestQuery.addQueryItem("resourceType", resourceType);
+    }
+    if (!result.isEmpty()) {
+        requestQuery.addQueryItem("result", result);
+    }
+    if (includePaging) {
+        requestQuery.addQueryItem("limit", QString::number(limit));
+        requestQuery.addQueryItem("offset", QString::number(offset));
+    }
+    if (!requestQuery.isEmpty()) {
+        path += "?" + requestQuery.toString(QUrl::FullyEncoded);
+    }
+    return path;
+}
 TableRow auditEventRow(const QJsonObject& item) {
     return TableRow{{
         stringValue(item, "id"),
@@ -843,29 +871,7 @@ OperationAuditPage ApiClient::auditEventPage(const OperationAuditQuery& query, i
         return page;
     }
 
-    QString path = "/api/v1/audit/events";
-    QUrlQuery requestQuery;
-    const auto actor = query.actor.trimmed();
-    const auto action = query.action.trimmed();
-    const auto resourceType = query.resourceType.trimmed();
-    const auto result = query.result.trimmed();
-    if (!actor.isEmpty()) {
-        requestQuery.addQueryItem("actor", actor);
-    }
-    if (!action.isEmpty()) {
-        requestQuery.addQueryItem("action", action);
-    }
-    if (!resourceType.isEmpty()) {
-        requestQuery.addQueryItem("resourceType", resourceType);
-    }
-    if (!result.isEmpty()) {
-        requestQuery.addQueryItem("result", result);
-    }
-    requestQuery.addQueryItem("limit", QString::number(page.limit));
-    requestQuery.addQueryItem("offset", QString::number(page.offset));
-    path += "?" + requestQuery.toString(QUrl::FullyEncoded);
-
-    const auto envelope = responseEnvelope(path, QJsonValue::Object);
+    const auto envelope = responseEnvelope(auditQueryPath(query, true, page.limit, page.offset), QJsonValue::Object);
     const auto data = envelope.value("data").toObject();
     if (envelope.isEmpty() || !data.value("items").isArray()) {
         page.rows = offlineAuditEvents();
@@ -884,6 +890,24 @@ OperationAuditPage ApiClient::auditEventPage(const OperationAuditQuery& query, i
     page.offset = data.value("offset").toInt(page.offset);
     statusMessage_ = page.rows.isEmpty() ? QStringLiteral("当前筛选条件暂无操作审计记录") : QStringLiteral("操作审计分页已同步");
     return page;
+}
+QByteArray ApiClient::downloadAuditEventsCsv(const OperationAuditQuery& query) {
+    if (token_.isEmpty()) {
+        statusMessage_ = QStringLiteral("请先登录后端再导出操作审计");
+        return {};
+    }
+
+    auto path = auditQueryPath(query, false);
+    path.replace("/api/v1/audit/events", "/api/v1/audit/events/export");
+    const auto payload = requestJson("GET", path);
+    if (payload.isEmpty()) {
+        if (statusMessage_.isEmpty()) {
+            statusMessage_ = QStringLiteral("操作审计导出失败");
+        }
+        return {};
+    }
+    statusMessage_ = QStringLiteral("操作审计导出已生成");
+    return payload;
 }
 QVector<TableRow> ApiClient::offlineAssets() const {
     return {{{"asset-001", "一号产线主电机", "motor", "一号产线", "维护中"}}};

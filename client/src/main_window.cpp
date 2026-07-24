@@ -324,13 +324,16 @@ QWidget* MainWindow::buildAuditPage() {
     auditResultInput_ = new QComboBox(filterRow);
     auditResultInput_->addItems({QStringLiteral(""), QStringLiteral("success"), QStringLiteral("partial_failed"), QStringLiteral("failed")});
     auto* refreshButton = new QPushButton(QStringLiteral("刷新"), filterRow);
+    auto* exportButton = new QPushButton(QStringLiteral("导出"), filterRow);
     connect(refreshButton, &QPushButton::clicked, this, &MainWindow::handleRefreshAuditEvents);
+    connect(exportButton, &QPushButton::clicked, this, &MainWindow::handleExportAuditEvents);
     connect(auditResultInput_, &QComboBox::currentTextChanged, this, &MainWindow::handleRefreshAuditEvents);
     filterLayout->addWidget(auditActorInput_);
     filterLayout->addWidget(auditActionInput_);
     filterLayout->addWidget(auditResourceTypeInput_);
     filterLayout->addWidget(auditResultInput_);
     filterLayout->addWidget(refreshButton);
+    filterLayout->addWidget(exportButton);
     layout->addWidget(filterRow);
 
     auto* pagerRow = new QWidget(page);
@@ -965,6 +968,32 @@ void MainWindow::handleAuditLimitChanged(int) {
     refreshAuditTable();
 }
 
+void MainWindow::handleExportAuditEvents() {
+    OperationAuditQuery query;
+    query.actor = auditActorInput_ ? auditActorInput_->text() : QString{};
+    query.action = auditActionInput_ ? auditActionInput_->text() : QString{};
+    query.resourceType = auditResourceTypeInput_ ? auditResourceTypeInput_->text() : QString{};
+    query.result = auditResultInput_ ? auditResultInput_->currentText() : QString{};
+    const auto csv = api_.downloadAuditEventsCsv(query);
+    if (csv.isEmpty()) {
+        QMessageBox::warning(this, QStringLiteral("操作审计导出"), api_.statusMessage());
+        return;
+    }
+
+    const auto defaultName = QStringLiteral("operation-audit-") + QDateTime::currentDateTime().toString("yyyyMMddhhmmss") + QStringLiteral(".csv");
+    const auto path = QFileDialog::getSaveFileName(this, QStringLiteral("导出操作审计"), defaultName, QStringLiteral("CSV 文件 (*.csv)"));
+    if (path.isEmpty()) {
+        return;
+    }
+
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly)) {
+        QMessageBox::warning(this, QStringLiteral("操作审计导出"), QStringLiteral("无法写入导出文件：") + file.errorString());
+        return;
+    }
+    file.write(csv);
+    QMessageBox::information(this, QStringLiteral("操作审计导出"), QStringLiteral("操作审计已导出：") + path);
+}
 void MainWindow::handleExportAiInteractions() {
     if (!aiInteractionTable_ || aiInteractionTable_->rowCount() == 0) {
         QMessageBox::information(this, QStringLiteral("AI 审计导出"), QStringLiteral("当前没有可导出的 AI 审计记录，请先刷新或查询审计。"));
