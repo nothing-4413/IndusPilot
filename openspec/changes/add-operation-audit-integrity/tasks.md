@@ -17,5 +17,5 @@
 ## 4. 验证与提交
 
 - [x] 4.1 补充基础测试和 HTTP smoke 测试。
-- [ ] 4.2 运行 OpenSpec、后端、HTTP 和 Qt 本地验证。
-- [ ] 4.3 提交并推送 GitHub，确认 GitHub Actions 结果。
+- [x] 4.2 运行 OpenSpec、后端、HTTP 和 Qt 本地验证。
+- [x] 4.3 提交并推送 GitHub，确认 GitHub Actions 结果。
