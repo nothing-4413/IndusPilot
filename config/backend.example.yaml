@@ -11,7 +11,7 @@ mysql:
   database: "induspilot"
   user: "induspilot"
   password: "change-me"
-  # uri 当前仅作为预留字段；MySQL 仓储运行时使用 host/port/database/user/password。
+  # uri 非空时 MySQL 仓储会优先使用 uri；为空时使用 host/port/database/user/password 组装连接。
   uri: ""
 
 redis:

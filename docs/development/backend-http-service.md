@@ -20,7 +20,7 @@ ctest --preset dev-http
 
 ## 首批接口
 
-- `GET /health`：返回服务健康状态和依赖占位探测结果。
+- `GET /health`：返回服务健康状态和 MySQL、Redis、MongoDB、AI 依赖连通性探测结果。
 - `POST /api/v1/auth/login`：使用 JSON 请求体登录，字段为 `username` 和 `password`。
 - `GET /api/v1/auth/session`：使用 `Authorization: Bearer <token>` 验证会话。
 - `POST /api/v1/auth/logout`：使用 `Authorization: Bearer <token>` 退出会话。
@@ -60,6 +60,9 @@ ctest --preset dev-http
 - `POST /api/v1/ai/summarize-logs`：需要 `ai:use` 权限，提交日志或上下文摘要请求。
 - `POST /api/v1/ai/diagnose`：需要 `ai:use` 权限，提交 `relatedType`、`relatedId`、`prompt` 和 `context`，返回结构化诊断结果。
 - `GET /api/v1/ai/interactions`：需要 `ai:use` 权限，查询 AI 交互审计记录；支持 `relatedType`、`relatedId`、`limit` 和 `offset` 查询参数；未传分页参数时返回数组，传入分页参数时返回 `{ items, total, limit, offset }`。
+- `GET /api/v1/audit/events`：需要 `audit:read` 权限，查询操作审计事件；支持 `actor`、`action`、`resourceType`、`result`、`limit` 和 `offset` 查询参数。
+- `GET /api/v1/audit/events/export`：需要 `audit:export` 权限，按当前筛选条件导出操作审计 CSV。
+- `GET /api/v1/audit/integrity`：需要 `audit:read` 权限，复算操作审计哈希链并返回完整性状态。
 
 接口响应统一使用：`success`、`code`、`message`、`data`。
 
@@ -97,6 +100,9 @@ Qt 客户端会读取 `config/client.example.json` 中的 `apiBaseUrl`。当前�
 - `POST /api/v1/work-orders/{id}/close`：关闭已完成工单。
 - `POST /api/v1/ai/diagnose`：提交结构化上下文并展示 AI 诊断结果。
 - `GET /api/v1/ai/interactions`：按当前关联类型和对象分页同步 AI 交互审计，客户端可将当前表格导出为 CSV。
+- `GET /api/v1/audit/events`：分页同步操作审计记录，展示哈希链字段。
+- `GET /api/v1/audit/events/export`：按当前筛选条件下载操作审计 CSV。
+- `GET /api/v1/audit/integrity`：刷新操作审计完整性状态。
 
 如果后端不可达，客户端会保留离线演示数据并在登录页提示当前模式。AI Provider 不可用时诊断页展示降级建议，交互审计查询失败时展示离线记录；告警规则/通知联动和通知投递状态流转已接入，外部邮件、Webhook、短信等真实通道适配器作为后续模块扩展。
 
@@ -109,7 +115,7 @@ Qt 客户端会读取 `config/client.example.json` 中的 `apiBaseUrl`。当前�
 
 ## 集成测试
 
-`dev-http` preset 会在 Windows 下注册 `induspilot-http-integration-smoke` CTest。该测试会启动本地后端，覆盖健康检查、登录、受保护路由、权限拒绝、请求校验、资源不存在错误、资产层级筛选、资产生命周期状态变更、运行状态写入、运行状态详情、监控汇总、告警创建、告警筛选、告警生命周期流转、告警规则创建、告警通知生成、告警通知投递、工单创建、工单生命周期流转、资产维修历史、AI 辅助请求、AI 交互审计和分页参数校验。
+`dev-http` preset 会在 Windows 下注册 `induspilot-http-integration-smoke` CTest。该测试会启动本地后端，覆盖健康检查、登录、受保护路由、权限拒绝、请求校验、资源不存在错误、资产层级筛选、资产生命周期状态变更、运行状态写入、运行状态详情、监控汇总、告警创建、告警筛选、告警生命周期流转、告警规则创建、告警通知生成、告警通知投递、工单创建、工单生命周期流转、资产维修历史、AI 辅助请求、AI 交互审计、操作审计筛选分页、CSV 导出、哈希链完整性校验和分页参数校验。
 
 手动运行：
 
@@ -123,12 +129,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File backend/tests/http_integ
 
 ## 操作审计接口
 
-- `GET /api/v1/audit/events`：需要 `audit:read` 权限，返回最近操作审计事件数组。
+- `GET /api/v1/audit/events`：需要 `audit:read` 权限，返回最近操作审计事件数组；传入分页参数时返回 `{ items, total, limit, offset }`。
+- `GET /api/v1/audit/integrity`：需要 `audit:read` 权限，返回 `verified`、`total`、`brokenEventId` 和 `latestHash`，用于校验审计哈希链是否被篡改。
 - 登录成功会写入 `auth.login` 审计事件。
 - `POST /api/v1/alert-notifications/dispatch` 会写入 `alert-notification.dispatch` 审计事件，资源编号包含 `sent/failed/skipped` 摘要。
 - `POST /api/v1/alert-notifications/{id}/retry` 会写入 `alert-notification.retry` 审计事件。
 
-默认内存权限仅为 `admin` 授予 `audit:read`；MySQL 种子脚本会把 `audit:read` 加入权限表，并由管理员角色自动继承。
+默认内存权限仅为 `admin` 授予 `audit:read` 与 `audit:export`；MySQL 种子脚本会把 `audit:read`、`audit:export` 加入权限表，并由管理员角色自动继承。
 
 ## 操作审计筛选与分页
 
@@ -137,3 +144,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File backend/tests/http_integ
 ## 操作审计 CSV 导出
 
 `GET /api/v1/audit/events/export` 需要 `audit:export` 权限，返回 `text/csv; charset=utf-8` 内容，并支持与审计查询一致的 `actor`、`action`、`resourceType`、`result` 筛选参数。默认管理员拥有该权限，operator 和 maintainer 不具备。导出成功后系统会写入 `operation-audit.export` 审计事件，资源编号包含导出数量摘要。
+
+## 操作审计完整性校验
+
+新写入的操作审计事件会自动生成 `previousHash` 和 `eventHash`。首条事件的 `previousHash` 为 `genesis`，后续事件的 `previousHash` 指向上一条事件的 `eventHash`。`GET /api/v1/audit/integrity` 会按写入顺序复算哈希链，若发现内容或链路字段被篡改，返回 `verified=false` 和首个断点事件编号。
