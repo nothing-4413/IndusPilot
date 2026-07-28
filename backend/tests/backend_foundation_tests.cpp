@@ -45,6 +45,7 @@ int main() {
     _putenv_s("INDUSPILOT_REDIS_SESSION_STORE", "redis");
     _putenv_s("INDUSPILOT_REPOSITORY_STORE", "mysql");
     _putenv_s("INDUSPILOT_AI_PROVIDER", "http");
+    _putenv_s("INDUSPILOT_MYSQL_URI", "host=127.0.0.1 port=3306 dbname=induspilot user=induspilot");
 #else
     setenv("INDUSPILOT_SERVER_PORT", "18080", 1);
     setenv("INDUSPILOT_REDIS_SESSION_TTL_SECONDS", "60", 1);
@@ -52,6 +53,7 @@ int main() {
     setenv("INDUSPILOT_REDIS_SESSION_STORE", "redis", 1);
     setenv("INDUSPILOT_REPOSITORY_STORE", "mysql", 1);
     setenv("INDUSPILOT_AI_PROVIDER", "http", 1);
+    setenv("INDUSPILOT_MYSQL_URI", "host=127.0.0.1 port=3306 dbname=induspilot user=induspilot", 1);
 #endif
     const auto loadedConfig = induspilot::app::loadConfig("config/backend.example.yaml");
     assert(loadedConfig.port == 18080);
@@ -60,6 +62,7 @@ int main() {
     assert(loadedConfig.redis.sessionStore == "redis");
     assert(loadedConfig.storage.repositoryStore == "mysql");
     assert(loadedConfig.ai.provider == "http");
+    assert(loadedConfig.mysql.uri == "host=127.0.0.1 port=3306 dbname=induspilot user=induspilot");
 #ifdef _WIN32
     _putenv_s("INDUSPILOT_SERVER_PORT", "");
     _putenv_s("INDUSPILOT_REDIS_SESSION_TTL_SECONDS", "");
@@ -67,6 +70,7 @@ int main() {
     _putenv_s("INDUSPILOT_REDIS_SESSION_STORE", "");
     _putenv_s("INDUSPILOT_REPOSITORY_STORE", "");
     _putenv_s("INDUSPILOT_AI_PROVIDER", "");
+    _putenv_s("INDUSPILOT_MYSQL_URI", "");
 #else
     unsetenv("INDUSPILOT_SERVER_PORT");
     unsetenv("INDUSPILOT_REDIS_SESSION_TTL_SECONDS");
@@ -74,6 +78,7 @@ int main() {
     unsetenv("INDUSPILOT_REDIS_SESSION_STORE");
     unsetenv("INDUSPILOT_REPOSITORY_STORE");
     unsetenv("INDUSPILOT_AI_PROVIDER");
+    unsetenv("INDUSPILOT_MYSQL_URI");
 #endif
 
     induspilot::app::Application app(induspilot::app::AppConfig{});
