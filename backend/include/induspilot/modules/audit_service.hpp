@@ -5,6 +5,7 @@
 #include "induspilot/modules/service_status.hpp"
 
 #include <memory>
+#include <mutex>
 #include <cstddef>
 #include <optional>
 #include <string>
@@ -37,6 +38,7 @@ public:
     OperationAuditIntegrityReport integrityReport() const;
 
 private:
+    mutable std::mutex mutex_;
     std::shared_ptr<data::OperationAuditRepository> repository_;
 };
 

@@ -175,6 +175,9 @@ int main() {
     const auto secondAuditEvent = audit.record(induspilot::domain::OperationAuditEvent{"audit-record-002", "admin", "test.second", "test", "test-002", "success", "trace-test-2", ""});
     assert(secondAuditEvent.previousHash == auditEvent.eventHash);
     assert(!secondAuditEvent.eventHash.empty());
+    const auto listedAuditEvents = audit.events();
+    assert(listedAuditEvents.size() == 2);
+    assert(listedAuditEvents.front().id == "audit-record-002");
     const auto auditIntegrity = audit.integrityReport();
     assert(auditIntegrity.verified);
     assert(auditIntegrity.total == 2);

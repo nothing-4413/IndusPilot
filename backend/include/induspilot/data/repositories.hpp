@@ -76,6 +76,8 @@ public:
 
     virtual domain::OperationAuditEvent save(domain::OperationAuditEvent event) = 0;
     virtual std::vector<domain::OperationAuditEvent> list() const = 0;
+    virtual std::optional<domain::OperationAuditEvent> latest() const = 0;
+    virtual std::vector<domain::OperationAuditEvent> listForIntegrity() const = 0;
 };
 class AiInteractionRepository {
 public:

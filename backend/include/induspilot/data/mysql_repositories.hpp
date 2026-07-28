@@ -96,6 +96,8 @@ public:
 
     domain::OperationAuditEvent save(domain::OperationAuditEvent event) override;
     std::vector<domain::OperationAuditEvent> list() const override;
+    std::optional<domain::OperationAuditEvent> latest() const override;
+    std::vector<domain::OperationAuditEvent> listForIntegrity() const override;
 
 private:
     drogon::orm::DbClientPtr client_;

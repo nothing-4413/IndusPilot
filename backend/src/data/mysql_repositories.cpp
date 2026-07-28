@@ -671,6 +671,26 @@ std::vector<domain::OperationAuditEvent> MySqlOperationAuditRepository::list() c
     }
     return events;
 }
+std::optional<domain::OperationAuditEvent> MySqlOperationAuditRepository::latest() const {
+    const auto result = client_->execSqlSync(
+        "SELECT event_code, actor, action, resource_type, resource_id, result, trace_id, DATE_FORMAT(occurred_at, '%Y-%m-%dT%H:%i:%s') AS occurred_at, previous_hash, event_hash "
+        "FROM operation_audit_events ORDER BY id DESC LIMIT 1");
+    if (result.empty()) {
+        return std::nullopt;
+    }
+    return operationAuditEventFromRow(result[0]);
+}
+
+std::vector<domain::OperationAuditEvent> MySqlOperationAuditRepository::listForIntegrity() const {
+    const auto result = client_->execSqlSync(
+        "SELECT event_code, actor, action, resource_type, resource_id, result, trace_id, DATE_FORMAT(occurred_at, '%Y-%m-%dT%H:%i:%s') AS occurred_at, previous_hash, event_hash "
+        "FROM operation_audit_events ORDER BY id ASC");
+    std::vector<domain::OperationAuditEvent> events;
+    for (const auto& row : result) {
+        events.push_back(operationAuditEventFromRow(row));
+    }
+    return events;
+}
 MySqlAiInteractionRepository::MySqlAiInteractionRepository(drogon::orm::DbClientPtr client) : client_(std::move(client)) {}
 
 domain::AiInteraction MySqlAiInteractionRepository::save(domain::AiInteraction interaction) {

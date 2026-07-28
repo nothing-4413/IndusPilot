@@ -75,6 +75,7 @@ ServiceStatus AuditService::status() const {
 }
 
 domain::OperationAuditEvent AuditService::record(domain::OperationAuditEvent event) {
+    std::lock_guard<std::mutex> lock(mutex_);
     if (event.id.empty()) {
         event.id = nextAuditId();
     }
@@ -84,8 +85,8 @@ domain::OperationAuditEvent AuditService::record(domain::OperationAuditEvent eve
     if (event.result.empty()) {
         event.result = "success";
     }
-    const auto existingEvents = repository_->list();
-    event.previousHash = existingEvents.empty() ? "genesis" : existingEvents.front().eventHash;
+    const auto latestEvent = repository_->latest();
+    event.previousHash = latestEvent ? latestEvent->eventHash : "genesis";
     event.eventHash = calculateAuditHash(event, event.previousHash);
     return repository_->save(std::move(event));
 }
@@ -98,8 +99,7 @@ std::vector<domain::OperationAuditEvent> AuditService::events(const OperationAud
 }
 
 OperationAuditIntegrityReport AuditService::integrityReport() const {
-    auto events = repository_->list();
-    std::reverse(events.begin(), events.end());
+    const auto events = repository_->listForIntegrity();
     OperationAuditIntegrityReport report;
     report.total = events.size();
     std::string previousHash = "genesis";

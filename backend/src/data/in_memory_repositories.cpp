@@ -184,6 +184,7 @@ std::optional<domain::RuntimeState> InMemoryRuntimeStateRepository::findByAssetI
     return it->second;
 }
 domain::OperationAuditEvent InMemoryOperationAuditRepository::save(domain::OperationAuditEvent event) {
+    std::lock_guard<std::mutex> lock(mutex_);
     auto existing = std::find_if(events_.begin(), events_.end(), [&event](const auto& item) { return item.id == event.id; });
     if (existing != events_.end()) {
         *existing = event;
@@ -194,9 +195,23 @@ domain::OperationAuditEvent InMemoryOperationAuditRepository::save(domain::Opera
 }
 
 std::vector<domain::OperationAuditEvent> InMemoryOperationAuditRepository::list() const {
+    std::lock_guard<std::mutex> lock(mutex_);
     auto events = events_;
     std::reverse(events.begin(), events.end());
     return events;
+}
+
+std::optional<domain::OperationAuditEvent> InMemoryOperationAuditRepository::latest() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (events_.empty()) {
+        return std::nullopt;
+    }
+    return events_.back();
+}
+
+std::vector<domain::OperationAuditEvent> InMemoryOperationAuditRepository::listForIntegrity() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return events_;
 }
 domain::AiInteraction InMemoryAiInteractionRepository::save(domain::AiInteraction interaction) {
     interactions_.push_back(interaction);

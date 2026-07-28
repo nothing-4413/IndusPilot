@@ -3,6 +3,7 @@
 #include "induspilot/data/repositories.hpp"
 
 #include <map>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -84,8 +85,11 @@ class InMemoryOperationAuditRepository final : public OperationAuditRepository {
 public:
     domain::OperationAuditEvent save(domain::OperationAuditEvent event) override;
     std::vector<domain::OperationAuditEvent> list() const override;
+    std::optional<domain::OperationAuditEvent> latest() const override;
+    std::vector<domain::OperationAuditEvent> listForIntegrity() const override;
 
 private:
+    mutable std::mutex mutex_;
     std::vector<domain::OperationAuditEvent> events_;
 };
 class InMemoryAiInteractionRepository final : public AiInteractionRepository {
