@@ -22,10 +22,12 @@ build/dev-http/backend/induspilot-backend.exe
 
 ```powershell
 cd deployment
+copy .env.example .env
+# 编辑 .env，替换所有 change-me-* 密钥
 docker compose up -d
 ```
 
-默认端口：
+默认端口仅绑定到 `127.0.0.1`，如需远程访问请在 `.env` 中显式修改 `*_BIND`：
 
 - MySQL：`127.0.0.1:3306`
 - Redis：`127.0.0.1:6379`

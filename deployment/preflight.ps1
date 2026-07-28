@@ -53,6 +53,7 @@ Write-Host "仓库根目录：$RepoRoot"
 $requiredFiles = @(
     "config/backend.example.yaml",
     "deployment/docker-compose.yml",
+    "deployment/.env.example",
     "database/mysql/001_foundation_schema.sql",
     "database/mysql/002_seed_identity.sql",
     "database/mysql/003_runtime_persistence_schema.sql",
@@ -76,6 +77,27 @@ foreach ($service in @("mysql", "redis", "mongodb")) {
     } else {
         Write-CheckFail "docker compose 未定义服务：$service"
     }
+}
+
+foreach ($secret in @("INDUSPILOT_MYSQL_ROOT_PASSWORD", "INDUSPILOT_MYSQL_PASSWORD", "INDUSPILOT_REDIS_PASSWORD", "INDUSPILOT_MONGODB_ROOT_PASSWORD")) {
+    if ($compose.Contains('${' + $secret + ':?')) {
+        Write-CheckOk "docker compose 要求显式配置密钥：$secret"
+    } else {
+        Write-CheckFail "docker compose 未强制配置密钥：$secret"
+    }
+}
+foreach ($binding in @("INDUSPILOT_MYSQL_BIND:-127.0.0.1", "INDUSPILOT_REDIS_BIND:-127.0.0.1", "INDUSPILOT_MONGODB_BIND:-127.0.0.1")) {
+    if ($compose.Contains('${' + $binding + '}')) {
+        Write-CheckOk "docker compose 默认仅绑定本地回环：$binding"
+    } else {
+        Write-CheckFail "docker compose 缺少本地回环绑定默认值：$binding"
+    }
+}
+$healthcheckCount = ([regex]::Matches($compose, "(?m)^\s{4}healthcheck:")).Count
+if ($healthcheckCount -ge 3) {
+    Write-CheckOk "docker compose 为核心依赖定义 healthcheck"
+} else {
+    Write-CheckFail "docker compose healthcheck 数量不足"
 }
 
 $config = Get-FileText "config/backend.example.yaml"

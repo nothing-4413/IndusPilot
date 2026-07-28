@@ -4,10 +4,12 @@
 
 ```powershell
 cd deployment
+copy .env.example .env
+# 编辑 .env，替换所有 change-me-* 密钥
 docker compose up -d
 ```
 
-启动后会暴露：
+启动后默认仅在本机回环地址暴露：
 
 - MySQL：`127.0.0.1:3306`
 - Redis：`127.0.0.1:6379`

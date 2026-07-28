@@ -3,29 +3,54 @@ services:
     image: mysql:8.4
     container_name: induspilot-mysql
     environment:
-      MYSQL_ROOT_PASSWORD: induspilot-root
-      MYSQL_DATABASE: induspilot
-      MYSQL_USER: induspilot
-      MYSQL_PASSWORD: induspilot
+      MYSQL_ROOT_PASSWORD: ${INDUSPILOT_MYSQL_ROOT_PASSWORD:?请在 deployment/.env 中设置 INDUSPILOT_MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${INDUSPILOT_MYSQL_DATABASE:-induspilot}
+      MYSQL_USER: ${INDUSPILOT_MYSQL_USER:-induspilot}
+      MYSQL_PASSWORD: ${INDUSPILOT_MYSQL_PASSWORD:?请在 deployment/.env 中设置 INDUSPILOT_MYSQL_PASSWORD}
     ports:
-      - "3306:3306"
+      - "${INDUSPILOT_MYSQL_BIND:-127.0.0.1}:${INDUSPILOT_MYSQL_PORT:-3306}:3306"
     volumes:
       - ./data/mysql:/var/lib/mysql
       - ../database/mysql:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u\"$${MYSQL_USER}\" -p\"$${MYSQL_PASSWORD}\" --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
   redis:
     image: redis:7
     container_name: induspilot-redis
+    environment:
+      REDIS_PASSWORD: ${INDUSPILOT_REDIS_PASSWORD:?请在 deployment/.env 中设置 INDUSPILOT_REDIS_PASSWORD}
+    command: ["sh", "-c", "redis-server --appendonly yes --requirepass \"$${REDIS_PASSWORD}\""]
     ports:
-      - "6379:6379"
+      - "${INDUSPILOT_REDIS_BIND:-127.0.0.1}:${INDUSPILOT_REDIS_PORT:-6379}:6379"
     volumes:
       - ./data/redis:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   mongodb:
     image: mongo:7
     container_name: induspilot-mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${INDUSPILOT_MONGODB_ROOT_USER:-induspilot}
+      MONGO_INITDB_ROOT_PASSWORD: ${INDUSPILOT_MONGODB_ROOT_PASSWORD:?请在 deployment/.env 中设置 INDUSPILOT_MONGODB_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: ${INDUSPILOT_MONGODB_DATABASE:-induspilot}
     ports:
-      - "27017:27017"
+      - "${INDUSPILOT_MONGODB_BIND:-127.0.0.1}:${INDUSPILOT_MONGODB_PORT:-27017}:27017"
     volumes:
       - ./data/mongodb:/data/db
       - ../database/mongodb/init_collections.js:/docker-entrypoint-initdb.d/init_collections.js:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --username \"$${MONGO_INITDB_ROOT_USERNAME}\" --password \"$${MONGO_INITDB_ROOT_PASSWORD}\" --authenticationDatabase admin --eval \"db.adminCommand('ping').ok\" | grep 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
