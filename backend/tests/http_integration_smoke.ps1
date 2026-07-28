@@ -80,6 +80,12 @@ try {
     Assert-True ($null -ne $health.dependencies.mongodb) "Health check did not include MongoDB dependency."
     Assert-True ($null -ne $health.dependencies.ai) "Health check did not include AI dependency."
 
+    $traceHeaders = @{ "X-Request-Id" = "trace-it-request-header" }
+    $traceResponse = Invoke-WebRequest -UseBasicParsing -Uri "$BaseUrl/health" -Method Get -Headers $traceHeaders -TimeoutSec 10
+    Assert-True ($traceResponse.Headers["X-Trace-Id"] -eq "trace-it-request-header") "Trace header was not propagated from X-Request-Id."
+    Assert-True ($traceResponse.Headers["X-Request-Id"] -eq "trace-it-request-header") "Request id header was not echoed."
+
+
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/assets" -Method Get -Status 401
 
     $operatorLogin = Invoke-RestMethod -Uri "$BaseUrl/api/v1/auth/login" -Method Post -ContentType "application/json" -Body '{"username":"operator","password":"operator123"}' -TimeoutSec 10

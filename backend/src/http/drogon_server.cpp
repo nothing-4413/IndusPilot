@@ -519,9 +519,13 @@ drogon::HttpResponsePtr forbidden() {
 }
 
 std::string traceIdFor(const drogon::HttpRequestPtr& request) {
-    const auto incoming = request->getHeader("X-Trace-Id");
-    if (!incoming.empty()) {
-        return incoming;
+    const auto incomingTrace = request->getHeader("X-Trace-Id");
+    if (!incomingTrace.empty()) {
+        return incomingTrace;
+    }
+    const auto incomingRequest = request->getHeader("X-Request-Id");
+    if (!incomingRequest.empty()) {
+        return incomingRequest;
     }
     static std::atomic<unsigned long long> sequence{0};
     const auto now = std::chrono::system_clock::now().time_since_epoch();
@@ -652,6 +656,19 @@ bool requirePermission(
     }
     return true;
 }
+
+void registerTraceHeaders() {
+    static bool registered{false};
+    if (registered) {
+        return;
+    }
+    registered = true;
+    drogon::app().registerPostHandlingAdvice([](const drogon::HttpRequestPtr& request, const drogon::HttpResponsePtr& response) {
+        const auto traceId = traceIdFor(request);
+        response->addHeader("X-Trace-Id", traceId);
+        response->addHeader("X-Request-Id", traceId);
+    });
+}
 void registerRoutes(
     const std::shared_ptr<app::Application>& application,
     const std::shared_ptr<modules::IdentityService>& identity,
@@ -661,6 +678,7 @@ void registerRoutes(
     const std::shared_ptr<modules::MaintenanceService>& maintenance,
     const std::shared_ptr<modules::AiService>& ai,
     const std::shared_ptr<modules::AuditService>& audit) {
+    registerTraceHeaders();
     auto& server = drogon::app();
 
     server.registerHandler("/health", [application](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {

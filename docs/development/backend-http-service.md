@@ -148,3 +148,6 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File backend/tests/http_integ
 ## 操作审计完整性校验
 
 新写入的操作审计事件会自动生成 `previousHash` 和 `eventHash`。首条事件的 `previousHash` 为 `genesis`，后续事件的 `previousHash` 指向上一条事件的 `eventHash`。`GET /api/v1/audit/integrity` 会按写入顺序复算哈希链，若发现内容或链路字段被篡改，返回 `verified=false` 和首个断点事件编号。
+## 请求追踪
+
+HTTP 服务会读取 `X-Trace-Id` 或 `X-Request-Id`，优先使用 `X-Trace-Id`，未提供时生成 `trace-<timestamp>-<sequence>`。所有响应都会回传 `X-Trace-Id` 与 `X-Request-Id`，结构化请求日志中的 `traceId` 与操作审计 `traceId` 使用同一值，便于从 API 调用追踪到审计记录。
