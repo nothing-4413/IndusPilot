@@ -43,13 +43,12 @@ public:
     std::vector<std::string> permissionsForRoles(const std::vector<std::string>& roles) const;
 
 private:
-    std::string issueToken(const std::string& username);
+    std::string issueToken();
 
     std::shared_ptr<SessionStore> sessionStore_;
     std::chrono::seconds sessionTtl_;
     std::shared_ptr<data::UserRepository> userRepository_;
     std::shared_ptr<data::PermissionRepository> permissionRepository_;
-    std::size_t issuedSessions_{0};
 };
 
 }  // namespace induspilot::modules

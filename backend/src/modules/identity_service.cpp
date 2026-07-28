@@ -4,7 +4,10 @@
 #include "induspilot/modules/password_hasher.hpp"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
+#include <iomanip>
+#include <random>
 #include <sstream>
 #include <utility>
 
@@ -50,7 +53,7 @@ AuthResult IdentityService::login(const LoginRequest& request) {
         return AuthResult{false, "用户名或密码错误", std::nullopt};
     }
 
-    const auto token = issueToken(request.username);
+    const auto token = issueToken();
     auto session = SessionInfo{token, credential->user, true};
     if (!sessionStore_->save(session, sessionTtl_)) {
         return AuthResult{false, "会话创建失败", std::nullopt};
@@ -89,12 +92,18 @@ std::vector<std::string> IdentityService::permissionsForRoles(const std::vector<
     return permissions;
 }
 
-std::string IdentityService::issueToken(const std::string& username) {
-    const auto now = std::chrono::system_clock::now().time_since_epoch();
-    const auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(now).count();
+std::string IdentityService::issueToken() {
+    std::array<unsigned char, 32> bytes{};
+    std::random_device random;
+    for (auto& byte : bytes) {
+        byte = static_cast<unsigned char>(random());
+    }
 
     std::ostringstream token;
-    token << "session-" << username << '-' << millis << '-' << ++issuedSessions_;
+    token << "session-" << std::hex << std::setfill('0');
+    for (const auto byte : bytes) {
+        token << std::setw(2) << static_cast<int>(byte);
+    }
     return token.str();
 }
 

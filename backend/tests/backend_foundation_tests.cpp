@@ -19,6 +19,7 @@
 #include <chrono>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <type_traits>
 
 static_assert(std::has_virtual_destructor_v<induspilot::data::UserRepository>);
@@ -85,6 +86,13 @@ int main() {
     const auto login = identity.login({"admin", "admin123"});
     assert(login.success);
     assert(login.session.has_value());
+    assert(login.session->token.rfind("session-", 0) == 0);
+    assert(login.session->token.size() == std::string_view("session-").size() + 64U);
+    assert(login.session->token.find("admin") == std::string::npos);
+    const auto secondLogin = identity.login({"admin", "admin123"});
+    assert(secondLogin.success);
+    assert(secondLogin.session.has_value());
+    assert(secondLogin.session->token != login.session->token);
     assert(identity.validateSession(login.session->token).has_value());
     const auto permissions = identity.permissionsForRoles(login.session->user.roles);
     assert(identity.hasPermission(permissions, "asset:write"));
