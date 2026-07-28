@@ -147,3 +147,16 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File backend/tests/http_integ
 - Redis session 已支持配置化接入，后续需要补充连接失败降级策略和监控指标。
 - 当前 MongoDB 仅做依赖探测，后续可用于长日志、知识片段或非结构化诊断上下文。
 - 当前 HTTP 冒烟测试默认使用内存仓储；`deployment/preflight.ps1` 覆盖离线部署基线，MySQL/Redis/MongoDB 的真实连通和认证仍需要在部署环境中补充集成验证。
+## 真实依赖冒烟测试
+
+CI 会使用 `deployment/docker-compose.yml` 启动 MySQL、Redis 和 MongoDB，并运行 `backend/tests/dependency_services_smoke.sh`。该测试会重复执行 MySQL 迁移脚本以验证幂等性，检查 `schema_migrations`，验证 Redis 鉴权 `PING`，并加载 MongoDB 初始化脚本后执行 `ping`。
+
+本地已安装 Docker 时可手动运行：
+```powershell
+cd deployment
+copy .env.example .env
+# 编辑 .env 后启动依赖
+docker compose up -d --wait
+cd ..
+bash backend/tests/dependency_services_smoke.sh
+```

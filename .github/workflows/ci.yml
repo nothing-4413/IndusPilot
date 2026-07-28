@@ -45,6 +45,36 @@ jobs:
           VCPKG_ROOT: "C:\vcpkg"
         run: cmake --list-presets=configure
 
+  dependency-services:
+    name: dependency services
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create dependency env
+        shell: bash
+        run: |
+          cp deployment/.env.example deployment/.env
+          sed -i 's/change-me-root-password/ci-root-password/g' deployment/.env
+          sed -i 's/change-me-app-password/ci-app-password/g' deployment/.env
+          sed -i 's/change-me-redis-password/ci-redis-password/g' deployment/.env
+          sed -i 's/change-me-mongodb-password/ci-mongodb-password/g' deployment/.env
+
+      - name: Start dependencies
+        shell: bash
+        run: docker compose --env-file deployment/.env -f deployment/docker-compose.yml up -d --wait
+
+      - name: Run dependency smoke
+        shell: bash
+        run: bash backend/tests/dependency_services_smoke.sh
+
+      - name: Stop dependencies
+        if: always()
+        shell: bash
+        run: docker compose --env-file deployment/.env -f deployment/docker-compose.yml down -v
+
   openspec:
     name: openspec validation
     runs-on: ubuntu-latest
