@@ -14,3 +14,7 @@ AI 模块只提供辅助解释、日志摘要和排查建议，不直接关闭�
 ## 后续接入
 
 后续可以在 Provider 边界内替换适配器，实现远程大模型、本地模型或企业知识库 RAG。无论 provider 是否可用，AI 结果都应保持非阻塞、可审计、可降级。
+
+## HTTP provider 请求契约
+
+启用 Drogon 构建并设置 i.enabled=true、i.provider=http 后，AI provider 会向 i.endpoint 发起 POST 请求。请求体包含 operation、prompt 和受 i.maxContextItems 限制的 contextItems。i.timeoutMs 控制同步请求超时；i.storeInteractionRecords=false 时不写入 AI 交互审计仓储。响应可返回 content、summary、	ext、output_text，也兼容 OpenAI choices[].message.content 和 Responses output[].content[].text。HTTP 调用失败、超时或状态码非 2xx 时，系统保留本地规则诊断并记录降级原因。

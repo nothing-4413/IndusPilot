@@ -123,6 +123,12 @@ void applyConfigValue(AppConfig& config, const std::string& section, const std::
         config.ai.provider = value;
     } else if (section == "ai" && key == "endpoint") {
         config.ai.endpoint = value;
+    } else if (section == "ai" && (key == "timeoutMs" || key == "timeout_ms")) {
+        config.ai.timeoutMs = parseInt(value, config.ai.timeoutMs);
+    } else if (section == "ai" && (key == "maxContextItems" || key == "max_context_items")) {
+        config.ai.maxContextItems = parseInt(value, config.ai.maxContextItems);
+    } else if (section == "ai" && (key == "storeInteractionRecords" || key == "store_interaction_records")) {
+        config.ai.storeInteractionRecords = parseBool(value, config.ai.storeInteractionRecords);
     } else if (section == "storage" && key == "repository_store") {
         config.storage.repositoryStore = value;
     }
@@ -157,6 +163,9 @@ void applyEnvironmentOverrides(AppConfig& config) {
     applyBoolEnv("INDUSPILOT_AI_ENABLED", config.ai.enabled);
     applyStringEnv("INDUSPILOT_AI_PROVIDER", config.ai.provider);
     applyStringEnv("INDUSPILOT_AI_ENDPOINT", config.ai.endpoint);
+    applyIntEnv("INDUSPILOT_AI_TIMEOUT_MS", config.ai.timeoutMs);
+    applyIntEnv("INDUSPILOT_AI_MAX_CONTEXT_ITEMS", config.ai.maxContextItems);
+    applyBoolEnv("INDUSPILOT_AI_STORE_INTERACTION_RECORDS", config.ai.storeInteractionRecords);
 
     applyStringEnv("INDUSPILOT_REPOSITORY_STORE", config.storage.repositoryStore);
 }

@@ -1,4 +1,13 @@
 provider: "disabled"
+endpoint: "http://127.0.0.1:9000/v1/complete"
 timeoutMs: 15000
 maxContextItems: 20
 storeInteractionRecords: true
+
+# HTTP provider 请求体：
+# {
+#   "operation": "diagnose|故障排查|日志摘要",
+#   "prompt": "用户输入或诊断目标",
+#   "contextItems": ["受 maxContextItems 限制的上下文"]
+# }
+# 响应可返回 content、summary、text、output_text，或兼容 OpenAI choices/output 结构。

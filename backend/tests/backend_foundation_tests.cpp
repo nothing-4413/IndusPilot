@@ -45,6 +45,9 @@ int main() {
     _putenv_s("INDUSPILOT_REDIS_SESSION_STORE", "redis");
     _putenv_s("INDUSPILOT_REPOSITORY_STORE", "mysql");
     _putenv_s("INDUSPILOT_AI_PROVIDER", "http");
+    _putenv_s("INDUSPILOT_AI_TIMEOUT_MS", "2500");
+    _putenv_s("INDUSPILOT_AI_MAX_CONTEXT_ITEMS", "3");
+    _putenv_s("INDUSPILOT_AI_STORE_INTERACTION_RECORDS", "false");
     _putenv_s("INDUSPILOT_MYSQL_URI", "host=127.0.0.1 port=3306 dbname=induspilot user=induspilot");
 #else
     setenv("INDUSPILOT_SERVER_PORT", "18080", 1);
@@ -53,6 +56,9 @@ int main() {
     setenv("INDUSPILOT_REDIS_SESSION_STORE", "redis", 1);
     setenv("INDUSPILOT_REPOSITORY_STORE", "mysql", 1);
     setenv("INDUSPILOT_AI_PROVIDER", "http", 1);
+    setenv("INDUSPILOT_AI_TIMEOUT_MS", "2500", 1);
+    setenv("INDUSPILOT_AI_MAX_CONTEXT_ITEMS", "3", 1);
+    setenv("INDUSPILOT_AI_STORE_INTERACTION_RECORDS", "false", 1);
     setenv("INDUSPILOT_MYSQL_URI", "host=127.0.0.1 port=3306 dbname=induspilot user=induspilot", 1);
 #endif
     const auto loadedConfig = induspilot::app::loadConfig("config/backend.example.yaml");
@@ -62,6 +68,9 @@ int main() {
     assert(loadedConfig.redis.sessionStore == "redis");
     assert(loadedConfig.storage.repositoryStore == "mysql");
     assert(loadedConfig.ai.provider == "http");
+    assert(loadedConfig.ai.timeoutMs == 2500);
+    assert(loadedConfig.ai.maxContextItems == 3);
+    assert(!loadedConfig.ai.storeInteractionRecords);
     assert(loadedConfig.mysql.uri == "host=127.0.0.1 port=3306 dbname=induspilot user=induspilot");
 #ifdef _WIN32
     _putenv_s("INDUSPILOT_SERVER_PORT", "");
@@ -70,6 +79,9 @@ int main() {
     _putenv_s("INDUSPILOT_REDIS_SESSION_STORE", "");
     _putenv_s("INDUSPILOT_REPOSITORY_STORE", "");
     _putenv_s("INDUSPILOT_AI_PROVIDER", "");
+    _putenv_s("INDUSPILOT_AI_TIMEOUT_MS", "");
+    _putenv_s("INDUSPILOT_AI_MAX_CONTEXT_ITEMS", "");
+    _putenv_s("INDUSPILOT_AI_STORE_INTERACTION_RECORDS", "");
     _putenv_s("INDUSPILOT_MYSQL_URI", "");
 #else
     unsetenv("INDUSPILOT_SERVER_PORT");
@@ -78,6 +90,9 @@ int main() {
     unsetenv("INDUSPILOT_REDIS_SESSION_STORE");
     unsetenv("INDUSPILOT_REPOSITORY_STORE");
     unsetenv("INDUSPILOT_AI_PROVIDER");
+    unsetenv("INDUSPILOT_AI_TIMEOUT_MS");
+    unsetenv("INDUSPILOT_AI_MAX_CONTEXT_ITEMS");
+    unsetenv("INDUSPILOT_AI_STORE_INTERACTION_RECORDS");
     unsetenv("INDUSPILOT_MYSQL_URI");
 #endif
 

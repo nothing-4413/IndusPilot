@@ -28,6 +28,9 @@ struct AiConfig {
     bool enabled{false};
     std::string provider{"disabled"};
     std::string endpoint{"http://127.0.0.1:9000"};
+    int timeoutMs{15000};
+    int maxContextItems{20};
+    bool storeInteractionRecords{true};
 };
 
 struct StorageConfig {

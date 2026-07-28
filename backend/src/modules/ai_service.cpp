@@ -2,7 +2,12 @@
 
 #include "induspilot/data/in_memory_repositories.hpp"
 
+#ifdef INDUSPILOT_WITH_DROGON
+#include <drogon/drogon.h>
+#endif
+
 #include <algorithm>
+#include <cstddef>
 #include <sstream>
 #include <utility>
 
@@ -118,6 +123,102 @@ std::vector<std::string> recommendActions(const DiagnosisRequest& request, const
     return actions;
 }
 
+struct ParsedHttpEndpoint {
+    std::string baseUrl;
+    std::string path{"/"};
+    bool valid{false};
+};
+
+ParsedHttpEndpoint parseHttpEndpoint(const std::string& endpoint) {
+    const auto schemePos = endpoint.find("://");
+    if (schemePos == std::string::npos) {
+        return {};
+    }
+    const auto pathPos = endpoint.find('/', schemePos + 3);
+    ParsedHttpEndpoint parsed;
+    parsed.valid = true;
+    if (pathPos == std::string::npos) {
+        parsed.baseUrl = endpoint;
+        return parsed;
+    }
+    parsed.baseUrl = endpoint.substr(0, pathPos);
+    parsed.path = endpoint.substr(pathPos);
+    if (parsed.path.empty()) {
+        parsed.path = "/";
+    }
+    return parsed;
+}
+
+std::vector<std::string> limitedContextItems(const AiProviderRequest& request, int maxContextItems) {
+    if (maxContextItems <= 0) {
+        return {};
+    }
+    auto items = request.contextItems;
+    if (items.size() > static_cast<std::size_t>(maxContextItems)) {
+        items.resize(static_cast<std::size_t>(maxContextItems));
+    }
+    return items;
+}
+
+#ifdef INDUSPILOT_WITH_DROGON
+Json::Value providerRequestToJson(const AiProviderRequest& request, int maxContextItems) {
+    Json::Value value;
+    value["operation"] = request.operation;
+    value["prompt"] = request.prompt;
+    Json::Value context(Json::arrayValue);
+    for (const auto& item : limitedContextItems(request, maxContextItems)) {
+        context.append(item);
+    }
+    value["contextItems"] = context;
+    return value;
+}
+
+std::string textField(const Json::Value& value, const char* field) {
+    if (value.isMember(field) && value[field].isString()) {
+        return value[field].asString();
+    }
+    return {};
+}
+
+std::string extractProviderContent(const Json::Value& value) {
+    for (const auto* field : {"content", "summary", "text", "output_text"}) {
+        const auto text = textField(value, field);
+        if (!text.empty()) {
+            return text;
+        }
+    }
+
+    if (value.isMember("choices") && value["choices"].isArray() && !value["choices"].empty()) {
+        const auto& choice = value["choices"][0];
+        if (choice.isMember("message")) {
+            const auto text = textField(choice["message"], "content");
+            if (!text.empty()) {
+                return text;
+            }
+        }
+        const auto text = textField(choice, "text");
+        if (!text.empty()) {
+            return text;
+        }
+    }
+
+    if (value.isMember("output") && value["output"].isArray()) {
+        for (const auto& output : value["output"]) {
+            if (!output.isMember("content") || !output["content"].isArray()) {
+                continue;
+            }
+            for (const auto& content : output["content"]) {
+                const auto text = textField(content, "text");
+                if (!text.empty()) {
+                    return text;
+                }
+            }
+        }
+    }
+
+    return value.toStyledString();
+}
+#endif
 class DisabledAiProvider final : public AiProvider {
 public:
     ServiceStatus status() const override {
@@ -131,25 +232,69 @@ public:
 
 class HttpAiProvider final : public AiProvider {
 public:
-    explicit HttpAiProvider(std::string endpoint) : endpoint_(std::move(endpoint)) {}
+    HttpAiProvider(std::string endpoint, int timeoutMs, int maxContextItems)
+        : endpoint_(std::move(endpoint)), timeoutMs_(timeoutMs), maxContextItems_(maxContextItems) {}
 
     ServiceStatus status() const override {
-        return ServiceStatus{"ai-provider", true, "http provider 已配置 endpoint=" + endpoint_ + "；当前保留传输适配边界并使用本地规则降级"};
+        const auto parsed = parseHttpEndpoint(endpoint_);
+        if (!parsed.valid) {
+            return ServiceStatus{"ai-provider", false, "http provider endpoint 格式无效：" + endpoint_};
+        }
+#ifdef INDUSPILOT_WITH_DROGON
+        return ServiceStatus{"ai-provider", true, "http provider 已启用真实推理传输 endpoint=" + endpoint_};
+#else
+        return ServiceStatus{"ai-provider", false, "http provider 已配置 endpoint=" + endpoint_ + "，但当前构建未启用 Drogon HTTP 传输"};
+#endif
     }
 
     AiProviderResult complete(const AiProviderRequest& request) const override {
-        return AiProviderResult{false, "http", "HTTP provider endpoint=" + endpoint_ + " 已配置；当前未执行外部传输，已按 " + request.operation + " 使用本地规则降级"};
+        const auto parsed = parseHttpEndpoint(endpoint_);
+        if (!parsed.valid) {
+            return AiProviderResult{false, "http", "HTTP provider endpoint 格式无效，已按 " + request.operation + " 使用本地规则降级"};
+        }
+#ifndef INDUSPILOT_WITH_DROGON
+        return AiProviderResult{false, "http", "当前构建未启用 Drogon HTTP 传输，已按 " + request.operation + " 使用本地规则降级"};
+#else
+        try {
+            auto client = drogon::HttpClient::newHttpClient(parsed.baseUrl);
+            auto httpRequest = drogon::HttpRequest::newHttpJsonRequest(providerRequestToJson(request, maxContextItems_));
+            httpRequest->setMethod(drogon::Post);
+            httpRequest->setPath(parsed.path);
+            httpRequest->addHeader("X-IndusPilot-Ai-Operation", request.operation);
+
+            const auto timeoutSeconds = static_cast<double>((std::max)(timeoutMs_, 1)) / 1000.0;
+            const auto responsePair = client->sendRequest(httpRequest, timeoutSeconds);
+            if (responsePair.first != drogon::ReqResult::Ok || !responsePair.second) {
+                return AiProviderResult{false, "http", "HTTP provider 调用失败，已按 " + request.operation + " 使用本地规则降级"};
+            }
+
+            const auto statusCode = static_cast<int>(responsePair.second->statusCode());
+            if (statusCode < 200 || statusCode >= 300) {
+                return AiProviderResult{false, "http", "HTTP provider 返回状态码 " + std::to_string(statusCode) + "，已按 " + request.operation + " 使用本地规则降级"};
+            }
+
+            const auto json = responsePair.second->getJsonObject();
+            if (json) {
+                return AiProviderResult{true, "http", extractProviderContent(*json)};
+            }
+            return AiProviderResult{true, "http", std::string(responsePair.second->getBody())};
+        } catch (const std::exception& ex) {
+            return AiProviderResult{false, "http", std::string("HTTP provider 异常：") + ex.what() + "，已按 " + request.operation + " 使用本地规则降级"};
+        }
+#endif
     }
 
 private:
     std::string endpoint_;
+    int timeoutMs_{15000};
+    int maxContextItems_{20};
 };
 
 }  // namespace
 
 std::shared_ptr<AiProvider> makeAiProvider(const app::AiConfig& config) {
     if (config.enabled && config.provider == "http") {
-        return std::make_shared<HttpAiProvider>(config.endpoint);
+        return std::make_shared<HttpAiProvider>(config.endpoint, config.timeoutMs, config.maxContextItems);
     }
     return std::make_shared<DisabledAiProvider>();
 }
@@ -169,7 +314,7 @@ ServiceStatus AiService::status() const {
     if (!config_.enabled) {
         return ServiceStatus{"ai-diagnosis-assistance", true, "AI 未启用；" + providerStatus.message};
     }
-    return ServiceStatus{"ai-diagnosis-assistance", true, "AI provider=" + config_.provider + "；" + providerStatus.message};
+    return ServiceStatus{"ai-diagnosis-assistance", providerStatus.ready, "AI provider=" + config_.provider + "；" + providerStatus.message};
 }
 
 std::string AiService::providerName() const {
@@ -228,12 +373,18 @@ AiSuggestion AiService::unavailableSuggestion(const AiRequest& request, const st
 }
 
 void AiService::recordInteraction(const AiRequest& request, const AiSuggestion& suggestion) {
+    if (!config_.storeInteractionRecords) {
+        return;
+    }
     std::ostringstream id;
     id << "ai-interaction-" << repository_->list().size() + 1;
     repository_->save(domain::AiInteraction{id.str(), request.relatedType, request.relatedId, request.prompt, suggestion.content});
 }
 
 void AiService::recordDiagnosis(const DiagnosisRequest& request, const DiagnosisResult& result) {
+    if (!config_.storeInteractionRecords) {
+        return;
+    }
     std::ostringstream id;
     id << "ai-interaction-" << repository_->list().size() + 1;
     repository_->save(domain::AiInteraction{id.str(), request.relatedType, request.relatedId, summarizeContext(request), serializeDiagnosis(result)});

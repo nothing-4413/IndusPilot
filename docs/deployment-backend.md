@@ -62,6 +62,9 @@ docker compose up -d
 - `INDUSPILOT_AI_ENABLED`
 - `INDUSPILOT_AI_PROVIDER`
 - `INDUSPILOT_AI_ENDPOINT`
+- `INDUSPILOT_AI_TIMEOUT_MS`
+- `INDUSPILOT_AI_MAX_CONTEXT_ITEMS`
+- `INDUSPILOT_AI_STORE_INTERACTION_RECORDS`
 
 ## 仓储运行时
 
@@ -75,7 +78,7 @@ docker compose up -d
 
 - Redis session 已支持通过 `redis.uri` 接入；`redis.password` 和 `redis.database` 会被解析，但当前连接实现不单独消费这两个字段，如需认证或选择 DB，请把信息嵌入 `redis.uri`。
 - MongoDB 当前仅用于 TCP 健康探测；AI 交互审计在 `repository_store=mysql` 时写入 MySQL，尚未写入 MongoDB。
-- `ai.enabled`、`ai.provider` 和 `ai.endpoint` 当前驱动健康探测、AI 状态接口、agent 诊断编排和降级提示；`provider=http` 已保留外部模型服务适配边界，当前仍使用本地规则降级。
+- `ai.enabled`、`ai.provider`、`ai.endpoint`、`ai.timeoutMs`、`ai.maxContextItems` 和 `ai.storeInteractionRecords` 驱动健康探测、AI 状态接口、agent 诊断编排、HTTP provider 推理传输和交互审计记录策略；非 Drogon 构建或 HTTP 调用失败时仍使用本地规则降级。
 - `/health` 依赖检查当前只验证 TCP 连通性，不校验认证、schema、表结构或 MongoDB collection。
 
 ## Session Store

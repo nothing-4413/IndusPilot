@@ -35,7 +35,10 @@ mongodb:
   database: "induspilot"
 
 ai:
-  # provider 支持 disabled/http；http 当前作为外部模型服务适配边界，尚未执行真实外部推理传输。
+  # provider 支持 disabled/http；启用 Drogon 构建时 http 会向 endpoint 发起真实推理请求。
   enabled: false
   provider: "disabled"
-  endpoint: "http://127.0.0.1:9000"
+  endpoint: "http://127.0.0.1:9000/v1/complete"
+  timeoutMs: 15000
+  maxContextItems: 20
+  storeInteractionRecords: true
