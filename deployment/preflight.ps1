@@ -131,6 +131,25 @@ foreach ($migration in $expectedMigrations) {
     }
 }
 
+foreach ($scriptPath in $schemaScripts) {
+    $scriptText = Get-FileText $scriptPath
+    $usesColumnAlter = $scriptText -match "(?is)ALTER\s+TABLE.*ADD\s+COLUMN"
+    $checksColumns = $scriptText -match "INFORMATION_SCHEMA\.COLUMNS" -or $scriptText -match "(?is)ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS"
+    if ($usesColumnAlter -and -not $checksColumns) {
+        Write-CheckFail "MySQL 迁移缺少列幂等保护：$scriptPath"
+    } elseif ($usesColumnAlter) {
+        Write-CheckOk "MySQL 列迁移具备幂等保护：$scriptPath"
+    }
+
+    $usesIndexAlter = $scriptText -match "(?is)ALTER\s+TABLE.*ADD\s+(UNIQUE\s+)?INDEX"
+    $checksIndexes = $scriptText -match "INFORMATION_SCHEMA\.STATISTICS" -or $scriptText -match "(?is)ADD\s+(UNIQUE\s+)?INDEX\s+IF\s+NOT\s+EXISTS"
+    if ($usesIndexAlter -and -not $checksIndexes) {
+        Write-CheckFail "MySQL 迁移缺少索引幂等保护：$scriptPath"
+    } elseif ($usesIndexAlter) {
+        Write-CheckOk "MySQL 索引迁移具备幂等保护：$scriptPath"
+    }
+}
+
 $seed = Get-FileText "database/mysql/002_seed_identity.sql"
 if ($seed -match 'pbkdf2_sha256\$120000\$') {
     Write-CheckOk "MySQL 演示账号使用 PBKDF2 哈希格式"
