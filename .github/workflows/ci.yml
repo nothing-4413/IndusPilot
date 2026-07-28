@@ -27,6 +27,24 @@ jobs:
       - name: Run backend tests
         run: ctest --test-dir build/ci-backend --output-on-failure
 
+  configuration-preflight:
+    name: configuration preflight
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate deployment preflight
+        shell: powershell
+        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File deployment/preflight.ps1
+
+      - name: Validate CMake presets
+        shell: powershell
+        env:
+          VCPKG_ROOT: "C:\vcpkg"
+        run: cmake --list-presets=configure
+
   openspec:
     name: openspec validation
     runs-on: ubuntu-latest
