@@ -35,7 +35,7 @@ ctest --test-dir build/ninja-msvc-client --output-on-failure
 
 ## Redis 会话存储
 
-Redis C++ 客户端已安装在 `C:\Users\20106\vcpkg`，并设置了用户环境变量 `VCPKG_ROOT`。启用 Redis-backed session 时使用：
+Redis C++ 客户端通过 vcpkg 安装，`dev-redis` preset 通过用户或系统环境变量 `VCPKG_ROOT` 定位 toolchain 与运行时 DLL。启用 Redis-backed session 时使用：
 
 ```powershell
 cmake --preset dev-redis

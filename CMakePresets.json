@@ -17,7 +17,7 @@
       "displayName": "IndusPilot Dev Redis",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/dev-redis",
-      "toolchainFile": "C:/Users/20106/vcpkg/scripts/buildsystems/vcpkg.cmake",
+      "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "INDUSPILOT_BUILD_CLIENT": "OFF",
@@ -30,7 +30,7 @@
       "displayName": "IndusPilot Dev HTTP",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/dev-http",
-      "toolchainFile": "C:/Users/20106/vcpkg/scripts/buildsystems/vcpkg.cmake",
+      "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "INDUSPILOT_BUILD_CLIENT": "OFF",
@@ -69,7 +69,7 @@
         "outputOnFailure": true
       },
       "environment": {
-        "PATH": "C:/Users/20106/vcpkg/installed/x64-windows/debug/bin;C:/Users/20106/vcpkg/installed/x64-windows/bin;$penv{PATH}"
+        "PATH": "$env{VCPKG_ROOT}/installed/x64-windows/debug/bin;$env{VCPKG_ROOT}/installed/x64-windows/bin;$penv{PATH}"
       }
     },
     {
@@ -79,7 +79,7 @@
         "outputOnFailure": true
       },
       "environment": {
-        "PATH": "C:/Users/20106/vcpkg/installed/x64-windows/debug/bin;C:/Users/20106/vcpkg/installed/x64-windows/bin;$penv{PATH}"
+        "PATH": "$env{VCPKG_ROOT}/installed/x64-windows/debug/bin;$env{VCPKG_ROOT}/installed/x64-windows/bin;$penv{PATH}"
       }
     }
   ]

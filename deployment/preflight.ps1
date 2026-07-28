@@ -87,6 +87,18 @@ foreach ($fragment in @('repository_store: "memory"', 'session_store: "memory"',
     }
 }
 
+$cmakePresets = Get-FileText "CMakePresets.json"
+if ($cmakePresets -match "(?i)C:[/\\]Users[/\\][^/\\]+[/\\]vcpkg") {
+    Write-CheckFail "CMakePresets.json 不应写死本机 vcpkg 用户路径"
+} else {
+    Write-CheckOk "CMakePresets.json 未写死本机 vcpkg 用户路径"
+}
+if ($cmakePresets.Contains('$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake')) {
+    Write-CheckOk "CMake presets 使用 VCPKG_ROOT 定位 toolchain"
+} else {
+    Write-CheckFail "CMake presets 未使用 VCPKG_ROOT 定位 toolchain"
+}
+
 $schema1 = Get-FileText "database/mysql/001_foundation_schema.sql"
 if ($schema1 -match "CREATE TABLE IF NOT EXISTS schema_migrations") {
     Write-CheckOk "MySQL schema 版本表已定义"
