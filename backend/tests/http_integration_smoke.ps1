@@ -85,6 +85,11 @@ try {
     Assert-True ($traceResponse.Headers["X-Trace-Id"] -eq "trace-it-request-header") "Trace header was not propagated from X-Request-Id."
     Assert-True ($traceResponse.Headers["X-Request-Id"] -eq "trace-it-request-header") "Request id header was not echoed."
 
+    $generatedTraceResponse = Invoke-WebRequest -UseBasicParsing -Uri "$BaseUrl/health" -Method Get -TimeoutSec 10
+    $generatedTraceId = $generatedTraceResponse.Headers["X-Trace-Id"]
+    Assert-True (-not [string]::IsNullOrWhiteSpace($generatedTraceId)) "Generated trace id was not returned."
+    Assert-True ($generatedTraceId -eq $generatedTraceResponse.Headers["X-Request-Id"]) "Generated trace id headers were not consistent."
+    Assert-True ($generatedTraceId -match '^trace-\d+-\d+$') "Generated trace id did not match the expected format."
 
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/assets" -Method Get -Status 401
 

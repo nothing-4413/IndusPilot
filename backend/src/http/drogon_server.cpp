@@ -18,8 +18,9 @@
 #include <drogon/drogon.h>
 
 #include <algorithm>
-#include <sstream>
+#include <atomic>
 #include <chrono>
+#include <sstream>
 #include <cstddef>
 #include <memory>
 #include <optional>
@@ -29,6 +30,8 @@
 
 namespace induspilot::http {
 namespace {
+
+constexpr const char* kTraceIdAttribute = "induspilot.trace_id";
 
 std::string assetStatusToString(domain::AssetStatus status) {
     switch (status) {
@@ -518,7 +521,14 @@ drogon::HttpResponsePtr forbidden() {
     return jsonResponse(responseEnvelope(false, "AUTHORIZATION_DENIED", "permission denied"), drogon::k403Forbidden);
 }
 
-std::string traceIdFor(const drogon::HttpRequestPtr& request) {
+std::string generatedTraceId() {
+    static std::atomic<unsigned long long> sequence{0};
+    const auto now = std::chrono::system_clock::now().time_since_epoch();
+    const auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(now).count();
+    return "trace-" + std::to_string(millis) + '-' + std::to_string(++sequence);
+}
+
+std::string incomingTraceIdFor(const drogon::HttpRequestPtr& request) {
     const auto incomingTrace = request->getHeader("X-Trace-Id");
     if (!incomingTrace.empty()) {
         return incomingTrace;
@@ -527,10 +537,20 @@ std::string traceIdFor(const drogon::HttpRequestPtr& request) {
     if (!incomingRequest.empty()) {
         return incomingRequest;
     }
-    static std::atomic<unsigned long long> sequence{0};
-    const auto now = std::chrono::system_clock::now().time_since_epoch();
-    const auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(now).count();
-    return "trace-" + std::to_string(millis) + '-' + std::to_string(++sequence);
+    return {};
+}
+
+std::string traceIdFor(const drogon::HttpRequestPtr& request) {
+    const auto storedTraceId = request->attributes()->get<std::string>(kTraceIdAttribute);
+    if (!storedTraceId.empty()) {
+        return storedTraceId;
+    }
+    auto traceId = incomingTraceIdFor(request);
+    if (traceId.empty()) {
+        traceId = generatedTraceId();
+    }
+    request->attributes()->insert(kTraceIdAttribute, traceId);
+    return traceId;
 }
 
 void writeRequestLog(const drogon::HttpRequestPtr& request, const std::optional<modules::SessionInfo>& session = std::nullopt) {
