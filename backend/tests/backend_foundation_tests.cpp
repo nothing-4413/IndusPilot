@@ -49,6 +49,8 @@ int main() {
     _putenv_s("INDUSPILOT_AI_MAX_CONTEXT_ITEMS", "3");
     _putenv_s("INDUSPILOT_AI_STORE_INTERACTION_RECORDS", "false");
     _putenv_s("INDUSPILOT_MYSQL_URI", "host=127.0.0.1 port=3306 dbname=induspilot user=induspilot");
+    _putenv_s("INDUSPILOT_SECURITY_LOGIN_MAX_FAILURES", "3");
+    _putenv_s("INDUSPILOT_SECURITY_LOGIN_LOCKOUT_SECONDS", "120");
 #else
     setenv("INDUSPILOT_SERVER_PORT", "18080", 1);
     setenv("INDUSPILOT_REDIS_SESSION_TTL_SECONDS", "60", 1);
@@ -60,6 +62,8 @@ int main() {
     setenv("INDUSPILOT_AI_MAX_CONTEXT_ITEMS", "3", 1);
     setenv("INDUSPILOT_AI_STORE_INTERACTION_RECORDS", "false", 1);
     setenv("INDUSPILOT_MYSQL_URI", "host=127.0.0.1 port=3306 dbname=induspilot user=induspilot", 1);
+    setenv("INDUSPILOT_SECURITY_LOGIN_MAX_FAILURES", "3", 1);
+    setenv("INDUSPILOT_SECURITY_LOGIN_LOCKOUT_SECONDS", "120", 1);
 #endif
     const auto loadedConfig = induspilot::app::loadConfig("config/backend.example.yaml");
     assert(loadedConfig.port == 18080);
@@ -72,6 +76,8 @@ int main() {
     assert(loadedConfig.ai.maxContextItems == 3);
     assert(!loadedConfig.ai.storeInteractionRecords);
     assert(loadedConfig.mysql.uri == "host=127.0.0.1 port=3306 dbname=induspilot user=induspilot");
+    assert(loadedConfig.security.loginMaxFailures == 3);
+    assert(loadedConfig.security.loginLockoutSeconds == 120);
 #ifdef _WIN32
     _putenv_s("INDUSPILOT_SERVER_PORT", "");
     _putenv_s("INDUSPILOT_REDIS_SESSION_TTL_SECONDS", "");
@@ -83,6 +89,8 @@ int main() {
     _putenv_s("INDUSPILOT_AI_MAX_CONTEXT_ITEMS", "");
     _putenv_s("INDUSPILOT_AI_STORE_INTERACTION_RECORDS", "");
     _putenv_s("INDUSPILOT_MYSQL_URI", "");
+    _putenv_s("INDUSPILOT_SECURITY_LOGIN_MAX_FAILURES", "");
+    _putenv_s("INDUSPILOT_SECURITY_LOGIN_LOCKOUT_SECONDS", "");
 #else
     unsetenv("INDUSPILOT_SERVER_PORT");
     unsetenv("INDUSPILOT_REDIS_SESSION_TTL_SECONDS");
@@ -94,6 +102,8 @@ int main() {
     unsetenv("INDUSPILOT_AI_MAX_CONTEXT_ITEMS");
     unsetenv("INDUSPILOT_AI_STORE_INTERACTION_RECORDS");
     unsetenv("INDUSPILOT_MYSQL_URI");
+    unsetenv("INDUSPILOT_SECURITY_LOGIN_MAX_FAILURES");
+    unsetenv("INDUSPILOT_SECURITY_LOGIN_LOCKOUT_SECONDS");
 #endif
 
     induspilot::app::Application app(induspilot::app::AppConfig{});
@@ -119,6 +129,28 @@ int main() {
     assert(identity.hasPermission(permissions, "monitoring:write"));
     assert(identity.authenticate("admin", "admin123"));
     assert(!identity.authenticate("admin", "wrong-password"));
+
+    induspilot::modules::LoginSecurityPolicy lockoutPolicy;
+    lockoutPolicy.maxFailures = 2;
+    lockoutPolicy.failureWindow = std::chrono::seconds(60);
+    lockoutPolicy.lockDuration = std::chrono::seconds(120);
+    induspilot::modules::IdentityService guardedIdentity(
+        std::make_shared<induspilot::modules::InMemorySessionStore>(),
+        std::chrono::hours(8),
+        std::make_shared<induspilot::data::InMemoryUserRepository>(),
+        std::make_shared<induspilot::data::InMemoryPermissionRepository>(),
+        lockoutPolicy);
+    const auto firstFailure = guardedIdentity.login({"admin", "wrong-password"});
+    assert(!firstFailure.success);
+    assert(firstFailure.code == "AUTHENTICATION_FAILED");
+    const auto lockedFailure = guardedIdentity.login({"admin", "wrong-password"});
+    assert(!lockedFailure.success);
+    assert(lockedFailure.code == "AUTHENTICATION_LOCKED");
+    assert(lockedFailure.retryAfterSeconds > 0);
+    const auto lockedSuccessAttempt = guardedIdentity.login({"admin", "admin123"});
+    assert(!lockedSuccessAttempt.success);
+    assert(lockedSuccessAttempt.code == "AUTHENTICATION_LOCKED");
+
     assert(induspilot::modules::verifyPassword("admin123", "plain:admin123"));
     assert(induspilot::modules::verifyPassword("admin123", "pbkdf2_sha256$1000$identity-test-salt$3d8943413e05ec9118c53174a59bf506b84c558ead29bc37acd901f632a256f1"));
     assert(!induspilot::modules::verifyPassword("wrong-password", "pbkdf2_sha256$1000$identity-test-salt$3d8943413e05ec9118c53174a59bf506b84c558ead29bc37acd901f632a256f1"));

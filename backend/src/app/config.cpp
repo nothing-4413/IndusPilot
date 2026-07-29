@@ -129,6 +129,14 @@ void applyConfigValue(AppConfig& config, const std::string& section, const std::
         config.ai.maxContextItems = parseInt(value, config.ai.maxContextItems);
     } else if (section == "ai" && (key == "storeInteractionRecords" || key == "store_interaction_records")) {
         config.ai.storeInteractionRecords = parseBool(value, config.ai.storeInteractionRecords);
+    } else if (section == "security" && (key == "loginLockoutEnabled" || key == "login_lockout_enabled")) {
+        config.security.loginLockoutEnabled = parseBool(value, config.security.loginLockoutEnabled);
+    } else if (section == "security" && (key == "loginMaxFailures" || key == "login_max_failures")) {
+        config.security.loginMaxFailures = parseInt(value, config.security.loginMaxFailures);
+    } else if (section == "security" && (key == "loginFailureWindowSeconds" || key == "login_failure_window_seconds")) {
+        config.security.loginFailureWindowSeconds = parseInt(value, config.security.loginFailureWindowSeconds);
+    } else if (section == "security" && (key == "loginLockoutSeconds" || key == "login_lockout_seconds")) {
+        config.security.loginLockoutSeconds = parseInt(value, config.security.loginLockoutSeconds);
     } else if (section == "storage" && key == "repository_store") {
         config.storage.repositoryStore = value;
     }
@@ -166,6 +174,11 @@ void applyEnvironmentOverrides(AppConfig& config) {
     applyIntEnv("INDUSPILOT_AI_TIMEOUT_MS", config.ai.timeoutMs);
     applyIntEnv("INDUSPILOT_AI_MAX_CONTEXT_ITEMS", config.ai.maxContextItems);
     applyBoolEnv("INDUSPILOT_AI_STORE_INTERACTION_RECORDS", config.ai.storeInteractionRecords);
+
+    applyBoolEnv("INDUSPILOT_SECURITY_LOGIN_LOCKOUT_ENABLED", config.security.loginLockoutEnabled);
+    applyIntEnv("INDUSPILOT_SECURITY_LOGIN_MAX_FAILURES", config.security.loginMaxFailures);
+    applyIntEnv("INDUSPILOT_SECURITY_LOGIN_FAILURE_WINDOW_SECONDS", config.security.loginFailureWindowSeconds);
+    applyIntEnv("INDUSPILOT_SECURITY_LOGIN_LOCKOUT_SECONDS", config.security.loginLockoutSeconds);
 
     applyStringEnv("INDUSPILOT_REPOSITORY_STORE", config.storage.repositoryStore);
 }

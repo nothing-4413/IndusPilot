@@ -580,23 +580,35 @@ std::shared_ptr<modules::SessionStore> createSessionStore(const app::AppConfig& 
     return std::make_shared<modules::InMemorySessionStore>();
 }
 
+modules::LoginSecurityPolicy loginSecurityPolicyFrom(const app::AppConfig& config) {
+    modules::LoginSecurityPolicy policy;
+    policy.enabled = config.security.loginLockoutEnabled;
+    policy.maxFailures = config.security.loginMaxFailures;
+    policy.failureWindow = std::chrono::seconds(config.security.loginFailureWindowSeconds > 0 ? config.security.loginFailureWindowSeconds : 60);
+    policy.lockDuration = std::chrono::seconds(config.security.loginLockoutSeconds > 0 ? config.security.loginLockoutSeconds : 900);
+    return policy;
+}
+
 std::shared_ptr<modules::IdentityService> createIdentityService(const app::AppConfig& config, const drogon::orm::DbClientPtr& mysqlClient) {
     auto ttl = std::chrono::seconds(config.redis.sessionTtlSeconds > 0 ? config.redis.sessionTtlSeconds : 28800);
     auto sessionStore = createSessionStore(config);
+    auto securityPolicy = loginSecurityPolicyFrom(config);
 
     if (config.storage.repositoryStore == "mysql") {
         return std::make_shared<modules::IdentityService>(
             sessionStore,
             ttl,
             std::make_shared<data::MySqlUserRepository>(mysqlClient),
-            std::make_shared<data::MySqlPermissionRepository>(mysqlClient));
+            std::make_shared<data::MySqlPermissionRepository>(mysqlClient),
+            securityPolicy);
     }
 
     return std::make_shared<modules::IdentityService>(
         sessionStore,
         ttl,
         std::make_shared<data::InMemoryUserRepository>(),
-        std::make_shared<data::InMemoryPermissionRepository>());
+        std::make_shared<data::InMemoryPermissionRepository>(),
+        securityPolicy);
 }
 
 std::shared_ptr<data::AssetRepository> createAssetRepository(const app::AppConfig& config, const drogon::orm::DbClientPtr& mysqlClient) {
@@ -729,9 +741,19 @@ void registerRoutes(
             return;
         }
 
-        const auto result = identity->login({(*payload)["username"].asString(), (*payload)["password"].asString()});
+        const auto username = (*payload)["username"].asString();
+        const auto result = identity->login({username, (*payload)["password"].asString()});
         if (!result.success || !result.session) {
-            callback(jsonResponse(responseEnvelope(false, "AUTHENTICATION_FAILED", "invalid username or password"), drogon::k401Unauthorized));
+            const auto code = result.code.empty() ? "AUTHENTICATION_FAILED" : result.code;
+            if (code == "AUTHENTICATION_LOCKED") {
+                auto response = jsonResponse(responseEnvelope(false, code, result.message), drogon::k429TooManyRequests);
+                response->addHeader("Retry-After", std::to_string(result.retryAfterSeconds));
+                recordAuditEvent(audit, username, "auth.login.locked", "user", username, "locked", traceIdFor(request));
+                callback(response);
+                return;
+            }
+            recordAuditEvent(audit, username, "auth.login.failed", "user", username, "failed", traceIdFor(request));
+            callback(jsonResponse(responseEnvelope(false, code, "invalid username or password"), drogon::k401Unauthorized));
             return;
         }
 

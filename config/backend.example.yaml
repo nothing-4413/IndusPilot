@@ -34,6 +34,13 @@ mongodb:
   uri: "mongodb://127.0.0.1:27017"
   database: "induspilot"
 
+security:
+  # 登录失败锁定用于抑制暴力尝试；超过阈值后登录接口返回 429 和 Retry-After。
+  login_lockout_enabled: true
+  login_max_failures: 5
+  login_failure_window_seconds: 60
+  login_lockout_seconds: 900
+
 ai:
   # provider 支持 disabled/http；启用 Drogon 构建时 http 会向 endpoint 发起真实推理请求。
   enabled: false

@@ -151,3 +151,6 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File backend/tests/http_integ
 ## 请求追踪
 
 HTTP 服务会读取 `X-Trace-Id` 或 `X-Request-Id`，优先使用 `X-Trace-Id`，未提供时生成 `trace-<timestamp>-<sequence>`。所有响应都会回传 `X-Trace-Id` 与 `X-Request-Id`，结构化请求日志中的 `traceId` 与操作审计 `traceId` 使用同一值，便于从 API 调用追踪到审计记录。
+## 登录失败锁定
+
+HTTP 登录接口复用身份服务的安全策略。`security.login_lockout_enabled` 开启后，同一用户名在 `security.login_failure_window_seconds` 窗口内连续失败达到 `security.login_max_failures`，后续登录会返回 `429 Too Many Requests`，并通过 `Retry-After` 告知剩余锁定时间。失败和锁定事件分别写入 `auth.login.failed`、`auth.login.locked` 操作审计，审计事件沿用当前请求追踪编号。

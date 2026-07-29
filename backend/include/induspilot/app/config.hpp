@@ -33,6 +33,13 @@ struct AiConfig {
     bool storeInteractionRecords{true};
 };
 
+struct SecurityConfig {
+    bool loginLockoutEnabled{true};
+    int loginMaxFailures{5};
+    int loginFailureWindowSeconds{60};
+    int loginLockoutSeconds{900};
+};
+
 struct StorageConfig {
     std::string repositoryStore{"memory"};
 };
@@ -45,6 +52,7 @@ struct AppConfig {
     RedisConfig redis{};
     DatabaseConfig mongodb{"127.0.0.1", 27017, "induspilot", "", "", "mongodb://127.0.0.1:27017"};
     AiConfig ai{};
+    SecurityConfig security{};
     StorageConfig storage{};
 };
 

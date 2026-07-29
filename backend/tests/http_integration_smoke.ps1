@@ -48,11 +48,49 @@ function Invoke-ExpectStatus {
         }
     }
 }
+function Invoke-ExpectStatusResponse {
+    param(
+        [string]$Uri,
+        [string]$Method,
+        [int]$Status,
+        [hashtable]$Headers = @{},
+        [string]$Body = $null
+    )
+
+    try {
+        if (-not $PSBoundParameters.ContainsKey("Body") -or $Body -eq $null) {
+            $response = Invoke-WebRequest -UseBasicParsing -Uri $Uri -Method $Method -Headers $Headers -TimeoutSec 10
+        } else {
+            $response = Invoke-WebRequest -UseBasicParsing -Uri $Uri -Method $Method -Headers $Headers -ContentType "application/json" -Body $Body -TimeoutSec 10
+        }
+        $actual = [int]$response.StatusCode
+        if ($actual -ne $Status) {
+            throw "Expected HTTP $Status from $Method $Uri, got $actual"
+        }
+        return $response
+    } catch {
+        $response = $_.Exception.Response
+        if ($response -eq $null) {
+            throw
+        }
+        $actual = [int]$response.StatusCode
+        if ($actual -ne $Status) {
+            throw "Expected HTTP $Status from $Method $Uri, got $actual"
+        }
+        return $response
+    }
+}
 
 $oldPort = $env:INDUSPILOT_SERVER_PORT
 $oldSessionStore = $env:INDUSPILOT_REDIS_SESSION_STORE
+$oldLoginMaxFailures = $env:INDUSPILOT_SECURITY_LOGIN_MAX_FAILURES
+$oldLoginFailureWindow = $env:INDUSPILOT_SECURITY_LOGIN_FAILURE_WINDOW_SECONDS
+$oldLoginLockoutSeconds = $env:INDUSPILOT_SECURITY_LOGIN_LOCKOUT_SECONDS
 $env:INDUSPILOT_SERVER_PORT = "18081"
 $env:INDUSPILOT_REDIS_SESSION_STORE = $SessionStore
+$env:INDUSPILOT_SECURITY_LOGIN_MAX_FAILURES = "2"
+$env:INDUSPILOT_SECURITY_LOGIN_FAILURE_WINDOW_SECONDS = "60"
+$env:INDUSPILOT_SECURITY_LOGIN_LOCKOUT_SECONDS = "30"
 
 $stdout = [System.IO.Path]::GetTempFileName()
 $stderr = [System.IO.Path]::GetTempFileName()
@@ -92,6 +130,9 @@ try {
     Assert-True ($generatedTraceId -match '^trace-\d+-\d+$') "Generated trace id did not match the expected format."
 
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/assets" -Method Get -Status 401
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/auth/login" -Method Post -Status 401 -Body '{"username":"lockout-http-user","password":"bad-1"}'
+    $lockedLogin = Invoke-ExpectStatusResponse -Uri "$BaseUrl/api/v1/auth/login" -Method Post -Status 429 -Body '{"username":"lockout-http-user","password":"bad-2"}'
+    Assert-True (-not [string]::IsNullOrWhiteSpace($lockedLogin.Headers["Retry-After"])) "Locked login did not include Retry-After header."
 
     $operatorLogin = Invoke-RestMethod -Uri "$BaseUrl/api/v1/auth/login" -Method Post -ContentType "application/json" -Body '{"username":"operator","password":"operator123"}' -TimeoutSec 10
     Assert-True $operatorLogin.success "Operator login failed."
@@ -367,5 +408,8 @@ try {
     }
     $env:INDUSPILOT_SERVER_PORT = $oldPort
     $env:INDUSPILOT_REDIS_SESSION_STORE = $oldSessionStore
+    $env:INDUSPILOT_SECURITY_LOGIN_MAX_FAILURES = $oldLoginMaxFailures
+    $env:INDUSPILOT_SECURITY_LOGIN_FAILURE_WINDOW_SECONDS = $oldLoginFailureWindow
+    $env:INDUSPILOT_SECURITY_LOGIN_LOCKOUT_SECONDS = $oldLoginLockoutSeconds
     Remove-Item -LiteralPath $stdout, $stderr -Force -ErrorAction SilentlyContinue
 }
