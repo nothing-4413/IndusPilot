@@ -72,3 +72,6 @@ $env:INDUSPILOT_REPOSITORY_STORE="mysql"
 ## 质量门禁
 
 项目提供 `tools/quality/quality_gate.ps1`，用于检查 clang 配置、CMake presets、CI 工作流和 OpenSpec 基础约束。CI 中的 `quality gates` job 会强制要求 `clang-format` 与 `clang-tidy` 可用。更多说明见 `docs/development/quality-gates.md`。
+## Agent 工作流展示
+
+项目提供 `docs/agent-workflows/agent-delivery-loop.md` 说明从 OpenSpec、实现、验证、提交到 CI 的 agent 交付闭环，并提供 `demo/agent-workflow-evidence.ps1` 生成本地证据包。
