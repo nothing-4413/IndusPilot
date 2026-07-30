@@ -10,6 +10,23 @@ permissions:
   contents: read
 
 jobs:
+  quality-gates:
+    name: quality gates
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install clang quality tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format clang-tidy
+
+      - name: Run quality gates
+        shell: pwsh
+        run: tools/quality/quality_gate.ps1 -RequireClangTools
+
   backend-foundation:
     name: backend foundation
     runs-on: ubuntu-latest

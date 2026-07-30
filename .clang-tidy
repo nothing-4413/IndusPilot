@@ -1,0 +1,19 @@
+Checks: >
+  -*,
+  bugprone-*,
+  clang-analyzer-*,
+  cppcoreguidelines-*,
+  modernize-*,
+  performance-*,
+  portability-*,
+  readability-*
+WarningsAsErrors: ''bugprone-*,clang-analyzer-*,performance-*''
+HeaderFilterRegex: ''^(backend|client|shared)/.*''
+FormatStyle: file
+CheckOptions:
+  - key: readability-identifier-length.IgnoredVariableNames
+    value: ''i|j|k|id|db|ok|it|to|ps|ui''
+  - key: readability-function-cognitive-complexity.Threshold
+    value: ''35''
+  - key: cppcoreguidelines-avoid-magic-numbers.IgnoredIntegerValues
+    value: ''0;1;2;3;4;5;10;100;200;400;401;403;404;409;429;500''
