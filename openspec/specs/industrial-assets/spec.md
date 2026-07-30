@@ -50,3 +50,10 @@ The system SHALL support filtering equipment assets by factory, workshop, produc
 - **WHEN** a user lists assets with a lifecycle status filter
 - **THEN** the system returns only assets currently in that lifecycle state
 
+### Requirement: Configured asset repository runtime
+The system SHALL run the asset service with the configured asset repository implementation.
+
+#### Scenario: Asset service starts with MySQL repository mode
+- **WHEN** repository store is configured as `mysql`
+- **THEN** the asset service uses the MySQL asset repository for asset reads and writes
+
