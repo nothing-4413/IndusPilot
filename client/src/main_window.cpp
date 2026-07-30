@@ -8,6 +8,7 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QFormLayout>
+#include <QGridLayout>
 #include <QHeaderView>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -34,6 +35,43 @@ QString csvCell(QString value) {
     return value;
 }
 
+
+int countRowsByColumn(const QVector<TableRow>& rows, int column, const QStringList& values) {
+    int count = 0;
+    for (const auto& row : rows) {
+        if (column < 0 || column >= row.columns.size()) {
+            continue;
+        }
+        const auto current = row.columns[column].trimmed();
+        for (const auto& value : values) {
+            if (current.compare(value, Qt::CaseInsensitive) == 0) {
+                ++count;
+                break;
+            }
+        }
+    }
+    return count;
+}
+
+QString kpiText(const QString& title, int value) {
+    return QStringLiteral("%1\n%2").arg(title).arg(value);
+}
+
+QString nextActionText(int criticalStates, int openAlerts, int activeWorkOrders, int aiInteractions) {
+    if (criticalStates > 0 && openAlerts == 0) {
+        return QStringLiteral("下一步：为关键运行状态创建告警，并派发给值班负责人。");
+    }
+    if (openAlerts > 0 && activeWorkOrders == 0) {
+        return QStringLiteral("下一步：确认告警、分派负责人，并从告警生成维护工单。");
+    }
+    if (activeWorkOrders > 0) {
+        return QStringLiteral("下一步：推进维护工单处理，登记附件和处置结果。");
+    }
+    if (aiInteractions == 0) {
+        return QStringLiteral("下一步：对关键告警运行 AI 诊断，形成可审计建议。");
+    }
+    return QStringLiteral("闭环稳定：持续关注审计完整性和新告警趋势。");
+}
 }  // namespace
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     setWindowTitle("IndusPilot 工业智能运维支持平台");
@@ -83,10 +121,44 @@ QWidget* MainWindow::buildLoginPage() {
 QWidget* MainWindow::buildDashboardPage() {
     auto* page = new QWidget(this);
     auto* layout = new QVBoxLayout(page);
-    layout->addWidget(new QLabel("设备运行总览"));
-    layout->addWidget(new QLabel("基础联机阶段：登录、资产、运行监控、告警、工单和 AI 诊断可接入后端。"));
-    layout->addWidget(statusBadge("critical", "danger"));
+    auto* title = new QLabel(QStringLiteral("工业运维工作台"), page);
+    title->setStyleSheet(QStringLiteral("QLabel { font-size: 20px; font-weight: 600; }"));
+    dashboardModeLabel_ = new QLabel(api_.statusMessage(), page);
+    layout->addWidget(title);
+    layout->addWidget(dashboardModeLabel_);
+
+    auto* grid = new QGridLayout();
+    dashboardAssetCountLabel_ = statusBadge(QStringLiteral("资产\n0"), "info");
+    dashboardCriticalStateLabel_ = statusBadge(QStringLiteral("关键状态\n0"), "danger");
+    dashboardOpenAlertLabel_ = statusBadge(QStringLiteral("待处理告警\n0"), "danger");
+    dashboardActiveWorkOrderLabel_ = statusBadge(QStringLiteral("活跃工单\n0"), "info");
+    dashboardAiInteractionLabel_ = statusBadge(QStringLiteral("AI 记录\n0"), "info");
+    dashboardAuditEventLabel_ = statusBadge(QStringLiteral("审计事件\n0"), "info");
+    const QVector<QLabel*> labels{
+        dashboardAssetCountLabel_,
+        dashboardCriticalStateLabel_,
+        dashboardOpenAlertLabel_,
+        dashboardActiveWorkOrderLabel_,
+        dashboardAiInteractionLabel_,
+        dashboardAuditEventLabel_};
+    for (auto* label : labels) {
+        label->setMinimumHeight(56);
+        label->setAlignment(Qt::AlignCenter);
+    }
+    grid->addWidget(dashboardAssetCountLabel_, 0, 0);
+    grid->addWidget(dashboardCriticalStateLabel_, 0, 1);
+    grid->addWidget(dashboardOpenAlertLabel_, 0, 2);
+    grid->addWidget(dashboardActiveWorkOrderLabel_, 1, 0);
+    grid->addWidget(dashboardAiInteractionLabel_, 1, 1);
+    grid->addWidget(dashboardAuditEventLabel_, 1, 2);
+    layout->addLayout(grid);
+
+    dashboardNextActionLabel_ = new QLabel(page);
+    dashboardNextActionLabel_->setWordWrap(true);
+    dashboardNextActionLabel_->setStyleSheet(QStringLiteral("QLabel { padding: 8px; border: 1px solid #d0d5dd; border-radius: 4px; background: #f9fafb; }"));
+    layout->addWidget(dashboardNextActionLabel_);
     layout->addStretch();
+    updateDashboard();
     return page;
 }
 
@@ -389,6 +461,47 @@ void MainWindow::fillTable(QTableWidget* table, const QStringList& headers, cons
     table->setEditTriggers(QAbstractItemView::NoEditTriggers);
 }
 
+
+void MainWindow::updateDashboard() {
+    if (!dashboardModeLabel_) {
+        return;
+    }
+
+    const auto assets = api_.assets();
+    const auto monitoring = api_.monitoringStates();
+    const auto alerts = api_.alerts();
+    const auto workOrders = api_.workOrders();
+    const auto aiInteractions = api_.aiInteractions();
+    const auto auditEvents = api_.auditEvents();
+    const auto criticalStates = countRowsByColumn(monitoring, 2, {"critical"});
+    const auto openAlerts = countRowsByColumn(alerts, 4, {"open", "acknowledged", "assigned"});
+    const auto activeWorkOrders = countRowsByColumn(workOrders, 3, {"created", "assigned", "processing"});
+    const auto modeText = api_.online() ? QStringLiteral("后端同步") : QStringLiteral("离线演示数据");
+
+    dashboardModeLabel_->setText(QStringLiteral("%1；当前用户：%2").arg(modeText, api_.currentUser().isEmpty() ? QStringLiteral("未登录") : api_.currentUser()));
+    if (dashboardAssetCountLabel_) {
+        dashboardAssetCountLabel_->setText(kpiText(QStringLiteral("资产"), assets.size()));
+    }
+    if (dashboardCriticalStateLabel_) {
+        dashboardCriticalStateLabel_->setText(kpiText(QStringLiteral("关键状态"), criticalStates));
+    }
+    if (dashboardOpenAlertLabel_) {
+        dashboardOpenAlertLabel_->setText(kpiText(QStringLiteral("待处理告警"), openAlerts));
+    }
+    if (dashboardActiveWorkOrderLabel_) {
+        dashboardActiveWorkOrderLabel_->setText(kpiText(QStringLiteral("活跃工单"), activeWorkOrders));
+    }
+    if (dashboardAiInteractionLabel_) {
+        dashboardAiInteractionLabel_->setText(kpiText(QStringLiteral("AI 记录"), aiInteractions.size()));
+    }
+    if (dashboardAuditEventLabel_) {
+        dashboardAuditEventLabel_->setText(kpiText(QStringLiteral("审计事件"), auditEvents.size()));
+    }
+    if (dashboardNextActionLabel_) {
+        dashboardNextActionLabel_->setText(nextActionText(criticalStates, openAlerts, activeWorkOrders, aiInteractions.size()));
+    }
+}
+
 void MainWindow::refreshOnlineTables() {
     if (assetTable_) {
         refreshAssetTable();
@@ -417,28 +530,33 @@ void MainWindow::refreshOnlineTables() {
     if (aiModeLabel_) {
         aiModeLabel_->setText(QStringLiteral("AI 辅助诊断（") + modeText + QStringLiteral("）"));
     }
+    updateDashboard();
 }
 
 void MainWindow::refreshAssetTable() {
     if (assetTable_) {
         fillTable(assetTable_, {"编号", "名称", "类型", "产线", "状态"}, api_.assets());
     }
+    updateDashboard();
 }
 void MainWindow::refreshMonitoringTable() {
     if (monitoringTable_) {
         fillTable(monitoringTable_, {QStringLiteral("设备"), QStringLiteral("状态"), QStringLiteral("严重度"), QStringLiteral("指标"), QStringLiteral("更新时间")}, api_.monitoringStates());
     }
+    updateDashboard();
 }
 void MainWindow::refreshAlertTable() {
     if (alertTable_) {
         fillTable(alertTable_, {"告警", "级别", "设备", "标题", "状态", "负责人"}, api_.alerts());
     }
+    updateDashboard();
 }
 
 void MainWindow::refreshWorkOrderTable() {
     if (workOrderTable_) {
         fillTable(workOrderTable_, {"工单", "设备", "来源告警", "状态", "处理人", "摘要", "结果"}, api_.workOrders());
     }
+    updateDashboard();
 }
 
 void MainWindow::refreshAiInteractionTable() {

@@ -91,3 +91,7 @@ $env:INDUSPILOT_REPOSITORY_STORE="mysql"
 ## 操作审计导出调试
 
 管理员登录后可调试 CSV 导出：`GET /api/v1/audit/events/export?actor=admin&action=auth.login`。Qt 客户端“操作审计”页会按当前筛选条件调用该接口，并将返回的 CSV 保存到用户选择的位置。
+
+## 工业运维工作台摘要
+
+Qt 客户端“总览”页会聚合资产、运行状态、告警、工单、AI 交互和操作审计数量，并根据关键状态、待处理告警和活跃工单生成闭环下一步提示。登录后或业务表格刷新后，总览页会同步显示后端同步或离线演示数据状态。

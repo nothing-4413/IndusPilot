@@ -36,6 +36,7 @@ private:
     QLabel* statusBadge(const QString& text, const QString& tone);
     void fillTable(QTableWidget* table, const QStringList& headers, const QVector<TableRow>& rows);
     void refreshOnlineTables();
+    void updateDashboard();
     void refreshAssetTable();
     void refreshMonitoringTable();
     void refreshAlertTable();
@@ -84,6 +85,14 @@ private:
     QLabel* monitoringModeLabel_{nullptr};
     QLabel* alertModeLabel_{nullptr};
     QLabel* workOrderModeLabel_{nullptr};
+    QLabel* dashboardModeLabel_{nullptr};
+    QLabel* dashboardAssetCountLabel_{nullptr};
+    QLabel* dashboardCriticalStateLabel_{nullptr};
+    QLabel* dashboardOpenAlertLabel_{nullptr};
+    QLabel* dashboardActiveWorkOrderLabel_{nullptr};
+    QLabel* dashboardAiInteractionLabel_{nullptr};
+    QLabel* dashboardAuditEventLabel_{nullptr};
+    QLabel* dashboardNextActionLabel_{nullptr};
     QLabel* aiModeLabel_{nullptr};
     QListWidget* navigation_{nullptr};
     QStackedWidget* pages_{nullptr};
