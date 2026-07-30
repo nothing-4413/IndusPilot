@@ -48,6 +48,10 @@ int main() {
     _putenv_s("INDUSPILOT_AI_TIMEOUT_MS", "2500");
     _putenv_s("INDUSPILOT_AI_MAX_CONTEXT_ITEMS", "3");
     _putenv_s("INDUSPILOT_AI_STORE_INTERACTION_RECORDS", "false");
+    _putenv_s("INDUSPILOT_AI_API_KEY", "test-ai-key");
+    _putenv_s("INDUSPILOT_AI_AUTH_HEADER", "X-Test-AI-Key");
+    _putenv_s("INDUSPILOT_AI_AUTH_SCHEME", "Token");
+    _putenv_s("INDUSPILOT_AI_REQUIRE_STRUCTURED_RESPONSE", "false");
     _putenv_s("INDUSPILOT_MYSQL_URI", "host=127.0.0.1 port=3306 dbname=induspilot user=induspilot");
     _putenv_s("INDUSPILOT_SECURITY_LOGIN_MAX_FAILURES", "3");
     _putenv_s("INDUSPILOT_SECURITY_LOGIN_LOCKOUT_SECONDS", "120");
@@ -61,6 +65,10 @@ int main() {
     setenv("INDUSPILOT_AI_TIMEOUT_MS", "2500", 1);
     setenv("INDUSPILOT_AI_MAX_CONTEXT_ITEMS", "3", 1);
     setenv("INDUSPILOT_AI_STORE_INTERACTION_RECORDS", "false", 1);
+    setenv("INDUSPILOT_AI_API_KEY", "test-ai-key", 1);
+    setenv("INDUSPILOT_AI_AUTH_HEADER", "X-Test-AI-Key", 1);
+    setenv("INDUSPILOT_AI_AUTH_SCHEME", "Token", 1);
+    setenv("INDUSPILOT_AI_REQUIRE_STRUCTURED_RESPONSE", "false", 1);
     setenv("INDUSPILOT_MYSQL_URI", "host=127.0.0.1 port=3306 dbname=induspilot user=induspilot", 1);
     setenv("INDUSPILOT_SECURITY_LOGIN_MAX_FAILURES", "3", 1);
     setenv("INDUSPILOT_SECURITY_LOGIN_LOCKOUT_SECONDS", "120", 1);
@@ -75,6 +83,10 @@ int main() {
     assert(loadedConfig.ai.timeoutMs == 2500);
     assert(loadedConfig.ai.maxContextItems == 3);
     assert(!loadedConfig.ai.storeInteractionRecords);
+    assert(loadedConfig.ai.apiKey == "test-ai-key");
+    assert(loadedConfig.ai.authHeader == "X-Test-AI-Key");
+    assert(loadedConfig.ai.authScheme == "Token");
+    assert(!loadedConfig.ai.requireStructuredResponse);
     assert(loadedConfig.mysql.uri == "host=127.0.0.1 port=3306 dbname=induspilot user=induspilot");
     assert(loadedConfig.security.loginMaxFailures == 3);
     assert(loadedConfig.security.loginLockoutSeconds == 120);
@@ -88,6 +100,10 @@ int main() {
     _putenv_s("INDUSPILOT_AI_TIMEOUT_MS", "");
     _putenv_s("INDUSPILOT_AI_MAX_CONTEXT_ITEMS", "");
     _putenv_s("INDUSPILOT_AI_STORE_INTERACTION_RECORDS", "");
+    _putenv_s("INDUSPILOT_AI_API_KEY", "");
+    _putenv_s("INDUSPILOT_AI_AUTH_HEADER", "");
+    _putenv_s("INDUSPILOT_AI_AUTH_SCHEME", "");
+    _putenv_s("INDUSPILOT_AI_REQUIRE_STRUCTURED_RESPONSE", "");
     _putenv_s("INDUSPILOT_MYSQL_URI", "");
     _putenv_s("INDUSPILOT_SECURITY_LOGIN_MAX_FAILURES", "");
     _putenv_s("INDUSPILOT_SECURITY_LOGIN_LOCKOUT_SECONDS", "");
@@ -101,6 +117,10 @@ int main() {
     unsetenv("INDUSPILOT_AI_TIMEOUT_MS");
     unsetenv("INDUSPILOT_AI_MAX_CONTEXT_ITEMS");
     unsetenv("INDUSPILOT_AI_STORE_INTERACTION_RECORDS");
+    unsetenv("INDUSPILOT_AI_API_KEY");
+    unsetenv("INDUSPILOT_AI_AUTH_HEADER");
+    unsetenv("INDUSPILOT_AI_AUTH_SCHEME");
+    unsetenv("INDUSPILOT_AI_REQUIRE_STRUCTURED_RESPONSE");
     unsetenv("INDUSPILOT_MYSQL_URI");
     unsetenv("INDUSPILOT_SECURITY_LOGIN_MAX_FAILURES");
     unsetenv("INDUSPILOT_SECURITY_LOGIN_LOCKOUT_SECONDS");

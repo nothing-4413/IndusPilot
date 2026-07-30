@@ -28,9 +28,13 @@ struct AiConfig {
     bool enabled{false};
     std::string provider{"disabled"};
     std::string endpoint{"http://127.0.0.1:9000"};
+    std::string apiKey;
+    std::string authHeader{"Authorization"};
+    std::string authScheme{"Bearer"};
     int timeoutMs{15000};
     int maxContextItems{20};
     bool storeInteractionRecords{true};
+    bool requireStructuredResponse{true};
 };
 
 struct SecurityConfig {

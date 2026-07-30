@@ -123,12 +123,20 @@ void applyConfigValue(AppConfig& config, const std::string& section, const std::
         config.ai.provider = value;
     } else if (section == "ai" && key == "endpoint") {
         config.ai.endpoint = value;
+    } else if (section == "ai" && (key == "apiKey" || key == "api_key")) {
+        config.ai.apiKey = value;
+    } else if (section == "ai" && (key == "authHeader" || key == "auth_header")) {
+        config.ai.authHeader = value;
+    } else if (section == "ai" && (key == "authScheme" || key == "auth_scheme")) {
+        config.ai.authScheme = value;
     } else if (section == "ai" && (key == "timeoutMs" || key == "timeout_ms")) {
         config.ai.timeoutMs = parseInt(value, config.ai.timeoutMs);
     } else if (section == "ai" && (key == "maxContextItems" || key == "max_context_items")) {
         config.ai.maxContextItems = parseInt(value, config.ai.maxContextItems);
     } else if (section == "ai" && (key == "storeInteractionRecords" || key == "store_interaction_records")) {
         config.ai.storeInteractionRecords = parseBool(value, config.ai.storeInteractionRecords);
+    } else if (section == "ai" && (key == "requireStructuredResponse" || key == "require_structured_response")) {
+        config.ai.requireStructuredResponse = parseBool(value, config.ai.requireStructuredResponse);
     } else if (section == "security" && (key == "loginLockoutEnabled" || key == "login_lockout_enabled")) {
         config.security.loginLockoutEnabled = parseBool(value, config.security.loginLockoutEnabled);
     } else if (section == "security" && (key == "loginMaxFailures" || key == "login_max_failures")) {
@@ -171,9 +179,13 @@ void applyEnvironmentOverrides(AppConfig& config) {
     applyBoolEnv("INDUSPILOT_AI_ENABLED", config.ai.enabled);
     applyStringEnv("INDUSPILOT_AI_PROVIDER", config.ai.provider);
     applyStringEnv("INDUSPILOT_AI_ENDPOINT", config.ai.endpoint);
+    applyStringEnv("INDUSPILOT_AI_API_KEY", config.ai.apiKey);
+    applyStringEnv("INDUSPILOT_AI_AUTH_HEADER", config.ai.authHeader);
+    applyStringEnv("INDUSPILOT_AI_AUTH_SCHEME", config.ai.authScheme);
     applyIntEnv("INDUSPILOT_AI_TIMEOUT_MS", config.ai.timeoutMs);
     applyIntEnv("INDUSPILOT_AI_MAX_CONTEXT_ITEMS", config.ai.maxContextItems);
     applyBoolEnv("INDUSPILOT_AI_STORE_INTERACTION_RECORDS", config.ai.storeInteractionRecords);
+    applyBoolEnv("INDUSPILOT_AI_REQUIRE_STRUCTURED_RESPONSE", config.ai.requireStructuredResponse);
 
     applyBoolEnv("INDUSPILOT_SECURITY_LOGIN_LOCKOUT_ENABLED", config.security.loginLockoutEnabled);
     applyIntEnv("INDUSPILOT_SECURITY_LOGIN_MAX_FAILURES", config.security.loginMaxFailures);

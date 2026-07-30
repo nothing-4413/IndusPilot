@@ -216,7 +216,7 @@ std::string extractProviderContent(const Json::Value& value) {
         }
     }
 
-    return value.toStyledString();
+    return {};
 }
 #endif
 class DisabledAiProvider final : public AiProvider {
@@ -232,23 +232,23 @@ public:
 
 class HttpAiProvider final : public AiProvider {
 public:
-    HttpAiProvider(std::string endpoint, int timeoutMs, int maxContextItems)
-        : endpoint_(std::move(endpoint)), timeoutMs_(timeoutMs), maxContextItems_(maxContextItems) {}
+    explicit HttpAiProvider(app::AiConfig config)
+        : config_(std::move(config)) {}
 
     ServiceStatus status() const override {
-        const auto parsed = parseHttpEndpoint(endpoint_);
+        const auto parsed = parseHttpEndpoint(config_.endpoint);
         if (!parsed.valid) {
-            return ServiceStatus{"ai-provider", false, "http provider endpoint 格式无效：" + endpoint_};
+            return ServiceStatus{"ai-provider", false, "http provider endpoint 格式无效：" + config_.endpoint};
         }
 #ifdef INDUSPILOT_WITH_DROGON
-        return ServiceStatus{"ai-provider", true, "http provider 已启用真实推理传输 endpoint=" + endpoint_};
+        return ServiceStatus{"ai-provider", true, "http provider 已启用真实推理传输 endpoint=" + config_.endpoint + (config_.apiKey.empty() ? "；未配置鉴权" : "；已配置鉴权头 " + config_.authHeader)};
 #else
-        return ServiceStatus{"ai-provider", false, "http provider 已配置 endpoint=" + endpoint_ + "，但当前构建未启用 Drogon HTTP 传输"};
+        return ServiceStatus{"ai-provider", false, "http provider 已配置 endpoint=" + config_.endpoint + "，但当前构建未启用 Drogon HTTP 传输"};
 #endif
     }
 
     AiProviderResult complete(const AiProviderRequest& request) const override {
-        const auto parsed = parseHttpEndpoint(endpoint_);
+        const auto parsed = parseHttpEndpoint(config_.endpoint);
         if (!parsed.valid) {
             return AiProviderResult{false, "http", "HTTP provider endpoint 格式无效，已按 " + request.operation + " 使用本地规则降级"};
         }
@@ -257,12 +257,16 @@ public:
 #else
         try {
             auto client = drogon::HttpClient::newHttpClient(parsed.baseUrl);
-            auto httpRequest = drogon::HttpRequest::newHttpJsonRequest(providerRequestToJson(request, maxContextItems_));
+            auto httpRequest = drogon::HttpRequest::newHttpJsonRequest(providerRequestToJson(request, config_.maxContextItems));
             httpRequest->setMethod(drogon::Post);
             httpRequest->setPath(parsed.path);
             httpRequest->addHeader("X-IndusPilot-Ai-Operation", request.operation);
+            if (!config_.apiKey.empty() && !config_.authHeader.empty()) {
+                const auto authValue = config_.authScheme.empty() ? config_.apiKey : config_.authScheme + " " + config_.apiKey;
+                httpRequest->addHeader(config_.authHeader, authValue);
+            }
 
-            const auto timeoutSeconds = static_cast<double>((std::max)(timeoutMs_, 1)) / 1000.0;
+            const auto timeoutSeconds = static_cast<double>((std::max)(config_.timeoutMs, 1)) / 1000.0;
             const auto responsePair = client->sendRequest(httpRequest, timeoutSeconds);
             if (responsePair.first != drogon::ReqResult::Ok || !responsePair.second) {
                 return AiProviderResult{false, "http", "HTTP provider 调用失败，已按 " + request.operation + " 使用本地规则降级"};
@@ -275,9 +279,20 @@ public:
 
             const auto json = responsePair.second->getJsonObject();
             if (json) {
-                return AiProviderResult{true, "http", extractProviderContent(*json)};
+                const auto content = extractProviderContent(*json);
+                if (content.empty()) {
+                    return AiProviderResult{false, "http", "HTTP provider 响应缺少可用文本字段，已按 " + request.operation + " 使用本地规则降级"};
+                }
+                return AiProviderResult{true, "http", content};
             }
-            return AiProviderResult{true, "http", std::string(responsePair.second->getBody())};
+            if (config_.requireStructuredResponse) {
+                return AiProviderResult{false, "http", "HTTP provider 响应不是 JSON，已按 " + request.operation + " 使用本地规则降级"};
+            }
+            const auto body = std::string(responsePair.second->getBody());
+            if (body.empty()) {
+                return AiProviderResult{false, "http", "HTTP provider 响应为空，已按 " + request.operation + " 使用本地规则降级"};
+            }
+            return AiProviderResult{true, "http", body};
         } catch (const std::exception& ex) {
             return AiProviderResult{false, "http", std::string("HTTP provider 异常：") + ex.what() + "，已按 " + request.operation + " 使用本地规则降级"};
         }
@@ -285,16 +300,14 @@ public:
     }
 
 private:
-    std::string endpoint_;
-    int timeoutMs_{15000};
-    int maxContextItems_{20};
+    app::AiConfig config_;
 };
 
 }  // namespace
 
 std::shared_ptr<AiProvider> makeAiProvider(const app::AiConfig& config) {
     if (config.enabled && config.provider == "http") {
-        return std::make_shared<HttpAiProvider>(config.endpoint, config.timeoutMs, config.maxContextItems);
+        return std::make_shared<HttpAiProvider>(config);
     }
     return std::make_shared<DisabledAiProvider>();
 }

@@ -1,8 +1,13 @@
 provider: "disabled"
 endpoint: "http://127.0.0.1:9000/v1/complete"
+# api_key 为空时不发送鉴权头；生产环境建议通过 INDUSPILOT_AI_API_KEY 注入。
+api_key: ""
+auth_header: "Authorization"
+auth_scheme: "Bearer"
 timeoutMs: 15000
 maxContextItems: 20
 storeInteractionRecords: true
+require_structured_response: true
 
 # HTTP provider 请求体：
 # {
@@ -10,4 +15,4 @@ storeInteractionRecords: true
 #   "prompt": "用户输入或诊断目标",
 #   "contextItems": ["受 maxContextItems 限制的上下文"]
 # }
-# 响应可返回 content、summary、text、output_text，或兼容 OpenAI choices/output 结构。
+# 默认要求响应为 JSON，且必须返回 content、summary、text、output_text，或兼容 OpenAI choices/output 结构。
