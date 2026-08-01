@@ -157,3 +157,6 @@ HTTP 登录接口复用身份服务的安全策略。`security.login_lockout_ena
 ## AI Provider 鉴权与响应校验
 
 HTTP AI Provider 支持通过 `ai.api_key`、`ai.auth_header`、`ai.auth_scheme` 配置鉴权头，生产环境建议使用 `INDUSPILOT_AI_API_KEY` 注入密钥而不是写入配置文件。默认开启 `ai.require_structured_response`，Provider 响应必须是 JSON，并提供 `content`、`summary`、`text`、`output_text` 或兼容 OpenAI `choices/output` 的文本字段；缺少可用文本时系统会降级为不可用结果并继续记录 AI 交互。
+## 可观测性指标
+
+启用 Drogon 运行时时，后端提供 `GET /metrics`，返回 Prometheus 文本格式指标。指标覆盖 HTTP 请求总数、错误数、AI 请求数、告警关闭次数、工单关闭次数以及按方法、归一化路径和状态码聚合的请求耗时。详细说明见 `docs/development/observability-metrics.md`。

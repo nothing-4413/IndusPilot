@@ -401,6 +401,14 @@ try {
     Assert-True ($aiPage.data.offset -eq 0) "AI interaction audit page offset did not match."
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/ai/interactions?limit=0&offset=0" -Method Get -Status 400 -Headers $operatorHeaders
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/ai/interactions?limit=1&offset=-1" -Method Get -Status 400 -Headers $operatorHeaders
+    $metricsResponse = Invoke-WebRequest -UseBasicParsing -Uri "$BaseUrl/metrics" -Method Get -TimeoutSec 10
+    Assert-True ([int]$metricsResponse.StatusCode -eq 200) "Metrics endpoint did not return HTTP 200."
+    $metricsText = [string]$metricsResponse.Content
+    Assert-True ($metricsText -like "*induspilot_http_requests_total*") "Metrics output did not include total HTTP requests."
+    Assert-True ($metricsText -like "*induspilot_http_errors_total*") "Metrics output did not include HTTP errors."
+    Assert-True ($metricsText -like "*induspilot_ai_requests_total*") "Metrics output did not include AI request counter."
+    Assert-True ($metricsText -like '*path="/api/v1/ai/diagnose"*') "Metrics output did not include normalized AI diagnosis route."
+    Assert-True ($metricsText -like '*path="/api/v1/work-orders/{id}/close"*') "Metrics output did not normalize work-order close route."
 } finally {
     if ($proc -and -not $proc.HasExited) {
         Stop-Process -Id $proc.Id -Force

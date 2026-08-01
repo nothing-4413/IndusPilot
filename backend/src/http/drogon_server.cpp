@@ -13,6 +13,7 @@
 #include "induspilot/modules/asset_service.hpp"
 #include "induspilot/modules/identity_service.hpp"
 #include "induspilot/modules/maintenance_service.hpp"
+#include "induspilot/modules/metrics_service.hpp"
 #include "induspilot/modules/monitoring_service.hpp"
 
 #include <drogon/drogon.h>
@@ -32,6 +33,7 @@ namespace induspilot::http {
 namespace {
 
 constexpr const char* kTraceIdAttribute = "induspilot.trace_id";
+constexpr const char* kMetricsStartedAtAttribute = "induspilot.metrics_started_at";
 
 std::string assetStatusToString(domain::AssetStatus status) {
     switch (status) {
@@ -701,6 +703,25 @@ void registerTraceHeaders() {
         response->addHeader("X-Request-Id", traceId);
     });
 }
+void registerMetricsAdvice(const std::shared_ptr<modules::MetricsRegistry>& metrics) {
+    static bool registered{false};
+    if (registered) {
+        return;
+    }
+    registered = true;
+    drogon::app().registerPreHandlingAdvice([](const drogon::HttpRequestPtr& request) {
+        request->attributes()->insert(kMetricsStartedAtAttribute, std::chrono::steady_clock::now());
+    });
+    drogon::app().registerPostHandlingAdvice([metrics](const drogon::HttpRequestPtr& request, const drogon::HttpResponsePtr& response) {
+        const auto startedAt = request->attributes()->get<std::chrono::steady_clock::time_point>(kMetricsStartedAtAttribute);
+        double durationMs = 0.0;
+        if (startedAt != std::chrono::steady_clock::time_point{}) {
+            const auto elapsed = std::chrono::steady_clock::now() - startedAt;
+            durationMs = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count()) / 1000.0;
+        }
+        metrics->recordHttpRequest(request->methodString(), request->path(), static_cast<int>(response->statusCode()), durationMs);
+    });
+}
 void registerRoutes(
     const std::shared_ptr<app::Application>& application,
     const std::shared_ptr<modules::IdentityService>& identity,
@@ -709,8 +730,10 @@ void registerRoutes(
     const std::shared_ptr<modules::AlertService>& alerts,
     const std::shared_ptr<modules::MaintenanceService>& maintenance,
     const std::shared_ptr<modules::AiService>& ai,
-    const std::shared_ptr<modules::AuditService>& audit) {
+    const std::shared_ptr<modules::AuditService>& audit,
+    const std::shared_ptr<modules::MetricsRegistry>& metrics) {
     registerTraceHeaders();
+    registerMetricsAdvice(metrics);
     auto& server = drogon::app();
 
     server.registerHandler("/health", [application](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
@@ -733,6 +756,15 @@ void registerRoutes(
         callback(jsonResponse(data));
     }, {drogon::Get});
 
+    server.registerHandler("/metrics", [metrics](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+        writeRequestLog(request);
+        auto response = drogon::HttpResponse::newHttpResponse();
+        response->setStatusCode(drogon::k200OK);
+        response->setContentTypeCode(drogon::CT_TEXT_PLAIN);
+        response->addHeader("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
+        response->setBody(metrics->renderPrometheus());
+        callback(response);
+    }, {drogon::Get});
     server.registerHandler("/api/v1/auth/login", [identity, audit](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
         writeRequestLog(request);
         const auto payload = request->getJsonObject();
@@ -1596,9 +1628,10 @@ int runDrogonServer(const app::AppConfig& config) {
     auto maintenance = std::make_shared<modules::MaintenanceService>(createWorkOrderRepository(config, mysqlClient));
     auto ai = std::make_shared<modules::AiService>(config.ai, createAiInteractionRepository(config, mysqlClient));
     auto audit = std::make_shared<modules::AuditService>(createOperationAuditRepository(config, mysqlClient));
+    auto metrics = std::make_shared<modules::MetricsRegistry>();
 
     application->start();
-    registerRoutes(application, identity, assets, monitoring, alerts, maintenance, ai, audit);
+    registerRoutes(application, identity, assets, monitoring, alerts, maintenance, ai, audit, metrics);
 
     drogon::app().addListener(config.host, config.port).run();
     application->stop();

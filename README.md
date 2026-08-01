@@ -75,3 +75,6 @@ $env:INDUSPILOT_REPOSITORY_STORE="mysql"
 ## Agent 工作流展示
 
 项目提供 `docs/agent-workflows/agent-delivery-loop.md` 说明从 OpenSpec、实现、验证、提交到 CI 的 agent 交付闭环，并提供 `demo/agent-workflow-evidence.ps1` 生成本地证据包。
+## 可观测性指标
+
+Drogon 后端提供 `GET /metrics`，输出 Prometheus 文本格式指标，覆盖 HTTP 请求、错误、AI 调用、告警关闭和工单关闭。说明见 `docs/development/observability-metrics.md`。
