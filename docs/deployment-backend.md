@@ -131,13 +131,17 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File backend/tests/http_integ
   -ConfigPath config/backend.example.yaml
 ```
 
-验证 Redis-backed session：
+验证 Redis-backed session 或 MySQL 仓储时，可使用同一 HTTP smoke 脚本传入运行时 profile。默认 CTest 不依赖外部服务；启动 compose 依赖并执行数据库初始化后，可手动切换到真实依赖：
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File backend/tests/http_integration_smoke.ps1 `
   -BackendExe build/dev-http/backend/induspilot-backend.exe `
   -ConfigPath config/backend.example.yaml `
-  -SessionStore redis
+  -RepositoryStore mysql `
+  -SessionStore redis `
+  -MySqlUri "host=127.0.0.1 port=3306 dbname=induspilot user=induspilot password=ci-app-password" `
+  -RedisUri "tcp://:ci-redis-password@127.0.0.1:6379/0" `
+  -MongoDbUri "mongodb://induspilot:ci-mongodb-password@127.0.0.1:27017/admin"
 ```
 
 ## 生产注意事项

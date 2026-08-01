@@ -5,7 +5,7 @@
 ## 已具备
 
 - 模块边界：身份权限、资产、运行监控、告警、工单和 AI 辅助诊断已经拆分为独立服务与仓储接口。
-- HTTP 运行时：Drogon 后端提供统一 JSON 响应、认证守卫、权限守卫、业务路由和 HTTP 冒烟测试。
+- HTTP 运行时：Drogon 后端提供统一 JSON 响应、认证守卫、权限守卫、业务路由和可参数化 HTTP 冒烟测试；默认内存模式用于 CTest，真实依赖 profile 可切换 MySQL 仓储和 Redis session。
 - 持久化边界：`storage.repository_store=memory/mysql` 可以切换内存仓储和 MySQL 仓储；MySQL 已覆盖身份、资产、告警、工单、运行状态和 AI 交互审计。
 - 会话边界：默认内存会话适合本地开发，Redis-backed session 可通过 `redis.session_store=redis` 或环境变量启用。
 - AI 边界：AI 模块保持非阻塞，支持 disabled/http provider 配置、agent 诊断编排、降级结果和交互审计。
@@ -23,7 +23,7 @@
 ## 下一阶段优先级
 
 1. 身份安全深化：在现有密码哈希边界上实现登录失败锁定、会话刷新、审计事件、密码轮换和种子账号替换流程。
-2. 真实依赖集成深化：在现有 CI 服务容器、MySQL CRUD smoke、Redis 数据结构读写和 MongoDB 文档 CRUD 基础上，继续补充 Redis-backed session HTTP 生命周期、后端 MySQL 仓储端到端 HTTP 测试和 MongoDB 业务仓储接入。
+2. 真实依赖集成深化：在现有 CI 服务容器、MySQL CRUD smoke、Redis 数据结构读写、MongoDB 文档 CRUD 和可参数化 HTTP smoke profile 基础上，继续把 MySQL 仓储与 Redis-backed session HTTP profile 接入 CI 构建矩阵，并推进 MongoDB 业务仓储接入。
 3. Qt 客户端联机化深化：在现有 HTTP 登录、资产、运行监控列表与状态写入、告警创建/规则/通知投递/列表与处置、维护工单列表、新建/编辑/附件/从告警生成/分派/基础流转、AI 诊断入口和 AI 交互审计查询、分页与 CSV 导出基础上，继续接入真实外部通知通道适配器、异步重试队列和投递指标。
 4. 外部 AI Provider：实现 HTTP 推理传输、超时重试、脱敏、提示词版本、响应解析和降级审计。
 5. 可观测性：补充结构化日志、请求追踪、关键指标、健康分级和运行告警。

@@ -6,7 +6,18 @@ param(
     [string]$ConfigPath,
 
     [string]$BaseUrl = "http://127.0.0.1:18081",
-    [string]$SessionStore = "memory"
+    [ValidateSet("memory", "mysql")]
+    [string]$RepositoryStore = "memory",
+    [ValidateSet("memory", "redis")]
+    [string]$SessionStore = "memory",
+    [string]$MySqlUri = "",
+    [string]$MySqlHost = "",
+    [int]$MySqlPort = 0,
+    [string]$MySqlDatabase = "",
+    [string]$MySqlUser = "",
+    [string]$MySqlPassword = "",
+    [string]$RedisUri = "",
+    [string]$MongoDbUri = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -82,12 +93,31 @@ function Invoke-ExpectStatusResponse {
 }
 
 $oldPort = $env:INDUSPILOT_SERVER_PORT
+$oldRepositoryStore = $env:INDUSPILOT_REPOSITORY_STORE
 $oldSessionStore = $env:INDUSPILOT_REDIS_SESSION_STORE
+$oldMySqlUri = $env:INDUSPILOT_MYSQL_URI
+$oldMySqlHost = $env:INDUSPILOT_MYSQL_HOST
+$oldMySqlPort = $env:INDUSPILOT_MYSQL_PORT
+$oldMySqlDatabase = $env:INDUSPILOT_MYSQL_DATABASE
+$oldMySqlUser = $env:INDUSPILOT_MYSQL_USER
+$oldMySqlPassword = $env:INDUSPILOT_MYSQL_PASSWORD
+$oldRedisUri = $env:INDUSPILOT_REDIS_URI
+$oldMongoDbUri = $env:INDUSPILOT_MONGODB_URI
 $oldLoginMaxFailures = $env:INDUSPILOT_SECURITY_LOGIN_MAX_FAILURES
 $oldLoginFailureWindow = $env:INDUSPILOT_SECURITY_LOGIN_FAILURE_WINDOW_SECONDS
 $oldLoginLockoutSeconds = $env:INDUSPILOT_SECURITY_LOGIN_LOCKOUT_SECONDS
 $env:INDUSPILOT_SERVER_PORT = "18081"
+$env:INDUSPILOT_REPOSITORY_STORE = $RepositoryStore
 $env:INDUSPILOT_REDIS_SESSION_STORE = $SessionStore
+if (-not [string]::IsNullOrWhiteSpace($MySqlUri)) { $env:INDUSPILOT_MYSQL_URI = $MySqlUri }
+if (-not [string]::IsNullOrWhiteSpace($MySqlHost)) { $env:INDUSPILOT_MYSQL_HOST = $MySqlHost }
+if ($MySqlPort -gt 0) { $env:INDUSPILOT_MYSQL_PORT = [string]$MySqlPort }
+if (-not [string]::IsNullOrWhiteSpace($MySqlDatabase)) { $env:INDUSPILOT_MYSQL_DATABASE = $MySqlDatabase }
+if (-not [string]::IsNullOrWhiteSpace($MySqlUser)) { $env:INDUSPILOT_MYSQL_USER = $MySqlUser }
+if (-not [string]::IsNullOrWhiteSpace($MySqlPassword)) { $env:INDUSPILOT_MYSQL_PASSWORD = $MySqlPassword }
+if (-not [string]::IsNullOrWhiteSpace($RedisUri)) { $env:INDUSPILOT_REDIS_URI = $RedisUri }
+if (-not [string]::IsNullOrWhiteSpace($MongoDbUri)) { $env:INDUSPILOT_MONGODB_URI = $MongoDbUri }
+Write-Host "[http-smoke] repository_store=$RepositoryStore session_store=$SessionStore"
 $env:INDUSPILOT_SECURITY_LOGIN_MAX_FAILURES = "2"
 $env:INDUSPILOT_SECURITY_LOGIN_FAILURE_WINDOW_SECONDS = "60"
 $env:INDUSPILOT_SECURITY_LOGIN_LOCKOUT_SECONDS = "30"
@@ -415,7 +445,16 @@ try {
         Wait-Process -Id $proc.Id -Timeout 10 -ErrorAction SilentlyContinue
     }
     $env:INDUSPILOT_SERVER_PORT = $oldPort
+    $env:INDUSPILOT_REPOSITORY_STORE = $oldRepositoryStore
     $env:INDUSPILOT_REDIS_SESSION_STORE = $oldSessionStore
+    $env:INDUSPILOT_MYSQL_URI = $oldMySqlUri
+    $env:INDUSPILOT_MYSQL_HOST = $oldMySqlHost
+    $env:INDUSPILOT_MYSQL_PORT = $oldMySqlPort
+    $env:INDUSPILOT_MYSQL_DATABASE = $oldMySqlDatabase
+    $env:INDUSPILOT_MYSQL_USER = $oldMySqlUser
+    $env:INDUSPILOT_MYSQL_PASSWORD = $oldMySqlPassword
+    $env:INDUSPILOT_REDIS_URI = $oldRedisUri
+    $env:INDUSPILOT_MONGODB_URI = $oldMongoDbUri
     $env:INDUSPILOT_SECURITY_LOGIN_MAX_FAILURES = $oldLoginMaxFailures
     $env:INDUSPILOT_SECURITY_LOGIN_FAILURE_WINDOW_SECONDS = $oldLoginFailureWindow
     $env:INDUSPILOT_SECURITY_LOGIN_LOCKOUT_SECONDS = $oldLoginLockoutSeconds

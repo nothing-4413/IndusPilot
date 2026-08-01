@@ -125,7 +125,20 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File backend/tests/http_integ
   -ConfigPath config/backend.example.yaml
 ```
 
-如果已经启动 Redis，可额外传入 `-SessionStore redis` 验证 Redis-backed session。
+如果已经启动 Redis，可额外传入 `-SessionStore redis` 验证 Redis-backed session。HTTP smoke 也支持通过 `-RepositoryStore mysql` 切换到真实 MySQL 仓储，并通过 `-MySqlUri`、`-MySqlHost`、`-MySqlPort`、`-MySqlDatabase`、`-MySqlUser`、`-MySqlPassword`、`-RedisUri`、`-MongoDbUri` 覆盖依赖连接。脚本结束时会恢复调用前的环境变量，避免污染后续测试。
+
+启动 `deployment/docker-compose.yml` 并初始化 schema 后，可手动运行真实依赖 profile：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File backend/tests/http_integration_smoke.ps1 `
+  -BackendExe build/dev-http/backend/induspilot-backend.exe `
+  -ConfigPath config/backend.example.yaml `
+  -RepositoryStore mysql `
+  -SessionStore redis `
+  -MySqlUri "host=127.0.0.1 port=3306 dbname=induspilot user=induspilot password=ci-app-password" `
+  -RedisUri "tcp://:ci-redis-password@127.0.0.1:6379/0" `
+  -MongoDbUri "mongodb://induspilot:ci-mongodb-password@127.0.0.1:27017/admin"
+```
 
 CI 的 `dependency-services` job 会启动 `deployment/docker-compose.yml` 中的 MySQL、Redis 和 MongoDB，并运行 `backend/tests/dependency_services_smoke.sh`。该脚本会重复执行 MySQL 迁移脚本，随后执行 `database/mysql/integration/real_crud_smoke.sql`，在真实 MySQL 中覆盖默认用户、资产、运行状态、告警规则、告警、通知投递、工单、附件、AI 交互和操作审计事件的可重复 CRUD 断言；Redis 会验证 key/value、TTL、counter 和 hash 读写；MongoDB 会执行 `database/mongodb/integration/real_crud_smoke.js`，验证 collection、索引和文档 upsert/read。
 

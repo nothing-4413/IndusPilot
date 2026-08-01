@@ -35,7 +35,7 @@ IndusPilot 不是完整 MES、ERP 或 SCADA 替代品，而是一个以 C++/Qt �
 
 ## 生产化后端入口
 
-当前已接入 Drogon HTTP 服务运行时。开发验证命令：
+当前已接入 Drogon HTTP 服务运行时。默认 HTTP smoke 使用内存仓储；启动 compose 依赖后，同一脚本可通过参数切换到 MySQL 仓储和 Redis session。开发验证命令：
 
 ```powershell
 cmake --preset dev-http
