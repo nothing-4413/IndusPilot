@@ -127,7 +127,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File backend/tests/http_integ
 
 如果已经启动 Redis，可额外传入 `-SessionStore redis` 验证 Redis-backed session。
 
-CI 的 `dependency-services` job 会启动 `deployment/docker-compose.yml` 中的 MySQL、Redis 和 MongoDB，并运行 `backend/tests/dependency_services_smoke.sh`。该脚本会重复执行 MySQL 迁移脚本，随后执行 `database/mysql/integration/real_crud_smoke.sql`，在真实 MySQL 中覆盖默认用户、资产、运行状态、告警规则、告警、通知投递、工单、附件、AI 交互和操作审计事件的可重复 CRUD 断言。
+CI 的 `dependency-services` job 会启动 `deployment/docker-compose.yml` 中的 MySQL、Redis 和 MongoDB，并运行 `backend/tests/dependency_services_smoke.sh`。该脚本会重复执行 MySQL 迁移脚本，随后执行 `database/mysql/integration/real_crud_smoke.sql`，在真实 MySQL 中覆盖默认用户、资产、运行状态、告警规则、告警、通知投递、工单、附件、AI 交互和操作审计事件的可重复 CRUD 断言；Redis 会验证 key/value、TTL、counter 和 hash 读写；MongoDB 会执行 `database/mongodb/integration/real_crud_smoke.js`，验证 collection、索引和文档 upsert/read。
 
 ## 操作审计接口
 

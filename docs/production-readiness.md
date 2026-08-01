@@ -14,16 +14,16 @@
 ## 当前边界
 
 - 身份安全：当前已支持版本化 PBKDF2-SHA256 密码校验，并保留显式开发兼容格式；生产前仍必须替换演示盐值、补齐密码轮换、登录失败锁定、审计和最小权限账户治理。
-- 依赖健康：`/health` 当前只做 TCP 连通性探测；部署前预检会检查离线 schema 版本基线，CI dependency smoke 会验证真实 MySQL/Redis/MongoDB 启动、认证、迁移幂等和 MySQL 核心业务 CRUD。
+- 依赖健康：`/health` 当前只做 TCP 连通性探测；部署前预检会检查离线 schema 版本基线，CI dependency smoke 会验证真实 MySQL/Redis/MongoDB 启动、认证、迁移幂等、MySQL 核心业务 CRUD、Redis 数据结构读写和 MongoDB 文档 CRUD。
 - AI 传输：`provider=http` 目前是外部模型适配边界，尚未调用真实远程推理服务。
-- MongoDB：当前仅参与依赖探测，非结构化日志、知识片段和长上下文尚未正式落库。
+- MongoDB：当前尚未接入后端业务仓储；CI 已验证初始化集合、索引和文档 CRUD，非结构化日志、知识片段和长上下文仍待正式落库。
 - 客户端：Qt 客户端已接入 HTTP 登录、资产列表与状态更新、运行监控列表与状态写入、告警创建/规则/通知投递/列表与处置、维护工单列表、新建/编辑/附件/从告警生成/分派/基础流转、AI 结构化诊断入口和 AI 交互审计查询、分页与 CSV 导出，并接入告警规则/通知联动。
-- 集成测试：默认 HTTP 冒烟测试覆盖内存仓储；CI dependency smoke 已覆盖 MySQL、Redis、MongoDB 的真实依赖启动和 MySQL 核心业务 CRUD。
+- 集成测试：默认 HTTP 冒烟测试覆盖内存仓储；CI dependency smoke 已覆盖 MySQL、Redis、MongoDB 的真实依赖启动、MySQL 核心业务 CRUD、Redis 数据结构读写和 MongoDB 文档 CRUD。
 
 ## 下一阶段优先级
 
 1. 身份安全深化：在现有密码哈希边界上实现登录失败锁定、会话刷新、审计事件、密码轮换和种子账号替换流程。
-2. 真实依赖集成深化：在现有 CI 服务容器、MySQL CRUD smoke、Redis 鉴权 PING 和 MongoDB 初始化验证基础上，继续补充 Redis 会话写读、MongoDB 文档 CRUD 和后端 MySQL 仓储端到端 HTTP 测试。
+2. 真实依赖集成深化：在现有 CI 服务容器、MySQL CRUD smoke、Redis 数据结构读写和 MongoDB 文档 CRUD 基础上，继续补充 Redis-backed session HTTP 生命周期、后端 MySQL 仓储端到端 HTTP 测试和 MongoDB 业务仓储接入。
 3. Qt 客户端联机化深化：在现有 HTTP 登录、资产、运行监控列表与状态写入、告警创建/规则/通知投递/列表与处置、维护工单列表、新建/编辑/附件/从告警生成/分派/基础流转、AI 诊断入口和 AI 交互审计查询、分页与 CSV 导出基础上，继续接入真实外部通知通道适配器、异步重试队列和投递指标。
 4. 外部 AI Provider：实现 HTTP 推理传输、超时重试、脱敏、提示词版本、响应解析和降级审计。
 5. 可观测性：补充结构化日志、请求追踪、关键指标、健康分级和运行告警。

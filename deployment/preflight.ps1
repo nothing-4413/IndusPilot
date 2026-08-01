@@ -63,7 +63,8 @@ $requiredFiles = @(
     "database/mysql/007_operation_audit_events_schema.sql",
     "database/mysql/008_operation_audit_export_permission.sql",
     "database/mysql/009_operation_audit_integrity_schema.sql",
-    "database/mongodb/init_collections.js"
+    "database/mongodb/init_collections.js",
+    "database/mongodb/integration/real_crud_smoke.js"
 )
 
 foreach ($file in $requiredFiles) {
@@ -98,6 +99,11 @@ if ($healthcheckCount -ge 3) {
     Write-CheckOk "docker compose 为核心依赖定义 healthcheck"
 } else {
     Write-CheckFail "docker compose healthcheck 数量不足"
+}
+if ($compose.Contains('../database/mongodb:/docker-entrypoint-initdb.d:ro')) {
+    Write-CheckOk "MongoDB 初始化目录挂载包含 integration smoke 脚本"
+} else {
+    Write-CheckFail "MongoDB 初始化目录未挂载，integration smoke 脚本无法在容器中运行"
 }
 
 $config = Get-FileText "config/backend.example.yaml"

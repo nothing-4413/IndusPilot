@@ -47,7 +47,7 @@ services:
       - "${INDUSPILOT_MONGODB_BIND:-127.0.0.1}:${INDUSPILOT_MONGODB_PORT:-27017}:27017"
     volumes:
       - ./data/mongodb:/data/db
-      - ../database/mongodb/init_collections.js:/docker-entrypoint-initdb.d/init_collections.js:ro
+      - ../database/mongodb:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "mongosh --quiet --username \"$${MONGO_INITDB_ROOT_USERNAME}\" --password \"$${MONGO_INITDB_ROOT_PASSWORD}\" --authenticationDatabase admin --eval \"db.adminCommand('ping').ok\" | grep 1"]
       interval: 10s

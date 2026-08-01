@@ -81,4 +81,4 @@ Drogon 后端提供 `GET /metrics`，输出 Prometheus 文本格式指标，覆�
 
 ## 真实依赖集成测试
 
-CI 的 dependency services 作业会启动 MySQL、Redis、MongoDB，并在真实 MySQL 中执行 `database/mysql/integration/real_crud_smoke.sql`，覆盖资产、运行状态、告警、通知、工单、附件、AI 交互和操作审计 CRUD。
+CI 的 dependency services 作业会启动 MySQL、Redis、MongoDB；其中 MySQL 执行 `database/mysql/integration/real_crud_smoke.sql` 覆盖核心业务 CRUD，Redis 验证 key/value、TTL、counter、hash 读写，MongoDB 执行 `database/mongodb/integration/real_crud_smoke.js` 验证 collection、索引和文档 upsert/read。
