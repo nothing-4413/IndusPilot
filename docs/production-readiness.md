@@ -9,25 +9,25 @@
 - 持久化边界：`storage.repository_store=memory/mysql` 可以切换内存仓储和 MySQL 仓储；MySQL 已覆盖身份、资产、告警、工单、运行状态和 AI 交互审计。
 - 会话边界：默认内存会话适合本地开发，Redis-backed session 可通过 `redis.session_store=redis` 或环境变量启用。
 - AI 边界：AI 模块保持非阻塞，支持 disabled/http provider 配置、agent 诊断编排、降级结果和交互审计。
-- 工程流程：OpenSpec 变更、任务清单、CMake preset、数据库脚本、schema 版本登记、部署 compose、部署前预检、集成测试和 GitHub Actions 基础 CI 已经进入仓库。
+- 工程流程：OpenSpec 变更、任务清单、CMake preset、数据库脚本、schema 版本登记、部署 compose、部署前预检、HTTP 冒烟测试、真实依赖 CRUD smoke 和 GitHub Actions CI 已经进入仓库。
 
 ## 当前边界
 
 - 身份安全：当前已支持版本化 PBKDF2-SHA256 密码校验，并保留显式开发兼容格式；生产前仍必须替换演示盐值、补齐密码轮换、登录失败锁定、审计和最小权限账户治理。
-- 依赖健康：`/health` 当前只做 TCP 连通性探测；部署前预检会检查离线 schema 版本基线，但仍不替代真实数据库认证、表结构和 MongoDB collection 校验。
+- 依赖健康：`/health` 当前只做 TCP 连通性探测；部署前预检会检查离线 schema 版本基线，CI dependency smoke 会验证真实 MySQL/Redis/MongoDB 启动、认证、迁移幂等和 MySQL 核心业务 CRUD。
 - AI 传输：`provider=http` 目前是外部模型适配边界，尚未调用真实远程推理服务。
 - MongoDB：当前仅参与依赖探测，非结构化日志、知识片段和长上下文尚未正式落库。
 - 客户端：Qt 客户端已接入 HTTP 登录、资产列表与状态更新、运行监控列表与状态写入、告警创建/规则/通知投递/列表与处置、维护工单列表、新建/编辑/附件/从告警生成/分派/基础流转、AI 结构化诊断入口和 AI 交互审计查询、分页与 CSV 导出，并接入告警规则/通知联动。
-- 集成测试：默认 HTTP 冒烟测试覆盖内存仓储；MySQL、Redis、MongoDB 的真实依赖链路需要在独立环境补充集成验证。
+- 集成测试：默认 HTTP 冒烟测试覆盖内存仓储；CI dependency smoke 已覆盖 MySQL、Redis、MongoDB 的真实依赖启动和 MySQL 核心业务 CRUD。
 
 ## 下一阶段优先级
 
 1. 身份安全深化：在现有密码哈希边界上实现登录失败锁定、会话刷新、审计事件、密码轮换和种子账号替换流程。
-2. 真实依赖集成验证：在现有 schema 版本和部署前预检基础上，增加 MySQL 实库查询、Redis 会话测试、MongoDB 初始化验证和 CI 服务容器。
+2. 真实依赖集成深化：在现有 CI 服务容器、MySQL CRUD smoke、Redis 鉴权 PING 和 MongoDB 初始化验证基础上，继续补充 Redis 会话写读、MongoDB 文档 CRUD 和后端 MySQL 仓储端到端 HTTP 测试。
 3. Qt 客户端联机化深化：在现有 HTTP 登录、资产、运行监控列表与状态写入、告警创建/规则/通知投递/列表与处置、维护工单列表、新建/编辑/附件/从告警生成/分派/基础流转、AI 诊断入口和 AI 交互审计查询、分页与 CSV 导出基础上，继续接入真实外部通知通道适配器、异步重试队列和投递指标。
 4. 外部 AI Provider：实现 HTTP 推理传输、超时重试、脱敏、提示词版本、响应解析和降级审计。
 5. 可观测性：补充结构化日志、请求追踪、关键指标、健康分级和运行告警。
-6. CI/CD 扩展：在现有基础 CI 上增加 Drogon/vcpkg HTTP 构建、Redis/MySQL/MongoDB 真实依赖集成、数据库脚本校验和发布流水线。
+6. CI/CD 扩展：在现有基础 CI、质量门禁、配置预检、OpenSpec 校验和真实依赖 smoke 基础上，继续增加 Drogon/vcpkg HTTP 构建矩阵、制品发布流水线和部署环境验证。
 
 ## 验证命令
 

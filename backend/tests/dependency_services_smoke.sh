@@ -20,6 +20,12 @@ echo "[integration] re-run MySQL migrations"
   mysql --protocol=TCP -h 127.0.0.1 -uroot -p"${MYSQL_ROOT_PASSWORD}" induspilot -e "SELECT COUNT(*) AS audit_columns FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = '\''operation_audit_events'\'' AND column_name IN ('\''previous_hash'\'', '\''event_hash'\'');"
 '
 
+
+echo "[integration] run MySQL real CRUD smoke"
+"${compose[@]}" exec -T mysql sh -c '
+  set -eu
+  mysql --protocol=TCP -h 127.0.0.1 -uroot -p"${MYSQL_ROOT_PASSWORD}" induspilot < /docker-entrypoint-initdb.d/integration/real_crud_smoke.sql | grep mysql_real_crud_smoke_passed
+'
 echo "[integration] check Redis auth ping"
 "${compose[@]}" exec -T redis sh -c 'redis-cli -a "${REDIS_PASSWORD}" --no-auth-warning ping | grep PONG'
 
