@@ -142,6 +142,15 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File backend/tests/http_integ
 
 CI 的 `dependency-services` job 会启动 `deployment/docker-compose.yml` 中的 MySQL、Redis 和 MongoDB，并运行 `backend/tests/dependency_services_smoke.sh`。该脚本会重复执行 MySQL 迁移脚本，随后执行 `database/mysql/integration/real_crud_smoke.sql`，在真实 MySQL 中覆盖默认用户、资产、运行状态、告警规则、告警、通知投递、工单、附件、AI 交互和操作审计事件的可重复 CRUD 断言；Redis 会验证 key/value、TTL、counter 和 hash 读写；MongoDB 会执行 `database/mongodb/integration/real_crud_smoke.js`，验证 collection、索引和文档 upsert/read。
 
+若需要本地一键验收真实运行时 profile，可使用 `backend/tests/http_runtime_profile_smoke.ps1`。脚本读取 `deployment/.env`，拒绝 `change-me-*` 示例密钥，并可选执行 compose 启停、dependency smoke 和 MySQL 仓储 + Redis session HTTP smoke：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File backend/tests/http_runtime_profile_smoke.ps1 `
+  -StartDependencies `
+  -RunDependencySmoke `
+  -StopDependencies
+```
+
 ## 操作审计接口
 
 - `GET /api/v1/audit/events`：需要 `audit:read` 权限，返回最近操作审计事件数组；传入分页参数时返回 `{ items, total, limit, offset }`。

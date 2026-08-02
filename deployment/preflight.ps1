@@ -64,7 +64,8 @@ $requiredFiles = @(
     "database/mysql/008_operation_audit_export_permission.sql",
     "database/mysql/009_operation_audit_integrity_schema.sql",
     "database/mongodb/init_collections.js",
-    "database/mongodb/integration/real_crud_smoke.js"
+    "database/mongodb/integration/real_crud_smoke.js",
+    "backend/tests/http_runtime_profile_smoke.ps1"
 )
 
 foreach ($file in $requiredFiles) {
