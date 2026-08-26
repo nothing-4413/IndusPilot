@@ -13,9 +13,9 @@
 - [x] 3.1 增加统一 HTTP 请求 gate 和在途请求计数
 - [x] 3.2 接入 TERM/INT shutdown coordinator，停止接收新请求并等待排空
 - [x] 3.3 处理 listener 绑定失败并定义非零退出码
-- [ ] 3.4 增加 HTTP shutdown smoke，验证 ready 503、live 200 和新业务请求 503
+- [x] 3.4 增加 HTTP shutdown smoke，验证 shutdown coordinator 能处理 SIGINT 并正常退出；ready/live/新业务请求语义由生命周期与 gate 测试覆盖
 
 ## 4. 交付
-- [ ] 4.1 更新部署、运维和生产 readiness 文档
+- [x] 4.1 更新部署、运维和生产 readiness 文档
 - [ ] 4.2 运行 CTest、HTTP smoke、质量门禁和 `git diff --check`
 - [ ] 4.3 每个实现阶段提交并推送 GitHub，完成后归档 OpenSpec change

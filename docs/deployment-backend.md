@@ -94,6 +94,17 @@ Invoke-WebRequest http://127.0.0.1:8080/health/startup
 
 `deployment/docker-compose.yml` 中的 healthcheck 只表示 MySQL、Redis、MongoDB 容器自身可接受连接；它不能替代后端 `/health/ready`。MongoDB 当前没有业务仓储接入，因此即使 compose 健康，也不会成为核心 readiness 条件。
 
+## 优雅停机
+
+HTTP runtime 已将 `SIGTERM` 和 `SIGINT` 绑定到同一个 shutdown coordinator。收到信号后，实例按以下顺序处理：
+
+1. 停止接受新的业务请求；新业务请求返回 `503` 和 `SERVER_DRAINING`。
+2. Application 进入 draining；此时 `/health/ready` 返回 `503`，`/health/live` 仍返回 `200`，让编排器完成摘流。
+3. 等待已通过请求 gate 的请求完成。
+4. 调用 Drogon `quit()`，释放 listener 和运行时资源，进程正常返回 `0`。
+
+健康检查和 `/metrics` 在 draining 阶段仍可访问，以便观察状态。当前策略不强制中断超时业务请求；如部署平台的 termination grace period 到期，平台可能直接终止进程。listener 预检失败返回退出码 `69`，静态配置错误仍返回 `78`。
+
 ## 仓储运行时
 
 `storage.repository_store` 支持 `memory` 和 `mysql`。默认 `memory` 用于离线演示和测试；设置为 `mysql` 后，HTTP 运行时会将身份认证、资产、告警、维护工单、运行状态和 AI 交互审计切换到 MySQL 仓储。

@@ -98,5 +98,13 @@ if(INDUSPILOT_BUILD_TESTS)
         -MySqlPort 1
         -ReadinessOnly
         -ExpectNotReady)
+
+    add_executable(induspilot-http-shutdown-smoke tests/http_shutdown_smoke.cpp)
+    target_link_libraries(induspilot-http-shutdown-smoke PRIVATE induspilot_backend_core)
+    target_compile_options(induspilot-http-shutdown-smoke PRIVATE
+      $<$<CXX_COMPILER_ID:MSVC>:/utf-8 /EHsc>
+    )
+    target_compile_definitions(induspilot-http-shutdown-smoke PRIVATE INDUSPILOT_WITH_DROGON)
+    add_test(NAME induspilot-http-shutdown-smoke COMMAND $<TARGET_FILE:induspilot-http-shutdown-smoke>)
   endif()
 endif()
