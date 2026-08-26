@@ -44,6 +44,8 @@ security:
 ai:
   # provider 支持 disabled/http；启用 Drogon 构建时 http 会向 endpoint 发起真实推理请求。
   enabled: false
+  # 默认降级，不阻断核心服务；仅在生产明确要求 AI 时设为 true。
+  required: false
   provider: "disabled"
   endpoint: "http://127.0.0.1:9000/v1/complete"
   # api_key 为空时不发送鉴权头；生产环境建议通过 INDUSPILOT_AI_API_KEY 注入。
@@ -54,3 +56,8 @@ ai:
   maxContextItems: 20
   storeInteractionRecords: true
   require_structured_response: true
+
+readiness:
+  # readiness 单次依赖探测超时和结果缓存时间，单位为毫秒。
+  probe_timeout_ms: 1000
+  probe_cache_ms: 1000

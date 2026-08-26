@@ -119,6 +119,8 @@ void applyConfigValue(AppConfig& config, const std::string& section, const std::
         config.mongodb.uri = value;
     } else if (section == "ai" && key == "enabled") {
         config.ai.enabled = parseBool(value, config.ai.enabled);
+    } else if (section == "ai" && key == "required") {
+        config.ai.required = parseBool(value, config.ai.required);
     } else if (section == "ai" && key == "provider") {
         config.ai.provider = value;
     } else if (section == "ai" && key == "endpoint") {
@@ -137,6 +139,10 @@ void applyConfigValue(AppConfig& config, const std::string& section, const std::
         config.ai.storeInteractionRecords = parseBool(value, config.ai.storeInteractionRecords);
     } else if (section == "ai" && (key == "requireStructuredResponse" || key == "require_structured_response")) {
         config.ai.requireStructuredResponse = parseBool(value, config.ai.requireStructuredResponse);
+    } else if (section == "readiness" && (key == "probeTimeoutMs" || key == "probe_timeout_ms")) {
+        config.readiness.probeTimeoutMs = parseInt(value, config.readiness.probeTimeoutMs);
+    } else if (section == "readiness" && (key == "probeCacheMs" || key == "probe_cache_ms")) {
+        config.readiness.probeCacheMs = parseInt(value, config.readiness.probeCacheMs);
     } else if (section == "security" && (key == "loginLockoutEnabled" || key == "login_lockout_enabled")) {
         config.security.loginLockoutEnabled = parseBool(value, config.security.loginLockoutEnabled);
     } else if (section == "security" && (key == "loginMaxFailures" || key == "login_max_failures")) {
@@ -177,6 +183,7 @@ void applyEnvironmentOverrides(AppConfig& config) {
     applyStringEnv("INDUSPILOT_MONGODB_URI", config.mongodb.uri);
 
     applyBoolEnv("INDUSPILOT_AI_ENABLED", config.ai.enabled);
+    applyBoolEnv("INDUSPILOT_AI_REQUIRED", config.ai.required);
     applyStringEnv("INDUSPILOT_AI_PROVIDER", config.ai.provider);
     applyStringEnv("INDUSPILOT_AI_ENDPOINT", config.ai.endpoint);
     applyStringEnv("INDUSPILOT_AI_API_KEY", config.ai.apiKey);
@@ -186,6 +193,9 @@ void applyEnvironmentOverrides(AppConfig& config) {
     applyIntEnv("INDUSPILOT_AI_MAX_CONTEXT_ITEMS", config.ai.maxContextItems);
     applyBoolEnv("INDUSPILOT_AI_STORE_INTERACTION_RECORDS", config.ai.storeInteractionRecords);
     applyBoolEnv("INDUSPILOT_AI_REQUIRE_STRUCTURED_RESPONSE", config.ai.requireStructuredResponse);
+
+    applyIntEnv("INDUSPILOT_READINESS_PROBE_TIMEOUT_MS", config.readiness.probeTimeoutMs);
+    applyIntEnv("INDUSPILOT_READINESS_PROBE_CACHE_MS", config.readiness.probeCacheMs);
 
     applyBoolEnv("INDUSPILOT_SECURITY_LOGIN_LOCKOUT_ENABLED", config.security.loginLockoutEnabled);
     applyIntEnv("INDUSPILOT_SECURITY_LOGIN_MAX_FAILURES", config.security.loginMaxFailures);
@@ -230,6 +240,54 @@ AppConfig loadConfig(const std::string& path) {
     applyEnvironmentOverrides(config);
     refreshRedisUri(config.redis);
     return config;
+}
+
+ConfigValidation validateConfig(const AppConfig& config) {
+    ConfigValidation result;
+    const auto addError = [&result](const std::string& message) {
+        result.valid = false;
+        result.errors.push_back(message);
+    };
+
+    if (config.host.empty()) {
+        addError("server.host must not be empty");
+    }
+    if (config.port < 1 || config.port > 65535) {
+        addError("server.port must be between 1 and 65535");
+    }
+    if (config.storage.repositoryStore != "memory" && config.storage.repositoryStore != "mysql") {
+        addError("storage.repository_store must be memory or mysql");
+    }
+    if (config.redis.sessionStore != "memory" && config.redis.sessionStore != "redis") {
+        addError("redis.session_store must be memory or redis");
+    }
+    if (config.redis.sessionStore == "redis") {
+        if (config.redis.uri.empty()) {
+            addError("redis.uri must not be empty when redis.session_store=redis");
+        }
+    }
+    if (config.ai.required && (!config.ai.enabled || config.ai.provider != "http")) {
+        addError("ai.required requires ai.enabled=true and ai.provider=http");
+    }
+    if (config.ai.enabled && config.ai.provider != "disabled" && config.ai.provider != "http") {
+        addError("ai.provider must be disabled or http");
+    }
+    if (config.ai.enabled && config.ai.provider == "http" && config.ai.endpoint.empty()) {
+        addError("ai.endpoint must not be empty for the http AI provider");
+    }
+    if (config.ai.timeoutMs < 1) {
+        addError("ai.timeout_ms must be greater than zero");
+    }
+    if (config.ai.maxContextItems < 1) {
+        addError("ai.max_context_items must be greater than zero");
+    }
+    if (config.readiness.probeTimeoutMs < 1) {
+        addError("readiness.probe_timeout_ms must be greater than zero");
+    }
+    if (config.readiness.probeCacheMs < 0) {
+        addError("readiness.probe_cache_ms must not be negative");
+    }
+    return result;
 }
 
 }  // namespace induspilot::app

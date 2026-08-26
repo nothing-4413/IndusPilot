@@ -46,6 +46,7 @@ int main() {
     _putenv_s("INDUSPILOT_REDIS_SESSION_STORE", "redis");
     _putenv_s("INDUSPILOT_REPOSITORY_STORE", "mysql");
     _putenv_s("INDUSPILOT_AI_PROVIDER", "http");
+    _putenv_s("INDUSPILOT_AI_REQUIRED", "true");
     _putenv_s("INDUSPILOT_AI_TIMEOUT_MS", "2500");
     _putenv_s("INDUSPILOT_AI_MAX_CONTEXT_ITEMS", "3");
     _putenv_s("INDUSPILOT_AI_STORE_INTERACTION_RECORDS", "false");
@@ -53,6 +54,8 @@ int main() {
     _putenv_s("INDUSPILOT_AI_AUTH_HEADER", "X-Test-AI-Key");
     _putenv_s("INDUSPILOT_AI_AUTH_SCHEME", "Token");
     _putenv_s("INDUSPILOT_AI_REQUIRE_STRUCTURED_RESPONSE", "false");
+    _putenv_s("INDUSPILOT_READINESS_PROBE_TIMEOUT_MS", "1200");
+    _putenv_s("INDUSPILOT_READINESS_PROBE_CACHE_MS", "250");
     _putenv_s("INDUSPILOT_MYSQL_URI", "host=127.0.0.1 port=3306 dbname=induspilot user=induspilot");
     _putenv_s("INDUSPILOT_SECURITY_LOGIN_MAX_FAILURES", "3");
     _putenv_s("INDUSPILOT_SECURITY_LOGIN_LOCKOUT_SECONDS", "120");
@@ -63,6 +66,7 @@ int main() {
     setenv("INDUSPILOT_REDIS_SESSION_STORE", "redis", 1);
     setenv("INDUSPILOT_REPOSITORY_STORE", "mysql", 1);
     setenv("INDUSPILOT_AI_PROVIDER", "http", 1);
+    setenv("INDUSPILOT_AI_REQUIRED", "true", 1);
     setenv("INDUSPILOT_AI_TIMEOUT_MS", "2500", 1);
     setenv("INDUSPILOT_AI_MAX_CONTEXT_ITEMS", "3", 1);
     setenv("INDUSPILOT_AI_STORE_INTERACTION_RECORDS", "false", 1);
@@ -70,6 +74,8 @@ int main() {
     setenv("INDUSPILOT_AI_AUTH_HEADER", "X-Test-AI-Key", 1);
     setenv("INDUSPILOT_AI_AUTH_SCHEME", "Token", 1);
     setenv("INDUSPILOT_AI_REQUIRE_STRUCTURED_RESPONSE", "false", 1);
+    setenv("INDUSPILOT_READINESS_PROBE_TIMEOUT_MS", "1200", 1);
+    setenv("INDUSPILOT_READINESS_PROBE_CACHE_MS", "250", 1);
     setenv("INDUSPILOT_MYSQL_URI", "host=127.0.0.1 port=3306 dbname=induspilot user=induspilot", 1);
     setenv("INDUSPILOT_SECURITY_LOGIN_MAX_FAILURES", "3", 1);
     setenv("INDUSPILOT_SECURITY_LOGIN_LOCKOUT_SECONDS", "120", 1);
@@ -81,6 +87,7 @@ int main() {
     assert(loadedConfig.redis.sessionStore == "redis");
     assert(loadedConfig.storage.repositoryStore == "mysql");
     assert(loadedConfig.ai.provider == "http");
+    assert(loadedConfig.ai.required);
     assert(loadedConfig.ai.timeoutMs == 2500);
     assert(loadedConfig.ai.maxContextItems == 3);
     assert(!loadedConfig.ai.storeInteractionRecords);
@@ -88,9 +95,24 @@ int main() {
     assert(loadedConfig.ai.authHeader == "X-Test-AI-Key");
     assert(loadedConfig.ai.authScheme == "Token");
     assert(!loadedConfig.ai.requireStructuredResponse);
+    assert(loadedConfig.readiness.probeTimeoutMs == 1200);
+    assert(loadedConfig.readiness.probeCacheMs == 250);
     assert(loadedConfig.mysql.uri == "host=127.0.0.1 port=3306 dbname=induspilot user=induspilot");
     assert(loadedConfig.security.loginMaxFailures == 3);
     assert(loadedConfig.security.loginLockoutSeconds == 120);
+    assert(induspilot::app::validateConfig(induspilot::app::AppConfig{}).valid);
+    auto invalidConfig = induspilot::app::AppConfig{};
+    invalidConfig.port = 0;
+    assert(!induspilot::app::validateConfig(invalidConfig).valid);
+    invalidConfig = induspilot::app::AppConfig{};
+    invalidConfig.storage.repositoryStore = "unknown";
+    assert(!induspilot::app::validateConfig(invalidConfig).valid);
+    invalidConfig = induspilot::app::AppConfig{};
+    invalidConfig.ai.required = true;
+    assert(!induspilot::app::validateConfig(invalidConfig).valid);
+    invalidConfig = induspilot::app::AppConfig{};
+    invalidConfig.readiness.probeCacheMs = -1;
+    assert(!induspilot::app::validateConfig(invalidConfig).valid);
 #ifdef _WIN32
     _putenv_s("INDUSPILOT_SERVER_PORT", "");
     _putenv_s("INDUSPILOT_REDIS_SESSION_TTL_SECONDS", "");
@@ -98,6 +120,7 @@ int main() {
     _putenv_s("INDUSPILOT_REDIS_SESSION_STORE", "");
     _putenv_s("INDUSPILOT_REPOSITORY_STORE", "");
     _putenv_s("INDUSPILOT_AI_PROVIDER", "");
+    _putenv_s("INDUSPILOT_AI_REQUIRED", "");
     _putenv_s("INDUSPILOT_AI_TIMEOUT_MS", "");
     _putenv_s("INDUSPILOT_AI_MAX_CONTEXT_ITEMS", "");
     _putenv_s("INDUSPILOT_AI_STORE_INTERACTION_RECORDS", "");
@@ -105,6 +128,8 @@ int main() {
     _putenv_s("INDUSPILOT_AI_AUTH_HEADER", "");
     _putenv_s("INDUSPILOT_AI_AUTH_SCHEME", "");
     _putenv_s("INDUSPILOT_AI_REQUIRE_STRUCTURED_RESPONSE", "");
+    _putenv_s("INDUSPILOT_READINESS_PROBE_TIMEOUT_MS", "");
+    _putenv_s("INDUSPILOT_READINESS_PROBE_CACHE_MS", "");
     _putenv_s("INDUSPILOT_MYSQL_URI", "");
     _putenv_s("INDUSPILOT_SECURITY_LOGIN_MAX_FAILURES", "");
     _putenv_s("INDUSPILOT_SECURITY_LOGIN_LOCKOUT_SECONDS", "");
@@ -115,6 +140,7 @@ int main() {
     unsetenv("INDUSPILOT_REDIS_SESSION_STORE");
     unsetenv("INDUSPILOT_REPOSITORY_STORE");
     unsetenv("INDUSPILOT_AI_PROVIDER");
+    unsetenv("INDUSPILOT_AI_REQUIRED");
     unsetenv("INDUSPILOT_AI_TIMEOUT_MS");
     unsetenv("INDUSPILOT_AI_MAX_CONTEXT_ITEMS");
     unsetenv("INDUSPILOT_AI_STORE_INTERACTION_RECORDS");
@@ -122,6 +148,8 @@ int main() {
     unsetenv("INDUSPILOT_AI_AUTH_HEADER");
     unsetenv("INDUSPILOT_AI_AUTH_SCHEME");
     unsetenv("INDUSPILOT_AI_REQUIRE_STRUCTURED_RESPONSE");
+    unsetenv("INDUSPILOT_READINESS_PROBE_TIMEOUT_MS");
+    unsetenv("INDUSPILOT_READINESS_PROBE_CACHE_MS");
     unsetenv("INDUSPILOT_MYSQL_URI");
     unsetenv("INDUSPILOT_SECURITY_LOGIN_MAX_FAILURES");
     unsetenv("INDUSPILOT_SECURITY_LOGIN_LOCKOUT_SECONDS");

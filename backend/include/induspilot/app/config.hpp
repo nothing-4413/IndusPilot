@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 namespace induspilot::app {
 
@@ -35,6 +36,12 @@ struct AiConfig {
     int maxContextItems{20};
     bool storeInteractionRecords{true};
     bool requireStructuredResponse{true};
+    bool required{false};
+};
+
+struct ReadinessConfig {
+    int probeTimeoutMs{1000};
+    int probeCacheMs{1000};
 };
 
 struct SecurityConfig {
@@ -56,10 +63,17 @@ struct AppConfig {
     RedisConfig redis{};
     DatabaseConfig mongodb{"127.0.0.1", 27017, "induspilot", "", "", "mongodb://127.0.0.1:27017"};
     AiConfig ai{};
+    ReadinessConfig readiness{};
     SecurityConfig security{};
     StorageConfig storage{};
 };
 
+struct ConfigValidation {
+    bool valid{true};
+    std::vector<std::string> errors;
+};
+
 AppConfig loadConfig(const std::string& path);
+ConfigValidation validateConfig(const AppConfig& config);
 
 }  // namespace induspilot::app
