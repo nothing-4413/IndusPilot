@@ -117,6 +117,7 @@ std::shared_ptr<data::AiInteractionRepository> createAiInteractionRepository(
 HttpServerContext buildHttpServerContext(const app::AppConfig& config) {
     auto context = HttpServerContext{};
     context.application = std::make_shared<app::Application>(config);
+    context.requestLifecycle = std::make_shared<HttpRequestLifecycle>();
 
 #ifdef INDUSPILOT_WITH_DROGON
     drogon::orm::DbClientPtr mysqlClient;

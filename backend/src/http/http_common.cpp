@@ -13,6 +13,12 @@ namespace {
 
 constexpr const char* kTraceIdAttribute = "induspilot.trace_id";
 constexpr const char* kMetricsStartedAtAttribute = "induspilot.metrics_started_at";
+constexpr const char* kRequestLeaseAttribute = "induspilot.request_lease";
+
+bool isControlPlanePath(const std::string& path) {
+    return path == "/health" || path == "/health/live" || path == "/health/ready" ||
+        path == "/health/startup" || path == "/metrics";
+}
 
 std::string generatedTraceId() {
     static std::atomic<unsigned long long> sequence{0};
@@ -196,6 +202,51 @@ void registerMetricsAdvice(const std::shared_ptr<modules::MetricsRegistry>& metr
         }
         metrics->recordHttpRequest(request->methodString(), request->path(), static_cast<int>(response->statusCode()), durationMs);
     });
+}
+
+void registerRequestLifecycleAdvice(drogon::HttpAppFramework& server, const HttpServerContext& context) {
+    const auto& application = context.application;
+    const auto& requestLifecycle = context.requestLifecycle;
+    server.registerPreHandlingAdvice(
+        [application, requestLifecycle](
+            const drogon::HttpRequestPtr& request,
+            drogon::AdviceCallback&& callback,
+            drogon::AdviceChainCallback&& chain) {
+            if (isControlPlanePath(request->path())) {
+                chain();
+                return;
+            }
+
+            if (!application->isRunning() || application->isDraining() || !requestLifecycle->tryBeginRequest()) {
+                Json::Value data;
+                data["draining"] = application->isDraining();
+                callback(jsonResponse(
+                    responseEnvelope(false, "SERVER_DRAINING", "服务正在停止，不再接受新请求", data),
+                    drogon::k503ServiceUnavailable));
+                return;
+            }
+
+            if (application->isDraining()) {
+                requestLifecycle->finishRequest();
+                Json::Value data;
+                data["draining"] = true;
+                callback(jsonResponse(
+                    responseEnvelope(false, "SERVER_DRAINING", "服务正在停止，不再接受新请求", data),
+                    drogon::k503ServiceUnavailable));
+                return;
+            }
+
+            request->attributes()->insert(kRequestLeaseAttribute, true);
+            chain();
+        });
+    server.registerPostHandlingAdvice(
+        [requestLifecycle](const drogon::HttpRequestPtr& request, const drogon::HttpResponsePtr&) {
+            if (!request->attributes()->get<bool>(kRequestLeaseAttribute)) {
+                return;
+            }
+            request->attributes()->insert(kRequestLeaseAttribute, false);
+            requestLifecycle->finishRequest();
+        });
 }
 
 }  // namespace induspilot::http

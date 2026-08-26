@@ -1,6 +1,7 @@
 #pragma once
 
 #include "induspilot/app/application.hpp"
+#include "induspilot/http/http_request_lifecycle.hpp"
 #include "induspilot/modules/ai_service.hpp"
 #include "induspilot/modules/alert_service.hpp"
 #include "induspilot/modules/audit_service.hpp"
@@ -16,6 +17,7 @@ namespace induspilot::http {
 
 struct HttpServerContext {
     std::shared_ptr<app::Application> application;
+    std::shared_ptr<HttpRequestLifecycle> requestLifecycle;
     std::shared_ptr<modules::IdentityService> identity;
     std::shared_ptr<modules::AssetService> assets;
     std::shared_ptr<modules::MonitoringService> monitoring;

@@ -56,5 +56,8 @@ bool parsePaginationParameter(
 
 void registerTraceHeaders();
 void registerMetricsAdvice(const std::shared_ptr<modules::MetricsRegistry>& metrics);
+void registerRequestLifecycleAdvice(
+    drogon::HttpAppFramework& server,
+    const HttpServerContext& context);
 
 }  // namespace induspilot::http

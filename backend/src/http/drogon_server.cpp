@@ -16,6 +16,7 @@ void registerRoutes(const HttpServerContext& context) {
     registerTraceHeaders();
     auto& server = drogon::app();
     registerMetricsAdvice(context.metrics);
+    registerRequestLifecycleAdvice(server, context);
     registerPlatformRoutes(server, context);
     registerAuthRoutes(server, context);
     registerAssetRoutes(server, context);

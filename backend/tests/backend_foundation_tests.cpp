@@ -15,6 +15,7 @@
 #include "induspilot/modules/metrics_service.hpp"
 #include "induspilot/modules/monitoring_service.hpp"
 #include "induspilot/modules/password_hasher.hpp"
+#include "induspilot/http/http_request_lifecycle.hpp"
 
 #include <cassert>
 #include <chrono>
@@ -41,6 +42,18 @@ static_assert(std::is_base_of_v<induspilot::data::AiInteractionRepository, indus
 #endif
 
 int main() {
+    induspilot::http::HttpRequestLifecycle requestLifecycle;
+    assert(requestLifecycle.accepting());
+    assert(requestLifecycle.tryBeginRequest());
+    assert(requestLifecycle.inFlightRequests() == 1);
+    requestLifecycle.stopAccepting();
+    assert(!requestLifecycle.accepting());
+    assert(!requestLifecycle.tryBeginRequest());
+    requestLifecycle.finishRequest();
+    requestLifecycle.finishRequest();
+    requestLifecycle.waitForDrain();
+    assert(requestLifecycle.inFlightRequests() == 0);
+
 #ifdef _WIN32
     _putenv_s("INDUSPILOT_SERVER_PORT", "18080");
     _putenv_s("INDUSPILOT_REDIS_SESSION_TTL_SECONDS", "60");
