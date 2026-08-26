@@ -27,6 +27,17 @@ jobs:
         shell: pwsh
         run: tools/quality/quality_gate.ps1 -RequireClangTools
 
+  security-scan:
+    name: security scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run secret scan
+        shell: pwsh
+        run: tools/security/secret_scan.ps1 -FailOnMissingGit
   backend-foundation:
     name: backend foundation
     runs-on: ubuntu-latest

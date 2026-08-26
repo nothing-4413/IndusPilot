@@ -48,6 +48,7 @@ $clangFormatPath = Require-File '.clang-format'
 $clangTidyPath = Require-File '.clang-tidy'
 $presetsPath = Require-File 'CMakePresets.json'
 $workflowPath = Require-File '.github/workflows/ci.yml'
+$secretScanPath = Require-File 'tools/security/secret_scan.ps1'
 Require-Directory 'openspec/specs' | Out-Null
 Require-Directory 'backend' | Out-Null
 Require-Directory 'client' | Out-Null
@@ -89,10 +90,11 @@ if ($presetsPath) {
 
 if ($workflowPath) {
     $workflow = Read-Text '.github/workflows/ci.yml'
-    foreach ($required in @('quality-gates:', 'backend-foundation:', 'configuration-preflight:', 'dependency-services:', 'openspec:')) {
+    foreach ($required in @('quality-gates:', 'security-scan:', 'backend-foundation:', 'configuration-preflight:', 'dependency-services:', 'openspec:')) {
         Assert-Contains '.github/workflows/ci.yml' $workflow $required
     }
     Assert-Contains '.github/workflows/ci.yml' $workflow 'tools/quality/quality_gate.ps1 -RequireClangTools'
+    Assert-Contains '.github/workflows/ci.yml' $workflow 'tools/security/secret_scan.ps1 -FailOnMissingGit'
     Assert-Contains '.github/workflows/ci.yml' $workflow 'openspec validate --specs --strict'
 }
 

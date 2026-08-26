@@ -28,3 +28,6 @@ pwsh -NoProfile -File tools/quality/quality_gate.ps1 -RequireClangTools
 - CI 工作流缺少质量门禁、OpenSpec、后端测试、配置预检或依赖冒烟 job。
 
 后续如果对全仓库进行格式化，可以在该脚本中进一步打开 `clang-format --dry-run` 和 `clang-tidy` 编译数据库检查。
+## 安全扫描
+
+CI 额外提供 `security scan` job，运行 `tools/security/secret_scan.ps1 -FailOnMissingGit`。该脚本扫描 Git tracked files，阻断真实 `.env`、私钥头和常见 token 模式；`.env.example` 与 `change-me-*` 示例值允许保留。详细说明见 `docs/development/security-gates.md`。
