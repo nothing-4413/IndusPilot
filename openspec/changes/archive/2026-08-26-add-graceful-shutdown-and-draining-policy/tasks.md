@@ -17,5 +17,5 @@
 
 ## 4. 交付
 - [x] 4.1 更新部署、运维和生产 readiness 文档
-- [ ] 4.2 运行 CTest、HTTP smoke、质量门禁和 `git diff --check`
-- [ ] 4.3 每个实现阶段提交并推送 GitHub，完成后归档 OpenSpec change
+- [x] 4.2 运行 CTest、HTTP smoke、质量门禁和 `git diff --check`
+- [x] 4.3 每个实现阶段提交并推送 GitHub，完成后归档 OpenSpec change
