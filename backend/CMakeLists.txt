@@ -86,5 +86,15 @@ if(INDUSPILOT_BUILD_TESTS)
       COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/tests/http_integration_smoke.ps1
         -BackendExe $<TARGET_FILE:induspilot-backend>
         -ConfigPath ${CMAKE_SOURCE_DIR}/config/backend.example.yaml)
+    add_test(NAME induspilot-http-readiness-unavailable-smoke
+      COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/tests/http_integration_smoke.ps1
+        -BackendExe $<TARGET_FILE:induspilot-backend>
+        -ConfigPath ${CMAKE_SOURCE_DIR}/config/backend.example.yaml
+        -BaseUrl http://127.0.0.1:18082
+        -RepositoryStore mysql
+        -MySqlHost 127.0.0.1
+        -MySqlPort 1
+        -ReadinessOnly
+        -ExpectNotReady)
   endif()
 endif()

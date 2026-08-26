@@ -17,7 +17,9 @@ param(
     [string]$MySqlUser = "",
     [string]$MySqlPassword = "",
     [string]$RedisUri = "",
-    [string]$MongoDbUri = ""
+    [string]$MongoDbUri = "",
+    [switch]$ReadinessOnly,
+    [switch]$ExpectNotReady
 )
 
 $ErrorActionPreference = "Stop"
@@ -69,10 +71,63 @@ function Invoke-ExpectStatusResponse {
     )
 
     try {
+        $supportsSkipHttpErrorCheck = (Get-Command Invoke-WebRequest).Parameters.ContainsKey("SkipHttpErrorCheck")
+        if (-not $supportsSkipHttpErrorCheck) {
+            $request = [System.Net.HttpWebRequest]::Create($Uri)
+            $request.Method = $Method
+            $request.Timeout = 10000
+            foreach ($header in $Headers.GetEnumerator()) {
+                $request.Headers.Add($header.Key, [string]$header.Value)
+            }
+            if ($PSBoundParameters.ContainsKey("Body") -and $Body -ne $null) {
+                $request.ContentType = "application/json"
+                $bodyBytes = [System.Text.Encoding]::UTF8.GetBytes($Body)
+                $request.ContentLength = $bodyBytes.Length
+                $requestStream = $request.GetRequestStream()
+                try {
+                    $requestStream.Write($bodyBytes, 0, $bodyBytes.Length)
+                } finally {
+                    $requestStream.Dispose()
+                }
+            }
+            try {
+                $rawResponse = $request.GetResponse()
+            } catch [System.Net.WebException] {
+                $rawResponse = $_.Exception.Response
+                if ($rawResponse -eq $null) {
+                    throw
+                }
+            }
+            $responseHeaders = $rawResponse.Headers
+            $actual = [int]$rawResponse.StatusCode
+            $reader = New-Object System.IO.StreamReader($rawResponse.GetResponseStream())
+            try {
+                $content = $reader.ReadToEnd()
+            } finally {
+                $reader.Dispose()
+                $rawResponse.Dispose()
+            }
+            if ($actual -ne $Status) {
+                throw "Expected HTTP $Status from $Method $Uri, got $actual"
+            }
+            return [pscustomobject]@{
+                StatusCode = $actual
+                Content = $content
+                Headers = $responseHeaders
+            }
+        }
         if (-not $PSBoundParameters.ContainsKey("Body") -or $Body -eq $null) {
-            $response = Invoke-WebRequest -UseBasicParsing -Uri $Uri -Method $Method -Headers $Headers -TimeoutSec 10
+            if ($supportsSkipHttpErrorCheck) {
+                $response = Invoke-WebRequest -SkipHttpErrorCheck -UseBasicParsing -Uri $Uri -Method $Method -Headers $Headers -TimeoutSec 10
+            } else {
+                $response = Invoke-WebRequest -UseBasicParsing -Uri $Uri -Method $Method -Headers $Headers -TimeoutSec 10
+            }
         } else {
-            $response = Invoke-WebRequest -UseBasicParsing -Uri $Uri -Method $Method -Headers $Headers -ContentType "application/json" -Body $Body -TimeoutSec 10
+            if ($supportsSkipHttpErrorCheck) {
+                $response = Invoke-WebRequest -SkipHttpErrorCheck -UseBasicParsing -Uri $Uri -Method $Method -Headers $Headers -ContentType "application/json" -Body $Body -TimeoutSec 10
+            } else {
+                $response = Invoke-WebRequest -UseBasicParsing -Uri $Uri -Method $Method -Headers $Headers -ContentType "application/json" -Body $Body -TimeoutSec 10
+            }
         }
         $actual = [int]$response.StatusCode
         if ($actual -ne $Status) {
@@ -88,7 +143,17 @@ function Invoke-ExpectStatusResponse {
         if ($actual -ne $Status) {
             throw "Expected HTTP $Status from $Method $Uri, got $actual"
         }
-        return $response
+        $reader = New-Object System.IO.StreamReader($response.GetResponseStream())
+        try {
+            $content = $reader.ReadToEnd()
+        } finally {
+            $reader.Dispose()
+        }
+        return [pscustomobject]@{
+            StatusCode = $actual
+            Content = $content
+            Headers = $response.Headers
+        }
     }
 }
 
@@ -106,7 +171,8 @@ $oldMongoDbUri = $env:INDUSPILOT_MONGODB_URI
 $oldLoginMaxFailures = $env:INDUSPILOT_SECURITY_LOGIN_MAX_FAILURES
 $oldLoginFailureWindow = $env:INDUSPILOT_SECURITY_LOGIN_FAILURE_WINDOW_SECONDS
 $oldLoginLockoutSeconds = $env:INDUSPILOT_SECURITY_LOGIN_LOCKOUT_SECONDS
-$env:INDUSPILOT_SERVER_PORT = "18081"
+$baseUri = [Uri]$BaseUrl
+$env:INDUSPILOT_SERVER_PORT = [string]$baseUri.Port
 $env:INDUSPILOT_REPOSITORY_STORE = $RepositoryStore
 $env:INDUSPILOT_REDIS_SESSION_STORE = $SessionStore
 if (-not [string]::IsNullOrWhiteSpace($MySqlUri)) { $env:INDUSPILOT_MYSQL_URI = $MySqlUri }
@@ -147,6 +213,37 @@ try {
     Assert-True ($null -ne $health.dependencies.redis) "Health check did not include Redis dependency."
     Assert-True ($null -ne $health.dependencies.mongodb) "Health check did not include MongoDB dependency."
     Assert-True ($null -ne $health.dependencies.ai) "Health check did not include AI dependency."
+
+    $live = Invoke-WebRequest -UseBasicParsing -Uri "$BaseUrl/health/live" -Method Get -TimeoutSec 10
+    Assert-True ([int]$live.StatusCode -eq 200) "Liveness check did not return HTTP 200."
+    $livePayload = $live.Content | ConvertFrom-Json
+    Assert-True $livePayload.success "Liveness check was not successful."
+    Assert-True $livePayload.data.live "Liveness payload did not report a live process."
+
+    $expectedReadinessStatus = if ($ExpectNotReady) { 503 } else { 200 }
+    $ready = Invoke-ExpectStatusResponse -Uri "$BaseUrl/health/ready" -Method Get -Status $expectedReadinessStatus
+    $readyPayload = $ready.Content | ConvertFrom-Json
+    Assert-True ($readyPayload.data.PSObject.Properties.Name -contains "dependencies") "Readiness payload did not include dependency details. Body: $($ready.Content)"
+    if ($ExpectNotReady) {
+        Assert-True (-not $readyPayload.success) "Unavailable dependency readiness unexpectedly succeeded."
+        Assert-True (-not $readyPayload.data.ready) "Readiness payload did not report not ready."
+        Assert-True $readyPayload.data.dependencies.mysql.required "Unavailable MySQL dependency was not marked required."
+        Assert-True (-not $readyPayload.data.dependencies.mysql.available) "Unavailable MySQL dependency was marked available."
+        Assert-True (-not [string]::IsNullOrWhiteSpace($readyPayload.data.dependencies.mysql.reason)) "Readiness failure reason was empty."
+    } else {
+        Assert-True $readyPayload.success "Ready dependency profile did not return success."
+        Assert-True $readyPayload.data.ready "Readiness payload did not report ready."
+    }
+
+    $startup = Invoke-WebRequest -UseBasicParsing -Uri "$BaseUrl/health/startup" -Method Get -TimeoutSec 10
+    Assert-True ([int]$startup.StatusCode -eq 200) "Startup check did not return HTTP 200."
+    $startupPayload = $startup.Content | ConvertFrom-Json
+    Assert-True $startupPayload.success "Startup check was not successful."
+    Assert-True $startupPayload.data.initialized "Startup payload did not report initialized state."
+
+    if ($ReadinessOnly) {
+        return
+    }
 
     $traceHeaders = @{ "X-Request-Id" = "trace-it-request-header" }
     $traceResponse = Invoke-WebRequest -UseBasicParsing -Uri "$BaseUrl/health" -Method Get -Headers $traceHeaders -TimeoutSec 10
