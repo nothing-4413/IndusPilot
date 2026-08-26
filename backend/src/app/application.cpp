@@ -10,9 +10,18 @@ Application::Application(AppConfig config) : config_(std::move(config)) {
     registerRoutes();
 }
 
-void Application::start() {
+bool Application::start() {
+    configValidation_ = validateConfig(config_);
+    if (!configValidation_.valid) {
+        initialized_ = false;
+        running_ = false;
+        return false;
+    }
+
     dependencies_ = data::DataConnectors{config_}.probe();
+    initialized_ = true;
     running_ = true;
+    return true;
 }
 
 void Application::stop() {
@@ -23,18 +32,45 @@ bool Application::isRunning() const {
     return running_;
 }
 
+bool Application::isInitialized() const {
+    return initialized_;
+}
+
 api::HealthCheck Application::health() const {
     api::HealthCheck health;
     health.dependencies = {
+        {"mysql", dependencies_.mysql.available},
+        {"redis", dependencies_.redis.available},
+        {"mongodb", dependencies_.mongodb.available},
+        {"ai", dependencies_.ai.available},
+    };
+    for (const auto& dependency : readiness().dependencies) {
+        if (dependency.second.required && !dependency.second.available) {
+            health.warnings.push_back(dependency.first + ": " + dependency.second.reason);
+        }
+    }
+    return health;
+}
+
+Application::StartupStatus Application::startup() const {
+    return StartupStatus{configValidation_.valid, initialized_, configValidation_.errors};
+}
+
+Application::ReadinessStatus Application::readiness() const {
+    ReadinessStatus status;
+    status.dependencies = {
         {"mysql", dependencies_.mysql},
         {"redis", dependencies_.redis},
         {"mongodb", dependencies_.mongodb},
-        {"ai", config_.ai.enabled ? dependencies_.ai : true},
+        {"ai", dependencies_.ai},
     };
-    if (!dependencies_.mysql || !dependencies_.redis || !dependencies_.mongodb) {
-        health.warnings.push_back("依赖健康检查当前仅验证 TCP 连通性，尚未校验认证、库表结构或集合状态");
+    status.ready = initialized_ && running_ && configValidation_.valid;
+    for (const auto& dependency : status.dependencies) {
+        if (dependency.second.required && !dependency.second.available) {
+            status.ready = false;
+        }
     }
-    return health;
+    return status;
 }
 
 api::Router& Application::router() {
@@ -44,6 +80,19 @@ api::Router& Application::router() {
 void Application::registerRoutes() {
     router_.addRoute("GET", "/health", [this] {
         return api::ApiResponse{true, "OK", "服务健康状态已生成", api::toJson(health())};
+    });
+    router_.addRoute("GET", "/health/live", [this] {
+        return api::ApiResponse{isRunning(), isRunning() ? "OK" : "NOT_LIVE", "进程存活状态已生成", "{}"};
+    });
+    router_.addRoute("GET", "/health/ready", [this] {
+        const auto status = readiness();
+        return api::ApiResponse{status.ready, status.ready ? "OK" : "NOT_READY", "服务就绪状态已生成", "{}"};
+    });
+    router_.addRoute("GET", "/health/startup", [this] {
+        const auto status = startup();
+        return api::ApiResponse{status.initialized && status.configurationValid,
+                                status.initialized && status.configurationValid ? "OK" : "STARTUP_FAILED",
+                                "服务启动状态已生成", "{}"};
     });
 }
 

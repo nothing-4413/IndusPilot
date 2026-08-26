@@ -31,7 +31,12 @@ void registerRoutes(const HttpServerContext& context) {
 int runDrogonServer(const app::AppConfig& config) {
     const auto context = buildHttpServerContext(config);
 
-    context.application->start();
+    if (!context.application->start()) {
+        for (const auto& error : context.application->startup().errors) {
+            std::cerr << "invalid configuration: " << error << std::endl;
+        }
+        return 78;
+    }
     registerRoutes(context);
 
     drogon::app().addListener(config.host, config.port).run();

@@ -139,11 +139,21 @@ DependencyStatus DataConnectors::probe() const {
     const auto redisEndpoint = endpointFromUri(config_.redis.uri, config_.redis.port);
     const auto aiEndpoint = endpointFromUri(config_.ai.endpoint, 80);
 
+    const auto mysqlAvailable = required.mysql && tcpReachable(mysqlEndpoint);
+    const auto redisAvailable = required.redis && tcpReachable(redisEndpoint);
+    const auto aiAvailable = required.ai && tcpReachable(aiEndpoint);
+
     return DependencyStatus{
-        required.mysql ? tcpReachable(mysqlEndpoint) : false,
-        required.redis ? tcpReachable(redisEndpoint) : false,
-        false,
-        required.ai ? tcpReachable(aiEndpoint) : false,
+        {required.mysql, required.mysql ? mysqlAvailable : true,
+         required.mysql ? (mysqlAvailable ? "TCP endpoint reachable" : "TCP endpoint unavailable")
+                        : "not required by repository_store"},
+        {required.redis, required.redis ? redisAvailable : true,
+         required.redis ? (redisAvailable ? "TCP endpoint reachable" : "TCP endpoint unavailable")
+                        : "not required by session_store"},
+        {false, true, "optional dependency is not probed"},
+        {false, required.ai ? aiAvailable : true,
+         required.ai ? (aiAvailable ? "TCP endpoint reachable (optional)" : "TCP endpoint unavailable (optional)")
+                     : "disabled"},
     };
 }
 

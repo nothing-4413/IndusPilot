@@ -16,7 +16,12 @@ int main(int argc, char** argv) {
     return induspilot::http::runDrogonServer(config);
 #else
     induspilot::app::Application app(config);
-    app.start();
+    if (!app.start()) {
+        for (const auto& error : app.startup().errors) {
+            std::cerr << "invalid configuration: " << error << std::endl;
+        }
+        return 78;
+    }
 
     std::cout << induspilot::api::toJson(app.health()) << std::endl;
     app.stop();

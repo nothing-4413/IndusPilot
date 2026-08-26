@@ -13,11 +13,17 @@ struct DependencyRequirements {
     bool ai{false};
 };
 
+struct DependencyCheck {
+    bool required{false};
+    bool available{true};
+    std::string reason;
+};
+
 struct DependencyStatus {
-    bool mysql{false};
-    bool redis{false};
-    bool mongodb{false};
-    bool ai{false};
+    DependencyCheck mysql;
+    DependencyCheck redis;
+    DependencyCheck mongodb;
+    DependencyCheck ai;
 };
 
 class DataConnectors {

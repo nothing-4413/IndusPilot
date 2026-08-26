@@ -175,7 +175,18 @@ int main() {
     app.start();
     assert(app.isRunning());
     assert(app.router().handle("GET", "/health").success);
+    assert(app.router().handle("GET", "/health/live").success);
+    assert(app.router().handle("GET", "/health/ready").success);
+    assert(app.router().handle("GET", "/health/startup").success);
     assert(!app.router().handle("GET", "/missing").success);
+
+    auto invalidApplicationConfig = induspilot::app::AppConfig{};
+    invalidApplicationConfig.port = 0;
+    induspilot::app::Application invalidApplication(invalidApplicationConfig);
+    assert(!invalidApplication.start());
+    assert(!invalidApplication.isRunning());
+    assert(!invalidApplication.startup().configurationValid);
+    assert(!invalidApplication.startup().initialized);
 
     induspilot::modules::IdentityService identity;
     const auto login = identity.login({"admin", "admin123"});
