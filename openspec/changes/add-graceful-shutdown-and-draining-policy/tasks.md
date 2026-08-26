@@ -5,9 +5,9 @@
 - [x] 1.2 核对 Drogon lifecycle/signal API 与现有 health route 边界
 
 ## 2. Application 生命周期
-- [ ] 2.1 增加 running/draining/stopped 状态和幂等生命周期操作
-- [ ] 2.2 让 readiness/liveness/startup 序列化正确反映 draining 与 stopped
-- [ ] 2.3 增加 Application 生命周期单元测试
+- [x] 2.1 增加 running/draining/stopped 状态和幂等生命周期操作
+- [x] 2.2 让 readiness/liveness/startup 序列化正确反映 draining 与 stopped
+- [x] 2.3 增加 Application 生命周期单元测试
 
 ## 3. HTTP 排空与 runtime
 - [ ] 3.1 增加统一 HTTP 请求 gate 和在途请求计数

@@ -221,11 +221,26 @@ int main() {
     induspilot::app::Application app(induspilot::app::AppConfig{});
     app.start();
     assert(app.isRunning());
+    assert(!app.isDraining());
+    assert(app.lifecycle() == induspilot::app::Application::LifecycleState::running);
     assert(app.router().handle("GET", "/health").success);
     assert(app.router().handle("GET", "/health/live").success);
     assert(app.router().handle("GET", "/health/ready").success);
     assert(app.router().handle("GET", "/health/startup").success);
     assert(!app.router().handle("GET", "/missing").success);
+
+    app.beginDraining();
+    assert(app.isRunning());
+    assert(app.isDraining());
+    assert(app.lifecycle() == induspilot::app::Application::LifecycleState::draining);
+    assert(!app.router().handle("GET", "/health/ready").success);
+    assert(app.router().handle("GET", "/health/live").success);
+    app.beginDraining();
+    app.stop();
+    app.stop();
+    assert(!app.isRunning());
+    assert(!app.isDraining());
+    assert(app.lifecycle() == induspilot::app::Application::LifecycleState::stopped);
 
     auto invalidApplicationConfig = induspilot::app::AppConfig{};
     invalidApplicationConfig.port = 0;
@@ -392,7 +407,5 @@ int main() {
     assert(!diagnosis.recommendedActions.empty());
     assert(!ai.interactions().empty());
 
-    app.stop();
-    assert(!app.isRunning());
     return 0;
 }

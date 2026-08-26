@@ -17,12 +17,21 @@ namespace induspilot::app {
 
 class Application {
 public:
+    enum class LifecycleState {
+        stopped,
+        running,
+        draining,
+    };
+
     explicit Application(AppConfig config);
 
     bool start();
+    void beginDraining();
     void stop();
     bool isRunning() const;
+    bool isDraining() const;
     bool isInitialized() const;
+    LifecycleState lifecycle() const;
     api::HealthCheck health() const;
     struct StartupStatus {
         bool configurationValid{true};
@@ -55,6 +64,7 @@ private:
     api::Router router_;
     mutable bool initialized_{false};
     mutable bool running_{false};
+    mutable bool draining_{false};
     mutable bool hasProbe_{false};
     mutable bool probeInFlight_{false};
     mutable std::uint64_t probeCount_{0};

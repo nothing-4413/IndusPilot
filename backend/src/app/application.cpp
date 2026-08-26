@@ -29,6 +29,7 @@ bool Application::start() {
         requirements_ = data::DataConnectors{config_}.requirements();
         initialized_ = true;
         running_ = true;
+        draining_ = false;
         hasProbe_ = false;
         probeCount_ = 0;
         failureCount_ = 0;
@@ -41,9 +42,18 @@ bool Application::start() {
     return true;
 }
 
+void Application::beginDraining() {
+    std::lock_guard lock(stateMutex_);
+    if (running_) {
+        draining_ = true;
+        probeCondition_.notify_all();
+    }
+}
+
 void Application::stop() {
     std::lock_guard lock(stateMutex_);
     running_ = false;
+    draining_ = false;
     probeCondition_.notify_all();
 }
 
@@ -52,9 +62,22 @@ bool Application::isRunning() const {
     return running_;
 }
 
+bool Application::isDraining() const {
+    std::lock_guard lock(stateMutex_);
+    return running_ && draining_;
+}
+
 bool Application::isInitialized() const {
     std::lock_guard lock(stateMutex_);
     return initialized_;
+}
+
+Application::LifecycleState Application::lifecycle() const {
+    std::lock_guard lock(stateMutex_);
+    if (!running_) {
+        return LifecycleState::stopped;
+    }
+    return draining_ ? LifecycleState::draining : LifecycleState::running;
 }
 
 api::HealthCheck Application::health() const {
@@ -99,7 +122,7 @@ Application::ReadinessStatus Application::readinessLocked() const {
         {"mongodb", dependencies_.mongodb},
         {"ai", dependencies_.ai},
     };
-    status.ready = initialized_ && running_ && configValidation_.valid;
+    status.ready = initialized_ && running_ && !draining_ && configValidation_.valid;
     for (const auto& dependency : status.dependencies) {
         if (dependency.second.required && !dependency.second.available) {
             status.ready = false;
@@ -117,7 +140,7 @@ Application::ReadinessStatus Application::readinessLocked() const {
 void Application::refreshDependencies() const {
     for (;;) {
         std::unique_lock lock(stateMutex_);
-        if (!initialized_ || !running_) {
+        if (!initialized_ || !running_ || draining_) {
             return;
         }
 
