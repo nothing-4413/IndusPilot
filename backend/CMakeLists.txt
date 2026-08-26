@@ -20,7 +20,7 @@ set(INDUSPILOT_BACKEND_CORE_SOURCES
 )
 
 if(INDUSPILOT_WITH_DROGON)
-  list(APPEND INDUSPILOT_BACKEND_CORE_SOURCES src/http/drogon_server.cpp src/data/mysql_repositories.cpp)
+  list(APPEND INDUSPILOT_BACKEND_CORE_SOURCES src/http/drogon_server.cpp src/http/http_common.cpp src/data/mysql_repositories.cpp)
 endif()
 
 add_library(induspilot_backend_core ${INDUSPILOT_BACKEND_CORE_SOURCES})
