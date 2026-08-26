@@ -158,6 +158,11 @@ int main() {
     assert(!memoryRequirements.redis);
     assert(!memoryRequirements.mongodb);
     assert(!memoryRequirements.ai);
+    const auto memoryStatus = induspilot::data::DataConnectors{induspilot::app::AppConfig{}}.probe();
+    assert(!memoryStatus.mysql.checked);
+    assert(!memoryStatus.redis.checked);
+    assert(!memoryStatus.mongodb.checked);
+    assert(!memoryStatus.ai.checked);
     auto mysqlConfig = induspilot::app::AppConfig{};
     mysqlConfig.storage.repositoryStore = "mysql";
     assert(induspilot::data::DataConnectors{mysqlConfig}.requirements().mysql);
@@ -241,7 +246,11 @@ int main() {
     const auto unavailableReadiness = unavailableDependencyApplication.readiness();
     assert(!unavailableReadiness.ready);
     assert(unavailableReadiness.dependencies.at("mysql").required);
+    assert(unavailableReadiness.dependencies.at("mysql").checked);
     assert(!unavailableReadiness.dependencies.at("mysql").available);
+    assert(unavailableReadiness.probeCount == 1);
+    assert(unavailableReadiness.lastProbeDurationMs >= 0);
+    assert(unavailableReadiness.lastProbeAtUnixMs > 0);
 
     induspilot::modules::IdentityService identity;
     const auto login = identity.login({"admin", "admin123"});

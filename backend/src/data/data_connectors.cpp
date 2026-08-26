@@ -1,8 +1,15 @@
 #include "induspilot/data/data_connectors.hpp"
 
+#include <algorithm>
 #include <chrono>
-#include <cerrno>
+#include <condition_variable>
+#include <deque>
+#include <future>
+#include <limits>
+#include <memory>
+#include <mutex>
 #include <string>
+#include <thread>
 #include <utility>
 
 #ifdef _WIN32
@@ -13,6 +20,7 @@
 #include <ws2tcpip.h>
 #else
 #include <arpa/inet.h>
+#include <cerrno>
 #include <fcntl.h>
 #include <netdb.h>
 #include <sys/select.h>
@@ -23,9 +31,17 @@
 namespace induspilot::data {
 namespace {
 
+using Clock = std::chrono::steady_clock;
+using Deadline = Clock::time_point;
+
 struct Endpoint {
     std::string host;
     int port{0};
+};
+
+struct ProbeResult {
+    bool available{false};
+    std::string reason;
 };
 
 std::string stripScheme(const std::string& value) {
@@ -68,33 +84,158 @@ Endpoint endpointFromHostPort(const std::string& host, int port) {
     return Endpoint{host, port};
 }
 
-bool tcpReachable(const Endpoint& endpoint, int timeoutMs) {
-    if (endpoint.host.empty() || endpoint.port <= 0) {
-        return false;
+int remainingMilliseconds(const Deadline deadline) {
+    const auto now = Clock::now();
+    if (now >= deadline) {
+        return 0;
+    }
+    const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now).count();
+    return static_cast<int>(std::clamp<long long>(remaining, 1, (std::numeric_limits<int>::max)()));
+}
+
+#ifdef _WIN32
+bool ensureWinsock() {
+    static std::once_flag flag;
+    static bool initialized = false;
+    std::call_once(flag, [] {
+        WSADATA data{};
+        initialized = WSAStartup(MAKEWORD(2, 2), &data) == 0;
+    });
+    return initialized;
+}
+#endif
+
+struct ResolveRequest {
+    std::mutex mutex;
+    std::condition_variable condition;
+    addrinfo* result{nullptr};
+    int error{0};
+    bool done{false};
+    bool abandoned{false};
+};
+
+class DnsResolver {
+public:
+    DnsResolver() : worker_([this] { run(); }) {}
+
+    bool resolve(const Endpoint& endpoint, const Deadline deadline, addrinfo*& result, int& error) {
+        if (remainingMilliseconds(deadline) == 0) {
+            return false;
+        }
+
+        const auto request = std::make_shared<ResolveRequest>();
+        {
+            std::lock_guard lock(mutex_);
+            if (requests_.size() >= 32) {
+                return false;
+            }
+            requests_.push_back({request, endpoint.host, std::to_string(endpoint.port)});
+        }
+        condition_.notify_one();
+
+        std::unique_lock lock(request->mutex);
+        if (!request->condition.wait_until(lock, deadline, [&request] { return request->done; })) {
+            request->abandoned = true;
+            return false;
+        }
+        result = request->result;
+        request->result = nullptr;
+        error = request->error;
+        return error == 0 && result != nullptr;
+    }
+
+private:
+    struct WorkItem {
+        std::shared_ptr<ResolveRequest> request;
+        std::string host;
+        std::string service;
+    };
+
+    void run() {
+        for (;;) {
+            WorkItem work;
+            {
+                std::unique_lock lock(mutex_);
+                condition_.wait(lock, [this] { return !requests_.empty(); });
+                work = std::move(requests_.front());
+                requests_.pop_front();
+            }
+
+            addrinfo* resolved = nullptr;
+            addrinfo hints{};
+            hints.ai_socktype = SOCK_STREAM;
+            hints.ai_family = AF_UNSPEC;
+            const auto resolveError = getaddrinfo(work.host.c_str(), work.service.c_str(), &hints, &resolved);
+            std::unique_lock lock(work.request->mutex);
+            if (work.request->abandoned) {
+                lock.unlock();
+                if (resolved != nullptr) {
+                    freeaddrinfo(resolved);
+                }
+                continue;
+            }
+            work.request->result = resolved;
+            work.request->error = resolveError;
+            work.request->done = true;
+            lock.unlock();
+            work.request->condition.notify_one();
+        }
+    }
+
+    std::mutex mutex_;
+    std::condition_variable condition_;
+    std::deque<WorkItem> requests_;
+    std::thread worker_;
+};
+
+DnsResolver& dnsResolver() {
+    // The resolver intentionally lives for the process lifetime because getaddrinfo has no portable cancellation API.
+    static auto* resolver = new DnsResolver();
+    return *resolver;
+}
+
+bool resolveWithDeadline(
+    const Endpoint& endpoint,
+    const Deadline deadline,
+    addrinfo*& result,
+    int& error) {
+    addrinfo numericHints{};
+    numericHints.ai_socktype = SOCK_STREAM;
+    numericHints.ai_family = AF_UNSPEC;
+    numericHints.ai_flags = AI_NUMERICHOST;
+    if (getaddrinfo(endpoint.host.c_str(), std::to_string(endpoint.port).c_str(), &numericHints, &result) == 0) {
+        error = 0;
+        return true;
+    }
+    return dnsResolver().resolve(endpoint, deadline, result, error);
+}
+
+ProbeResult tcpProbe(const Endpoint& endpoint, const Deadline deadline) {
+    if (endpoint.host.empty() || endpoint.port <= 0 || endpoint.port > 65535) {
+        return {false, "TCP endpoint configuration is invalid"};
     }
 
 #ifdef _WIN32
-    WSADATA data{};
-    if (WSAStartup(MAKEWORD(2, 2), &data) != 0) {
-        return false;
+    if (!ensureWinsock()) {
+        return {false, "Winsock initialization failed"};
     }
 #endif
-
-    addrinfo hints{};
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_family = AF_UNSPEC;
 
     addrinfo* result = nullptr;
-    const auto port = std::to_string(endpoint.port);
-    if (getaddrinfo(endpoint.host.c_str(), port.c_str(), &hints, &result) != 0) {
-#ifdef _WIN32
-        WSACleanup();
-#endif
-        return false;
+    int resolveError = 0;
+    if (!resolveWithDeadline(endpoint, deadline, result, resolveError)) {
+        return {false, remainingMilliseconds(deadline) == 0 ? "DNS resolution timed out" : "DNS resolution failed"};
     }
 
+    bool timedOut = false;
     bool connected = false;
     for (auto* item = result; item != nullptr; item = item->ai_next) {
+        const auto timeoutMs = remainingMilliseconds(deadline);
+        if (timeoutMs == 0) {
+            timedOut = true;
+            break;
+        }
+
         const auto socketHandle = socket(item->ai_family, item->ai_socktype, item->ai_protocol);
 #ifdef _WIN32
         if (socketHandle == INVALID_SOCKET) {
@@ -120,6 +261,8 @@ bool tcpReachable(const Endpoint& endpoint, int timeoutMs) {
                     int errorSize = sizeof(error);
                     getsockopt(socketHandle, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&error), &errorSize);
                     connected = error == 0;
+                } else if (remainingMilliseconds(deadline) == 0) {
+                    timedOut = true;
                 }
             }
         }
@@ -146,6 +289,8 @@ bool tcpReachable(const Endpoint& endpoint, int timeoutMs) {
                 socklen_t errorSize = sizeof(error);
                 getsockopt(socketHandle, SOL_SOCKET, SO_ERROR, &error, &errorSize);
                 connected = error == 0;
+            } else if (remainingMilliseconds(deadline) == 0) {
+                timedOut = true;
             }
         }
         close(socketHandle);
@@ -156,10 +301,13 @@ bool tcpReachable(const Endpoint& endpoint, int timeoutMs) {
     }
 
     freeaddrinfo(result);
-#ifdef _WIN32
-    WSACleanup();
-#endif
-    return connected;
+    if (connected) {
+        return {true, "TCP endpoint reachable"};
+    }
+    if (timedOut || remainingMilliseconds(deadline) == 0) {
+        return {false, "TCP probe timed out"};
+    }
+    return {false, "TCP endpoint unavailable"};
 }
 
 }  // namespace
@@ -183,24 +331,45 @@ DependencyStatus DataConnectors::probe() const {
         : endpointFromUri(config_.mysql.uri, config_.mysql.port > 0 ? config_.mysql.port : 3306);
     const auto redisEndpoint = endpointFromUri(config_.redis.uri, config_.redis.port);
     const auto aiEndpoint = endpointFromUri(config_.ai.endpoint, 80);
+    const auto deadline = Clock::now() + std::chrono::milliseconds(config_.readiness.probeTimeoutMs);
 
-    const auto mysqlAvailable = required.mysql && tcpReachable(mysqlEndpoint, config_.readiness.probeTimeoutMs);
-    const auto redisAvailable = required.redis && tcpReachable(redisEndpoint, config_.readiness.probeTimeoutMs);
-    const auto aiAvailable = required.ai && tcpReachable(aiEndpoint, config_.readiness.probeTimeoutMs);
+    std::future<ProbeResult> mysqlFuture;
+    std::future<ProbeResult> redisFuture;
+    std::future<ProbeResult> aiFuture;
+    if (required.mysql) {
+        mysqlFuture = std::async(std::launch::async, [mysqlEndpoint, deadline] {
+            return tcpProbe(mysqlEndpoint, deadline);
+        });
+    }
+    if (required.redis) {
+        redisFuture = std::async(std::launch::async, [redisEndpoint, deadline] {
+            return tcpProbe(redisEndpoint, deadline);
+        });
+    }
+    if (required.ai) {
+        aiFuture = std::async(std::launch::async, [aiEndpoint, deadline] {
+            return tcpProbe(aiEndpoint, deadline);
+        });
+    }
+
+    ProbeResult mysqlResult{true, "not required by repository_store"};
+    ProbeResult redisResult{true, "not required by session_store"};
+    ProbeResult aiResult{true, "disabled"};
+    if (required.mysql) {
+        mysqlResult = mysqlFuture.get();
+    }
+    if (required.redis) {
+        redisResult = redisFuture.get();
+    }
+    if (required.ai) {
+        aiResult = aiFuture.get();
+    }
 
     return DependencyStatus{
-        {required.mysql, required.mysql ? mysqlAvailable : true,
-         required.mysql ? (mysqlAvailable ? "TCP endpoint reachable" : "TCP endpoint unavailable")
-                        : "not required by repository_store"},
-        {required.redis, required.redis ? redisAvailable : true,
-         required.redis ? (redisAvailable ? "TCP endpoint reachable" : "TCP endpoint unavailable")
-                        : "not required by session_store"},
-        {false, true, "optional dependency is not probed"},
-        {required.aiRequired, required.ai ? aiAvailable : true,
-         required.ai ? (aiAvailable
-                 ? (required.aiRequired ? "TCP endpoint reachable" : "TCP endpoint reachable (optional)")
-                 : (required.aiRequired ? "TCP endpoint unavailable" : "TCP endpoint unavailable (optional)"))
-                     : "disabled"},
+        {required.mysql, mysqlResult.available, mysqlResult.reason, required.mysql},
+        {required.redis, redisResult.available, redisResult.reason, required.redis},
+        {false, true, "optional dependency is not probed", false},
+        {required.aiRequired, aiResult.available, required.ai ? aiResult.reason : "disabled", required.ai},
     };
 }
 

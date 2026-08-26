@@ -18,6 +18,7 @@ struct DependencyCheck {
     bool required{false};
     bool available{true};
     std::string reason;
+    bool checked{false};
 };
 
 struct DependencyStatus {

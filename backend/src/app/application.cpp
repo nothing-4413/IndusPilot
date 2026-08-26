@@ -3,6 +3,7 @@
 #include "induspilot/api/api_types.hpp"
 
 #include <chrono>
+#include <exception>
 #include <mutex>
 #include <utility>
 
@@ -13,24 +14,37 @@ Application::Application(AppConfig config) : config_(std::move(config)) {
 }
 
 bool Application::start() {
-    std::lock_guard lock(stateMutex_);
-    configValidation_ = validateConfig(config_);
-    if (!configValidation_.valid) {
-        initialized_ = false;
-        running_ = false;
-        return false;
+    {
+        std::lock_guard lock(stateMutex_);
+        if (running_) {
+            return true;
+        }
+        configValidation_ = validateConfig(config_);
+        if (!configValidation_.valid) {
+            initialized_ = false;
+            running_ = false;
+            return false;
+        }
+
+        requirements_ = data::DataConnectors{config_}.requirements();
+        initialized_ = true;
+        running_ = true;
+        hasProbe_ = false;
+        probeCount_ = 0;
+        failureCount_ = 0;
+        recoveryCount_ = 0;
+        lastProbeDurationMs_ = 0;
+        lastProbeAtUnixMs_ = 0;
     }
 
-    requirements_ = data::DataConnectors{config_}.requirements();
-    refreshDependenciesLocked();
-    initialized_ = true;
-    running_ = true;
+    refreshDependencies();
     return true;
 }
 
 void Application::stop() {
     std::lock_guard lock(stateMutex_);
     running_ = false;
+    probeCondition_.notify_all();
 }
 
 bool Application::isRunning() const {
@@ -72,16 +86,12 @@ Application::StartupStatus Application::startup() const {
 }
 
 Application::ReadinessStatus Application::readiness() const {
+    refreshDependencies();
     std::lock_guard lock(stateMutex_);
-    if (initialized_ && running_) {
-        const auto now = std::chrono::steady_clock::now();
-        const auto cacheExpired = !hasProbe_ ||
-            now - lastProbeAt_ >= std::chrono::milliseconds(config_.readiness.probeCacheMs);
-        if (cacheExpired) {
-            refreshDependenciesLocked();
-        }
-    }
+    return readinessLocked();
+}
 
+Application::ReadinessStatus Application::readinessLocked() const {
     ReadinessStatus status;
     status.dependencies = {
         {"mysql", dependencies_.mysql},
@@ -95,13 +105,91 @@ Application::ReadinessStatus Application::readiness() const {
             status.ready = false;
         }
     }
+    status.probeInProgress = probeInFlight_;
+    status.probeCount = probeCount_;
+    status.failureCount = failureCount_;
+    status.recoveryCount = recoveryCount_;
+    status.lastProbeDurationMs = lastProbeDurationMs_;
+    status.lastProbeAtUnixMs = lastProbeAtUnixMs_;
     return status;
 }
 
-void Application::refreshDependenciesLocked() const {
-    dependencies_ = data::DataConnectors{config_}.probe();
-    lastProbeAt_ = std::chrono::steady_clock::now();
-    hasProbe_ = true;
+void Application::refreshDependencies() const {
+    for (;;) {
+        std::unique_lock lock(stateMutex_);
+        if (!initialized_ || !running_) {
+            return;
+        }
+
+        const auto now = std::chrono::steady_clock::now();
+        const auto cacheExpired = !hasProbe_ ||
+            now - lastProbeAt_ >= std::chrono::milliseconds(config_.readiness.probeCacheMs);
+        if (!cacheExpired) {
+            return;
+        }
+        if (probeInFlight_) {
+            probeCondition_.wait(lock, [this] {
+                return !probeInFlight_ || !initialized_ || !running_;
+            });
+            continue;
+        }
+
+        probeInFlight_ = true;
+        const auto config = config_;
+        const auto requirements = requirements_;
+        lock.unlock();
+
+        const auto startedAt = std::chrono::steady_clock::now();
+        data::DependencyStatus nextDependencies;
+        try {
+            nextDependencies = data::DataConnectors{config}.probe();
+        } catch (const std::exception& error) {
+            const auto reason = std::string("dependency probe failed: ") + error.what();
+            nextDependencies = data::DependencyStatus{
+                {requirements.mysql, !requirements.mysql, requirements.mysql ? reason : "not required by repository_store", requirements.mysql},
+                {requirements.redis, !requirements.redis, requirements.redis ? reason : "not required by session_store", requirements.redis},
+                {false, true, "optional dependency is not probed", false},
+                {requirements.aiRequired, !requirements.ai, requirements.ai ? reason : "disabled", requirements.ai},
+            };
+        } catch (...) {
+            const std::string reason = "dependency probe failed: unknown error";
+            nextDependencies = data::DependencyStatus{
+                {requirements.mysql, !requirements.mysql, requirements.mysql ? reason : "not required by repository_store", requirements.mysql},
+                {requirements.redis, !requirements.redis, requirements.redis ? reason : "not required by session_store", requirements.redis},
+                {false, true, "optional dependency is not probed", false},
+                {requirements.aiRequired, !requirements.ai, requirements.ai ? reason : "disabled", requirements.ai},
+            };
+        }
+        const auto finishedAt = std::chrono::steady_clock::now();
+        const auto durationMs = std::chrono::duration_cast<std::chrono::milliseconds>(finishedAt - startedAt).count();
+        const auto unixNow = std::chrono::system_clock::now().time_since_epoch();
+        const auto unixMs = std::chrono::duration_cast<std::chrono::milliseconds>(unixNow).count();
+
+        lock.lock();
+        if (hasProbe_) {
+            const auto updateEdges = [this](const data::DependencyCheck& previous, const data::DependencyCheck& next) {
+                if (previous.available && !next.available) {
+                    ++failureCount_;
+                } else if (!previous.available && next.available) {
+                    ++recoveryCount_;
+                }
+            };
+            updateEdges(dependencies_.mysql, nextDependencies.mysql);
+            updateEdges(dependencies_.redis, nextDependencies.redis);
+            updateEdges(dependencies_.mongodb, nextDependencies.mongodb);
+            updateEdges(dependencies_.ai, nextDependencies.ai);
+        }
+        dependencies_ = std::move(nextDependencies);
+        lastProbeAt_ = finishedAt;
+        lastProbeDurationMs_ = durationMs;
+        lastProbeAtUnixMs_ = unixMs;
+        ++probeCount_;
+        hasProbe_ = true;
+        probeInFlight_ = false;
+        lock.unlock();
+        probeCondition_.notify_all();
+        return;
+    }
 }
 
 api::Router& Application::router() {

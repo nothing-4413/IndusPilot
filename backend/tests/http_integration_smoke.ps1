@@ -224,6 +224,8 @@ try {
     $ready = Invoke-ExpectStatusResponse -Uri "$BaseUrl/health/ready" -Method Get -Status $expectedReadinessStatus
     $readyPayload = $ready.Content | ConvertFrom-Json
     Assert-True ($readyPayload.data.PSObject.Properties.Name -contains "dependencies") "Readiness payload did not include dependency details. Body: $($ready.Content)"
+    Assert-True ($readyPayload.data.PSObject.Properties.Name -contains "probeCount") "Readiness payload did not include probe metadata. Body: $($ready.Content)"
+    Assert-True ($readyPayload.data.PSObject.Properties.Name -contains "lastProbeDurationMs") "Readiness payload did not include probe duration. Body: $($ready.Content)"
     if ($ExpectNotReady) {
         Assert-True (-not $readyPayload.success) "Unavailable dependency readiness unexpectedly succeeded."
         Assert-True (-not $readyPayload.data.ready) "Readiness payload did not report not ready."

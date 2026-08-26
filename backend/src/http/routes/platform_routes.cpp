@@ -11,6 +11,7 @@ Json::Value dependencyChecksToJson(const std::map<std::string, data::DependencyC
         value[item.first]["required"] = item.second.required;
         value[item.first]["available"] = item.second.available;
         value[item.first]["reason"] = item.second.reason;
+        value[item.first]["checked"] = item.second.checked;
     }
     return value;
 }
@@ -67,6 +68,12 @@ void registerPlatformRoutes(drogon::HttpAppFramework& server, const HttpServerCo
         Json::Value data;
         data["ready"] = status.ready;
         data["dependencies"] = dependencyChecksToJson(status.dependencies);
+        data["probeInProgress"] = status.probeInProgress;
+        data["probeCount"] = Json::UInt64(status.probeCount);
+        data["failureCount"] = Json::UInt64(status.failureCount);
+        data["recoveryCount"] = Json::UInt64(status.recoveryCount);
+        data["lastProbeDurationMs"] = Json::Int64(status.lastProbeDurationMs);
+        data["lastProbeAtUnixMs"] = Json::Int64(status.lastProbeAtUnixMs);
         callback(jsonResponse(responseEnvelope(status.ready, status.ready ? "OK" : "NOT_READY", "服务就绪状态已生成", data),
                               status.ready ? drogon::k200OK : drogon::k503ServiceUnavailable));
     }, {drogon::Get});
