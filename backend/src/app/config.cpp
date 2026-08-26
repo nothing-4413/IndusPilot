@@ -1,8 +1,9 @@
 #include "induspilot/app/config.hpp"
 
+#include <charconv>
 #include <cstdlib>
 #include <fstream>
-#include <map>
+#include <system_error>
 #include <string>
 
 namespace induspilot::app {
@@ -17,54 +18,63 @@ std::string trim(const std::string& value) {
     return value.substr(begin, end - begin + 1);
 }
 
-std::string envValue(const char* name) {
-    const auto* value = std::getenv(name);
-    if (value == nullptr) {
-        return {};
-    }
-    return value;
-}
-
-int parseInt(const std::string& value, int fallback) {
+bool parseInt(const std::string& value, int& parsed) {
     if (value.empty()) {
-        return fallback;
+        return false;
     }
-    try {
-        return std::stoi(value);
-    } catch (...) {
-        return fallback;
-    }
+    const auto* begin = value.data();
+    const auto* end = begin + value.size();
+    const auto result = std::from_chars(begin, end, parsed);
+    return result.ec == std::errc{} && result.ptr == end;
 }
 
-bool parseBool(const std::string& value, bool fallback) {
+bool parseBool(const std::string& value, bool& parsed) {
     if (value == "true" || value == "1" || value == "yes" || value == "on") {
+        parsed = true;
         return true;
     }
     if (value == "false" || value == "0" || value == "no" || value == "off") {
-        return false;
+        parsed = false;
+        return true;
     }
-    return fallback;
+    return false;
+}
+
+void addLoadError(AppConfig& config, const std::string& message) {
+    config.loadErrors.push_back(message);
 }
 
 void applyStringEnv(const char* name, std::string& target) {
-    const auto value = envValue(name);
-    if (!value.empty()) {
+    const auto* value = std::getenv(name);
+    if (value != nullptr) {
         target = value;
     }
 }
 
-void applyIntEnv(const char* name, int& target) {
-    const auto value = envValue(name);
-    if (!value.empty()) {
-        target = parseInt(value, target);
+void applyIntEnv(AppConfig& config, const char* name, const char* field, int& target) {
+    const auto* value = std::getenv(name);
+    if (value == nullptr) {
+        return;
     }
+    int parsed = target;
+    if (!parseInt(value, parsed)) {
+        addLoadError(config, std::string("environment variable ") + name + " for " + field + " must be an integer");
+        return;
+    }
+    target = parsed;
 }
 
-void applyBoolEnv(const char* name, bool& target) {
-    const auto value = envValue(name);
-    if (!value.empty()) {
-        target = parseBool(value, target);
+void applyBoolEnv(AppConfig& config, const char* name, const char* field, bool& target) {
+    const auto* value = std::getenv(name);
+    if (value == nullptr) {
+        return;
     }
+    bool parsed = target;
+    if (!parseBool(value, parsed)) {
+        addLoadError(config, std::string("environment variable ") + name + " for " + field + " must be a boolean");
+        return;
+    }
+    target = parsed;
 }
 
 void refreshRedisUri(RedisConfig& redis) {
@@ -74,17 +84,40 @@ void refreshRedisUri(RedisConfig& redis) {
     redis.uri = "tcp://" + redis.host + ':' + std::to_string(redis.port);
 }
 
-void applyConfigValue(AppConfig& config, const std::string& section, const std::string& key, const std::string& value) {
+void applyConfigValue(
+    AppConfig& config,
+    const std::string& section,
+    const std::string& key,
+    const std::string& value,
+    std::size_t lineNumber) {
+    const auto field = section + "." + key;
+    const auto parseInteger = [&](int& target) {
+        int parsed = target;
+        if (!parseInt(value, parsed)) {
+            addLoadError(config, "line " + std::to_string(lineNumber) + ": " + field + " must be an integer");
+            return;
+        }
+        target = parsed;
+    };
+    const auto parseBoolean = [&](bool& target) {
+        bool parsed = target;
+        if (!parseBool(value, parsed)) {
+            addLoadError(config, "line " + std::to_string(lineNumber) + ": " + field + " must be a boolean");
+            return;
+        }
+        target = parsed;
+    };
+
     if (section == "server" && key == "host") {
         config.host = value;
     } else if (section == "server" && key == "port") {
-        config.port = parseInt(value, config.port);
+        parseInteger(config.port);
     } else if (section == "log" && key == "level") {
         config.logLevel = value;
     } else if (section == "mysql" && key == "host") {
         config.mysql.host = value;
     } else if (section == "mysql" && key == "port") {
-        config.mysql.port = parseInt(value, config.mysql.port);
+        parseInteger(config.mysql.port);
     } else if (section == "mysql" && key == "database") {
         config.mysql.database = value;
     } else if (section == "mysql" && key == "user") {
@@ -96,31 +129,31 @@ void applyConfigValue(AppConfig& config, const std::string& section, const std::
     } else if (section == "redis" && key == "host") {
         config.redis.host = value;
     } else if (section == "redis" && key == "port") {
-        config.redis.port = parseInt(value, config.redis.port);
+        parseInteger(config.redis.port);
     } else if (section == "redis" && key == "password") {
         config.redis.password = value;
     } else if (section == "redis" && key == "database") {
-        config.redis.database = parseInt(value, config.redis.database);
+        parseInteger(config.redis.database);
     } else if (section == "redis" && key == "uri") {
         config.redis.uri = value;
     } else if (section == "redis" && key == "session_key_prefix") {
         config.redis.sessionKeyPrefix = value;
     } else if (section == "redis" && key == "session_ttl_seconds") {
-        config.redis.sessionTtlSeconds = parseInt(value, config.redis.sessionTtlSeconds);
+        parseInteger(config.redis.sessionTtlSeconds);
     } else if (section == "redis" && key == "session_store") {
         config.redis.sessionStore = value;
     } else if (section == "mongodb" && key == "host") {
         config.mongodb.host = value;
     } else if (section == "mongodb" && key == "port") {
-        config.mongodb.port = parseInt(value, config.mongodb.port);
+        parseInteger(config.mongodb.port);
     } else if (section == "mongodb" && key == "database") {
         config.mongodb.database = value;
     } else if (section == "mongodb" && key == "uri") {
         config.mongodb.uri = value;
     } else if (section == "ai" && key == "enabled") {
-        config.ai.enabled = parseBool(value, config.ai.enabled);
+        parseBoolean(config.ai.enabled);
     } else if (section == "ai" && key == "required") {
-        config.ai.required = parseBool(value, config.ai.required);
+        parseBoolean(config.ai.required);
     } else if (section == "ai" && key == "provider") {
         config.ai.provider = value;
     } else if (section == "ai" && key == "endpoint") {
@@ -132,75 +165,77 @@ void applyConfigValue(AppConfig& config, const std::string& section, const std::
     } else if (section == "ai" && (key == "authScheme" || key == "auth_scheme")) {
         config.ai.authScheme = value;
     } else if (section == "ai" && (key == "timeoutMs" || key == "timeout_ms")) {
-        config.ai.timeoutMs = parseInt(value, config.ai.timeoutMs);
+        parseInteger(config.ai.timeoutMs);
     } else if (section == "ai" && (key == "maxContextItems" || key == "max_context_items")) {
-        config.ai.maxContextItems = parseInt(value, config.ai.maxContextItems);
+        parseInteger(config.ai.maxContextItems);
     } else if (section == "ai" && (key == "storeInteractionRecords" || key == "store_interaction_records")) {
-        config.ai.storeInteractionRecords = parseBool(value, config.ai.storeInteractionRecords);
+        parseBoolean(config.ai.storeInteractionRecords);
     } else if (section == "ai" && (key == "requireStructuredResponse" || key == "require_structured_response")) {
-        config.ai.requireStructuredResponse = parseBool(value, config.ai.requireStructuredResponse);
+        parseBoolean(config.ai.requireStructuredResponse);
     } else if (section == "readiness" && (key == "probeTimeoutMs" || key == "probe_timeout_ms")) {
-        config.readiness.probeTimeoutMs = parseInt(value, config.readiness.probeTimeoutMs);
+        parseInteger(config.readiness.probeTimeoutMs);
     } else if (section == "readiness" && (key == "probeCacheMs" || key == "probe_cache_ms")) {
-        config.readiness.probeCacheMs = parseInt(value, config.readiness.probeCacheMs);
+        parseInteger(config.readiness.probeCacheMs);
     } else if (section == "security" && (key == "loginLockoutEnabled" || key == "login_lockout_enabled")) {
-        config.security.loginLockoutEnabled = parseBool(value, config.security.loginLockoutEnabled);
+        parseBoolean(config.security.loginLockoutEnabled);
     } else if (section == "security" && (key == "loginMaxFailures" || key == "login_max_failures")) {
-        config.security.loginMaxFailures = parseInt(value, config.security.loginMaxFailures);
+        parseInteger(config.security.loginMaxFailures);
     } else if (section == "security" && (key == "loginFailureWindowSeconds" || key == "login_failure_window_seconds")) {
-        config.security.loginFailureWindowSeconds = parseInt(value, config.security.loginFailureWindowSeconds);
+        parseInteger(config.security.loginFailureWindowSeconds);
     } else if (section == "security" && (key == "loginLockoutSeconds" || key == "login_lockout_seconds")) {
-        config.security.loginLockoutSeconds = parseInt(value, config.security.loginLockoutSeconds);
+        parseInteger(config.security.loginLockoutSeconds);
     } else if (section == "storage" && key == "repository_store") {
         config.storage.repositoryStore = value;
+    } else {
+        addLoadError(config, "line " + std::to_string(lineNumber) + ": unknown configuration field " + field);
     }
 }
 
 void applyEnvironmentOverrides(AppConfig& config) {
     applyStringEnv("INDUSPILOT_SERVER_HOST", config.host);
-    applyIntEnv("INDUSPILOT_SERVER_PORT", config.port);
+    applyIntEnv(config, "INDUSPILOT_SERVER_PORT", "server.port", config.port);
     applyStringEnv("INDUSPILOT_LOG_LEVEL", config.logLevel);
 
     applyStringEnv("INDUSPILOT_MYSQL_HOST", config.mysql.host);
-    applyIntEnv("INDUSPILOT_MYSQL_PORT", config.mysql.port);
+    applyIntEnv(config, "INDUSPILOT_MYSQL_PORT", "mysql.port", config.mysql.port);
     applyStringEnv("INDUSPILOT_MYSQL_DATABASE", config.mysql.database);
     applyStringEnv("INDUSPILOT_MYSQL_USER", config.mysql.user);
     applyStringEnv("INDUSPILOT_MYSQL_PASSWORD", config.mysql.password);
     applyStringEnv("INDUSPILOT_MYSQL_URI", config.mysql.uri);
 
     applyStringEnv("INDUSPILOT_REDIS_HOST", config.redis.host);
-    applyIntEnv("INDUSPILOT_REDIS_PORT", config.redis.port);
+    applyIntEnv(config, "INDUSPILOT_REDIS_PORT", "redis.port", config.redis.port);
     applyStringEnv("INDUSPILOT_REDIS_PASSWORD", config.redis.password);
-    applyIntEnv("INDUSPILOT_REDIS_DATABASE", config.redis.database);
+    applyIntEnv(config, "INDUSPILOT_REDIS_DATABASE", "redis.database", config.redis.database);
     applyStringEnv("INDUSPILOT_REDIS_URI", config.redis.uri);
     applyStringEnv("INDUSPILOT_REDIS_SESSION_KEY_PREFIX", config.redis.sessionKeyPrefix);
-    applyIntEnv("INDUSPILOT_REDIS_SESSION_TTL_SECONDS", config.redis.sessionTtlSeconds);
+    applyIntEnv(config, "INDUSPILOT_REDIS_SESSION_TTL_SECONDS", "redis.session_ttl_seconds", config.redis.sessionTtlSeconds);
     applyStringEnv("INDUSPILOT_REDIS_SESSION_STORE", config.redis.sessionStore);
 
     applyStringEnv("INDUSPILOT_MONGODB_HOST", config.mongodb.host);
-    applyIntEnv("INDUSPILOT_MONGODB_PORT", config.mongodb.port);
+    applyIntEnv(config, "INDUSPILOT_MONGODB_PORT", "mongodb.port", config.mongodb.port);
     applyStringEnv("INDUSPILOT_MONGODB_DATABASE", config.mongodb.database);
     applyStringEnv("INDUSPILOT_MONGODB_URI", config.mongodb.uri);
 
-    applyBoolEnv("INDUSPILOT_AI_ENABLED", config.ai.enabled);
-    applyBoolEnv("INDUSPILOT_AI_REQUIRED", config.ai.required);
+    applyBoolEnv(config, "INDUSPILOT_AI_ENABLED", "ai.enabled", config.ai.enabled);
+    applyBoolEnv(config, "INDUSPILOT_AI_REQUIRED", "ai.required", config.ai.required);
     applyStringEnv("INDUSPILOT_AI_PROVIDER", config.ai.provider);
     applyStringEnv("INDUSPILOT_AI_ENDPOINT", config.ai.endpoint);
     applyStringEnv("INDUSPILOT_AI_API_KEY", config.ai.apiKey);
     applyStringEnv("INDUSPILOT_AI_AUTH_HEADER", config.ai.authHeader);
     applyStringEnv("INDUSPILOT_AI_AUTH_SCHEME", config.ai.authScheme);
-    applyIntEnv("INDUSPILOT_AI_TIMEOUT_MS", config.ai.timeoutMs);
-    applyIntEnv("INDUSPILOT_AI_MAX_CONTEXT_ITEMS", config.ai.maxContextItems);
-    applyBoolEnv("INDUSPILOT_AI_STORE_INTERACTION_RECORDS", config.ai.storeInteractionRecords);
-    applyBoolEnv("INDUSPILOT_AI_REQUIRE_STRUCTURED_RESPONSE", config.ai.requireStructuredResponse);
+    applyIntEnv(config, "INDUSPILOT_AI_TIMEOUT_MS", "ai.timeout_ms", config.ai.timeoutMs);
+    applyIntEnv(config, "INDUSPILOT_AI_MAX_CONTEXT_ITEMS", "ai.max_context_items", config.ai.maxContextItems);
+    applyBoolEnv(config, "INDUSPILOT_AI_STORE_INTERACTION_RECORDS", "ai.store_interaction_records", config.ai.storeInteractionRecords);
+    applyBoolEnv(config, "INDUSPILOT_AI_REQUIRE_STRUCTURED_RESPONSE", "ai.require_structured_response", config.ai.requireStructuredResponse);
 
-    applyIntEnv("INDUSPILOT_READINESS_PROBE_TIMEOUT_MS", config.readiness.probeTimeoutMs);
-    applyIntEnv("INDUSPILOT_READINESS_PROBE_CACHE_MS", config.readiness.probeCacheMs);
+    applyIntEnv(config, "INDUSPILOT_READINESS_PROBE_TIMEOUT_MS", "readiness.probe_timeout_ms", config.readiness.probeTimeoutMs);
+    applyIntEnv(config, "INDUSPILOT_READINESS_PROBE_CACHE_MS", "readiness.probe_cache_ms", config.readiness.probeCacheMs);
 
-    applyBoolEnv("INDUSPILOT_SECURITY_LOGIN_LOCKOUT_ENABLED", config.security.loginLockoutEnabled);
-    applyIntEnv("INDUSPILOT_SECURITY_LOGIN_MAX_FAILURES", config.security.loginMaxFailures);
-    applyIntEnv("INDUSPILOT_SECURITY_LOGIN_FAILURE_WINDOW_SECONDS", config.security.loginFailureWindowSeconds);
-    applyIntEnv("INDUSPILOT_SECURITY_LOGIN_LOCKOUT_SECONDS", config.security.loginLockoutSeconds);
+    applyBoolEnv(config, "INDUSPILOT_SECURITY_LOGIN_LOCKOUT_ENABLED", "security.login_lockout_enabled", config.security.loginLockoutEnabled);
+    applyIntEnv(config, "INDUSPILOT_SECURITY_LOGIN_MAX_FAILURES", "security.login_max_failures", config.security.loginMaxFailures);
+    applyIntEnv(config, "INDUSPILOT_SECURITY_LOGIN_FAILURE_WINDOW_SECONDS", "security.login_failure_window_seconds", config.security.loginFailureWindowSeconds);
+    applyIntEnv(config, "INDUSPILOT_SECURITY_LOGIN_LOCKOUT_SECONDS", "security.login_lockout_seconds", config.security.loginLockoutSeconds);
 
     applyStringEnv("INDUSPILOT_REPOSITORY_STORE", config.storage.repositoryStore);
 }
@@ -210,10 +245,14 @@ void applyEnvironmentOverrides(AppConfig& config) {
 AppConfig loadConfig(const std::string& path) {
     AppConfig config;
     std::ifstream input(path);
-    if (input) {
+    if (!input) {
+        addLoadError(config, "configuration file could not be read: " + path);
+    } else {
         std::string section;
         std::string line;
+        std::size_t lineNumber = 0;
         while (std::getline(input, line)) {
+            ++lineNumber;
             const auto trimmed = trim(line);
             if (trimmed.empty() || trimmed[0] == '#') {
                 continue;
@@ -221,18 +260,30 @@ AppConfig loadConfig(const std::string& path) {
 
             const auto pos = line.find(':');
             if (pos == std::string::npos) {
+                addLoadError(config, "line " + std::to_string(lineNumber) + ": expected a key/value entry");
                 continue;
             }
 
-            const bool isSection = line.find_first_not_of(" \t") == 0 && trim(line.substr(pos + 1)).empty();
+            const auto indentation = line.find_first_not_of(" \t");
+            const bool isSection = indentation == 0 && trim(line.substr(pos + 1)).empty();
             if (isSection) {
                 section = trim(line.substr(0, pos));
+                if (section != "server" && section != "log" && section != "mysql" && section != "redis" &&
+                    section != "storage" && section != "mongodb" && section != "security" && section != "ai" &&
+                    section != "readiness") {
+                    addLoadError(config, "line " + std::to_string(lineNumber) + ": unknown configuration section " + section);
+                }
+                continue;
+            }
+
+            if (indentation == 0 || section.empty()) {
+                addLoadError(config, "line " + std::to_string(lineNumber) + ": configuration field must be nested under a section");
                 continue;
             }
 
             const auto key = trim(line.substr(0, pos));
             const auto value = trim(line.substr(pos + 1));
-            applyConfigValue(config, section, key, value);
+            applyConfigValue(config, section, key, value, lineNumber);
         }
     }
 
@@ -248,6 +299,10 @@ ConfigValidation validateConfig(const AppConfig& config) {
         result.valid = false;
         result.errors.push_back(message);
     };
+
+    for (const auto& loadError : config.loadErrors) {
+        addError(loadError);
+    }
 
     if (config.host.empty()) {
         addError("server.host must not be empty");

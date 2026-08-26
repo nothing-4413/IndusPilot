@@ -18,6 +18,8 @@
 
 #include <cassert>
 #include <chrono>
+#include <filesystem>
+#include <fstream>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -101,6 +103,43 @@ int main() {
     assert(loadedConfig.security.loginMaxFailures == 3);
     assert(loadedConfig.security.loginLockoutSeconds == 120);
     assert(induspilot::app::validateConfig(induspilot::app::AppConfig{}).valid);
+
+#ifdef _WIN32
+    _putenv_s("INDUSPILOT_READINESS_PROBE_TIMEOUT_MS", "invalid");
+#else
+    setenv("INDUSPILOT_READINESS_PROBE_TIMEOUT_MS", "invalid", 1);
+#endif
+    const auto invalidEnvironmentConfig = induspilot::app::loadConfig("config/backend.example.yaml");
+    assert(!invalidEnvironmentConfig.loadErrors.empty());
+    assert(!induspilot::app::validateConfig(invalidEnvironmentConfig).valid);
+#ifdef _WIN32
+    _putenv_s("INDUSPILOT_READINESS_PROBE_TIMEOUT_MS", "1200");
+#else
+    setenv("INDUSPILOT_READINESS_PROBE_TIMEOUT_MS", "1200", 1);
+#endif
+
+    const auto invalidConfigPath = std::filesystem::temp_directory_path() /
+        ("induspilot-invalid-config-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".yaml");
+    {
+        std::ofstream invalidConfigFile(invalidConfigPath);
+        invalidConfigFile << "server:\n"
+                          << "  port: not-an-integer\n"
+                          << "  unexpected: true\n"
+                          << "broken line\n";
+    }
+    const auto invalidFileConfig = induspilot::app::loadConfig(invalidConfigPath.string());
+    assert(invalidFileConfig.loadErrors.size() >= 3);
+    const auto invalidFileValidation = induspilot::app::validateConfig(invalidFileConfig);
+    assert(!invalidFileValidation.valid);
+    induspilot::app::Application invalidLoadedApplication(invalidFileConfig);
+    assert(!invalidLoadedApplication.start());
+    assert(!invalidLoadedApplication.startup().configurationValid);
+    std::filesystem::remove(invalidConfigPath);
+
+    const auto missingConfig = induspilot::app::loadConfig("config/does-not-exist.yaml");
+    assert(!missingConfig.loadErrors.empty());
+    assert(!induspilot::app::validateConfig(missingConfig).valid);
+
     auto invalidConfig = induspilot::app::AppConfig{};
     invalidConfig.port = 0;
     assert(!induspilot::app::validateConfig(invalidConfig).valid);

@@ -66,6 +66,7 @@ struct AppConfig {
     ReadinessConfig readiness{};
     SecurityConfig security{};
     StorageConfig storage{};
+    std::vector<std::string> loadErrors;
 };
 
 struct ConfigValidation {
