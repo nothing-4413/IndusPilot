@@ -172,6 +172,7 @@ DependencyRequirements DataConnectors::requirements() const {
         config_.redis.sessionStore == "redis",
         false,
         config_.ai.enabled && config_.ai.provider == "http",
+        config_.ai.required,
     };
 }
 
@@ -195,8 +196,10 @@ DependencyStatus DataConnectors::probe() const {
          required.redis ? (redisAvailable ? "TCP endpoint reachable" : "TCP endpoint unavailable")
                         : "not required by session_store"},
         {false, true, "optional dependency is not probed"},
-        {false, required.ai ? aiAvailable : true,
-         required.ai ? (aiAvailable ? "TCP endpoint reachable (optional)" : "TCP endpoint unavailable (optional)")
+        {required.aiRequired, required.ai ? aiAvailable : true,
+         required.ai ? (aiAvailable
+                 ? (required.aiRequired ? "TCP endpoint reachable" : "TCP endpoint reachable (optional)")
+                 : (required.aiRequired ? "TCP endpoint unavailable" : "TCP endpoint unavailable (optional)"))
                      : "disabled"},
     };
 }

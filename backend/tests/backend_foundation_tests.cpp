@@ -129,6 +129,9 @@ int main() {
     aiConfig.ai.enabled = true;
     aiConfig.ai.provider = "http";
     assert(induspilot::data::DataConnectors{aiConfig}.requirements().ai);
+    aiConfig.ai.required = true;
+    const auto aiStatus = induspilot::data::DataConnectors{aiConfig}.probe();
+    assert(aiStatus.ai.required);
 #ifdef _WIN32
     _putenv_s("INDUSPILOT_SERVER_PORT", "");
     _putenv_s("INDUSPILOT_REDIS_SESSION_TTL_SECONDS", "");

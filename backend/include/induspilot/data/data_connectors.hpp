@@ -11,6 +11,7 @@ struct DependencyRequirements {
     bool redis{false};
     bool mongodb{false};
     bool ai{false};
+    bool aiRequired{false};
 };
 
 struct DependencyCheck {

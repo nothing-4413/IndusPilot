@@ -17,4 +17,4 @@
 ## 4. 部署、测试与文档
 - [x] 4.1 扩展 HTTP smoke 验证三类 health endpoint 和 503 语义
 - [x] 4.2 更新 Docker healthcheck、部署配置和运维文档
-- [ ] 4.3 运行质量门禁、CTest、HTTP smoke 并按阶段提交推送
+- [x] 4.3 运行质量门禁、CTest、HTTP smoke 并按阶段提交推送
