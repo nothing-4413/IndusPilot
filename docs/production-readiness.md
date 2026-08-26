@@ -14,7 +14,8 @@
 ## 当前边界
 
 - 身份安全：当前已支持版本化 PBKDF2-SHA256 密码校验、登录失败锁定和密钥扫描门禁，并保留显式开发兼容格式；生产前仍必须替换演示盐值、补齐密码轮换、审计和最小权限账户治理。
-- 依赖健康：`/health` 保持旧客户端的 200 兼容语义；`/health/ready` 按 `repository_store`、`session_store` 和 AI required 配置判断核心依赖，使用有限超时和缓存重新评估恢复状态；部署前预检会检查离线 schema 版本基线，CI dependency smoke 会验证真实 MySQL/Redis/MongoDB 启动、认证、迁移幂等、MySQL 核心业务 CRUD、Redis 数据结构读写和 MongoDB 文档 CRUD。
+- 依赖健康：`/health` 保持旧客户端的 200 兼容语义；`/health/ready` 按 `repository_store`、`session_store` 和 AI required 配置判断核心依赖，使用 single-flight、并发依赖探测、统一 DNS/connect deadline 和缓存重新评估恢复状态，并暴露探测次数、耗时、失败/恢复计数；部署前预检会检查离线 schema 版本基线，CI dependency smoke 会验证真实 MySQL/Redis/MongoDB 启动、认证、迁移幂等、MySQL 核心业务 CRUD、Redis 数据结构读写和 MongoDB 文档 CRUD。
+- 配置边界：配置文件读取失败、未知字段、错误层级和非法整数/布尔值会在 listener 启动前阻止进程启动，并以退出码 `78` 报告；外部依赖暂时不可用仍由 readiness `503` 表达。
 - AI 传输：`provider=http` 目前是外部模型适配边界，尚未调用真实远程推理服务。
 - MongoDB：当前尚未接入后端业务仓储；CI 已验证初始化集合、索引和文档 CRUD，非结构化日志、知识片段和长上下文仍待正式落库。
 - 客户端：Qt 客户端已接入 HTTP 登录、资产列表与状态更新、运行监控列表与状态写入、告警创建/规则/通知投递/列表与处置、维护工单列表、新建/编辑/附件/从告警生成/分派/基础流转、AI 结构化诊断入口和 AI 交互审计查询、分页与 CSV 导出，并接入告警规则/通知联动。

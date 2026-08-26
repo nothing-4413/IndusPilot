@@ -73,14 +73,16 @@ docker compose up -d
 
 后端启动时先校验静态配置。配置错误会返回退出码 `78`，且不会启动 HTTP listener；MySQL、Redis 或 required AI 暂时不可用不会导致进程退出，而会让 readiness 返回 `503`。
 
+配置文件必须存在且可读取。整数和布尔环境变量必须完整匹配合法值；未知 section、字段、错误层级或损坏行也会被拒绝，不会静默回退默认值。启动失败时优先查看 HTTP listener 启动前的进程 stderr。
+
 编排系统应分别使用以下 endpoint：
 
 - `/health/live`：只判断进程是否已运行，不执行外部依赖探测，返回 `200` 才继续保留实例。
-- `/health/ready`：判断 required 依赖，全部可用返回 `200`，否则返回 `503`；响应包含每个依赖的 `required`、`available` 和 `reason`。
+- `/health/ready`：判断 required 依赖，全部可用返回 `200`，否则返回 `503`；响应包含每个依赖的 `required`、`available`、`checked` 和 `reason`，以及探测 metadata。
 - `/health/startup`：判断配置校验和初始化是否完成；有效启动后返回 `200`。
 - `/health`：兼容旧客户端，继续返回 `200` 以及 `service`、`dependencies`、`warnings` 字段。
 
-readiness 探测使用 `INDUSPILOT_READINESS_PROBE_TIMEOUT_MS` 限制单次 TCP connect 等待，并在 `INDUSPILOT_READINESS_PROBE_CACHE_MS` 内复用结果。缓存过期后下一次 readiness 请求会重新探测，依赖恢复后可自动回到 `200`。
+readiness 探测使用 `INDUSPILOT_READINESS_PROBE_TIMEOUT_MS` 限制 DNS 和 TCP connect 的单轮 deadline，并在 `INDUSPILOT_READINESS_PROBE_CACHE_MS` 内复用结果。多个并发 readiness 请求会合并为一轮探测；缓存过期后下一次 readiness 请求会重新探测，依赖恢复后可自动回到 `200`。readiness data 还提供 `probeInProgress`、`probeCount`、`failureCount`、`recoveryCount`、`lastProbeDurationMs` 和 `lastProbeAtUnixMs`。
 
 本地或反向代理可用以下命令确认状态：
 

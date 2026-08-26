@@ -16,5 +16,5 @@
 
 ## 4. 集成验证与交付
 - [x] 4.1 扩展基础测试和 HTTP smoke 覆盖新契约
-- [ ] 4.2 更新生产 readiness 文档和配置说明
-- [ ] 4.3 运行质量门禁、CTest、HTTP smoke，并按阶段提交推送
+- [x] 4.2 更新生产 readiness 文档和配置说明
+- [x] 4.3 运行质量门禁、CTest、HTTP smoke，并按阶段提交推送

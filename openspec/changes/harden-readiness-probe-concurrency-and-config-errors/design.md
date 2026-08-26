@@ -43,7 +43,7 @@ readiness request B ─┘          │
 
 ## 状态观测
 
-readiness 状态增加稳定的 metadata：`probeInProgress`、`probeCount`、`failureCount`、`recoveryCount`、`lastProbeDurationMs` 和可读的 `lastProbeAt`。failure/recovery 按依赖从 available 到 unavailable、以及 unavailable 到 available 的边沿计数；未 required 的依赖不影响 `ready`，但其探测结果仍可诊断。
+readiness 状态增加稳定的 metadata：`probeInProgress`、`probeCount`、`failureCount`、`recoveryCount`、`lastProbeDurationMs` 和 Unix 毫秒时间戳 `lastProbeAtUnixMs`。failure/recovery 按依赖从 available 到 unavailable、以及 unavailable 到 available 的边沿计数；未 required 的依赖不影响 `ready`，但其探测结果仍可诊断。
 
 ## 模块边界
 
