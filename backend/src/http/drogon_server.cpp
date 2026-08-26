@@ -7,6 +7,7 @@
 #include "induspilot/domain/domain_types.hpp"
 #include "induspilot/http/http_common.hpp"
 #include "induspilot/http/http_server_context.hpp"
+#include "induspilot/http/route_registrars.hpp"
 #include "induspilot/modules/ai_service.hpp"
 #include "induspilot/modules/alert_service.hpp"
 #include "induspilot/modules/audit_service.hpp"
@@ -32,40 +33,6 @@
 namespace induspilot::http {
 namespace {
 
-std::string assetStatusToString(domain::AssetStatus status) {
-    switch (status) {
-        case domain::AssetStatus::Active:
-            return "active";
-        case domain::AssetStatus::Inactive:
-            return "inactive";
-        case domain::AssetStatus::Maintenance:
-            return "maintenance";
-        case domain::AssetStatus::Retired:
-            return "retired";
-    }
-    return "unknown";
-}
-
-
-std::optional<domain::AssetStatus> tryAssetStatusFromString(const std::string& status) {
-    if (status == "active") {
-        return domain::AssetStatus::Active;
-    }
-    if (status == "inactive") {
-        return domain::AssetStatus::Inactive;
-    }
-    if (status == "maintenance") {
-        return domain::AssetStatus::Maintenance;
-    }
-    if (status == "retired") {
-        return domain::AssetStatus::Retired;
-    }
-    return std::nullopt;
-}
-
-domain::AssetStatus assetStatusFromString(const std::string& status) {
-    return tryAssetStatusFromString(status).value_or(domain::AssetStatus::Active);
-}
 std::string alertSeverityToString(domain::AlertSeverity severity) {
     switch (severity) {
         case domain::AlertSeverity::Info:
@@ -108,72 +75,6 @@ std::string workOrderStateToString(domain::WorkOrderState state) {
             return "closed";
     }
     return "unknown";
-}
-
-Json::Value userToJson(const domain::User& user) {
-    Json::Value value;
-    value["id"] = user.id;
-    value["username"] = user.username;
-    for (const auto& role : user.roles) {
-        value["roles"].append(role);
-    }
-    return value;
-}
-
-Json::Value sessionToJson(const modules::SessionInfo& session) {
-    Json::Value value;
-    value["token"] = session.token;
-    value["active"] = session.active;
-    value["user"] = userToJson(session.user);
-    return value;
-}
-
-Json::Value assetToJson(const domain::EquipmentAsset& asset) {
-    Json::Value value;
-    value["id"] = asset.id;
-    value["name"] = asset.name;
-    value["type"] = asset.type;
-    value["factory"] = asset.factory;
-    value["workshop"] = asset.workshop;
-    value["productionLine"] = asset.productionLine;
-    value["status"] = assetStatusToString(asset.status);
-    return value;
-}
-
-std::optional<modules::AssetQuery> assetQueryFromRequest(const drogon::HttpRequestPtr& request, std::string& error) {
-    modules::AssetQuery query;
-    const auto factory = request->getParameter("factory");
-    const auto workshop = request->getParameter("workshop");
-    const auto productionLine = request->getParameter("productionLine");
-    const auto status = request->getParameter("status");
-
-    if (!factory.empty()) {
-        query.factory = factory;
-    }
-    if (!workshop.empty()) {
-        query.workshop = workshop;
-    }
-    if (!productionLine.empty()) {
-        query.productionLine = productionLine;
-    }
-    if (!status.empty()) {
-        const auto parsed = tryAssetStatusFromString(status);
-        if (!parsed) {
-            error = "unsupported asset status";
-            return std::nullopt;
-        }
-        query.status = *parsed;
-    }
-    return query;
-}
-Json::Value runtimeStateToJson(const modules::RuntimeState& state) {
-    Json::Value value;
-    value["assetId"] = state.assetId;
-    value["state"] = state.state;
-    value["metricSummary"] = state.metricSummary;
-    value["updatedAt"] = state.updatedAt;
-    value["severity"] = state.severity;
-    return value;
 }
 
 Json::Value alertToJson(const domain::Alert& alert) {
@@ -464,8 +365,6 @@ std::optional<modules::DiagnosisRequest> diagnosisRequestFromPayload(const Json:
 void registerRoutes(const HttpServerContext& context) {
     const auto& application = context.application;
     const auto& identity = context.identity;
-    const auto& assets = context.assets;
-    const auto& monitoring = context.monitoring;
     const auto& alerts = context.alerts;
     const auto& maintenance = context.maintenance;
     const auto& ai = context.ai;
@@ -504,211 +403,10 @@ void registerRoutes(const HttpServerContext& context) {
         response->setBody(metrics->renderPrometheus());
         callback(response);
     }, {drogon::Get});
-    server.registerHandler("/api/v1/auth/login", [identity, audit](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
-        writeRequestLog(request);
-        const auto payload = request->getJsonObject();
-        if (!payload || !payload->isMember("username") || !payload->isMember("password")) {
-            callback(invalidRequest("username and password are required"));
-            return;
-        }
 
-        const auto username = (*payload)["username"].asString();
-        const auto result = identity->login({username, (*payload)["password"].asString()});
-        if (!result.success || !result.session) {
-            const auto code = result.code.empty() ? "AUTHENTICATION_FAILED" : result.code;
-            if (code == "AUTHENTICATION_LOCKED") {
-                auto response = jsonResponse(responseEnvelope(false, code, result.message), drogon::k429TooManyRequests);
-                response->addHeader("Retry-After", std::to_string(result.retryAfterSeconds));
-                recordAuditEvent(audit, username, "auth.login.locked", "user", username, "locked", traceIdFor(request));
-                callback(response);
-                return;
-            }
-            recordAuditEvent(audit, username, "auth.login.failed", "user", username, "failed", traceIdFor(request));
-            callback(jsonResponse(responseEnvelope(false, code, "invalid username or password"), drogon::k401Unauthorized));
-            return;
-        }
-
-        writeRequestLog(request, result.session);
-        if (result.success && result.session) {
-            recordAuditEvent(audit, result.session->user.username, "auth.login", "session", result.session->token, "success", traceIdFor(request));
-        }
-        callback(jsonResponse(responseEnvelope(true, "OK", "login succeeded", sessionToJson(*result.session))));
-    }, {drogon::Post});
-
-    server.registerHandler("/api/v1/auth/session", [identity](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
-        const auto session = identity->validateSession(bearerToken(request));
-        if (!session) {
-            callback(unauthorized());
-            return;
-        }
-        writeRequestLog(request, session);
-        callback(jsonResponse(responseEnvelope(true, "OK", "session is valid", sessionToJson(*session))));
-    }, {drogon::Get});
-
-    server.registerHandler("/api/v1/auth/logout", [identity](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
-        if (!identity->logout(bearerToken(request))) {
-            callback(unauthorized());
-            return;
-        }
-        writeRequestLog(request);
-        callback(jsonResponse(responseEnvelope(true, "OK", "logout succeeded")));
-    }, {drogon::Post});
-
-
-    server.registerHandler("/api/v1/assets/{1}", [identity, assets](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback, const std::string& assetId) {
-        const auto session = requireSession(identity, request, callback);
-        if (!session || !requirePermission(identity, *session, "asset:read", callback)) {
-            return;
-        }
-        const auto asset = assets->findById(assetId);
-        if (!asset) {
-            callback(notFound("asset not found"));
-            return;
-        }
-        callback(jsonResponse(responseEnvelope(true, "OK", "asset returned", assetToJson(*asset))));
-    }, {drogon::Get});
-    server.registerHandler("/api/v1/assets", [identity, assets](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
-        const auto session = requireSession(identity, request, callback);
-        if (!session || !requirePermission(identity, *session, "asset:read", callback)) {
-            return;
-        }
-        writeRequestLog(request, session);
-        std::string queryError;
-        const auto query = assetQueryFromRequest(request, queryError);
-        if (!query) {
-            callback(invalidRequest(queryError));
-            return;
-        }
-        Json::Value rows(Json::arrayValue);
-        for (const auto& asset : assets->list(*query)) {
-            rows.append(assetToJson(asset));
-        }
-        callback(jsonResponse(responseEnvelope(true, "OK", "assets returned", rows)));
-    }, {drogon::Get});
-
-
-    server.registerHandler("/api/v1/assets", [identity, assets](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
-        const auto session = requireSession(identity, request, callback);
-        if (!session || !requirePermission(identity, *session, "asset:write", callback)) {
-            return;
-        }
-        writeRequestLog(request, session);
-        const auto payload = request->getJsonObject();
-        if (!payload || !payload->isMember("id") || !payload->isMember("name")) {
-            callback(invalidRequest("id and name are required"));
-            return;
-        }
-        auto status = domain::AssetStatus::Active;
-        if (payload->isMember("status")) {
-            const auto parsed = tryAssetStatusFromString((*payload)["status"].asString());
-            if (!parsed) {
-                callback(invalidRequest("unsupported asset status"));
-                return;
-            }
-            status = *parsed;
-        }
-        const auto asset = assets->create(domain::EquipmentAsset{
-            (*payload)["id"].asString(),
-            (*payload)["name"].asString(),
-            payload->isMember("type") ? (*payload)["type"].asString() : "equipment",
-            payload->isMember("factory") ? (*payload)["factory"].asString() : "default-factory",
-            payload->isMember("workshop") ? (*payload)["workshop"].asString() : "default-workshop",
-            payload->isMember("productionLine") ? (*payload)["productionLine"].asString() : "default-line",
-            status});
-        callback(jsonResponse(responseEnvelope(true, "OK", "asset created", assetToJson(asset))));
-    }, {drogon::Post});
-
-    server.registerHandler("/api/v1/assets/{1}/status", [identity, assets](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback, const std::string& assetId) {
-        const auto session = requireSession(identity, request, callback);
-        if (!session || !requirePermission(identity, *session, "asset:write", callback)) {
-            return;
-        }
-        writeRequestLog(request, session);
-        const auto payload = request->getJsonObject();
-        if (!payload || !payload->isMember("status")) {
-            callback(invalidRequest("status is required"));
-            return;
-        }
-        const auto parsed = tryAssetStatusFromString((*payload)["status"].asString());
-        if (!parsed) {
-            callback(invalidRequest("unsupported asset status"));
-            return;
-        }
-        if (!assets->updateLifecycleStatus(assetId, *parsed)) {
-            callback(notFound("asset not found"));
-            return;
-        }
-        const auto asset = assets->findById(assetId);
-        callback(jsonResponse(responseEnvelope(true, "OK", "asset status updated", assetToJson(*asset))));
-    }, {drogon::Patch});
-    server.registerHandler("/api/v1/monitoring/states", [identity, monitoring](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
-        const auto session = requireSession(identity, request, callback);
-        if (!session || !requirePermission(identity, *session, "asset:read", callback)) {
-            return;
-        }
-        writeRequestLog(request, session);
-        Json::Value data;
-        Json::Value stateSummary;
-        for (const auto& item : monitoring->summarizeStates()) {
-            stateSummary[item.first] = item.second;
-        }
-        Json::Value severitySummary;
-        for (const auto& item : monitoring->summarizeSeverity()) {
-            severitySummary[item.first] = item.second;
-        }
-        Json::Value rows(Json::arrayValue);
-        for (const auto& state : monitoring->listStates()) {
-            rows.append(runtimeStateToJson(state));
-        }
-        data["summary"]["states"] = stateSummary;
-        data["summary"]["severity"] = severitySummary;
-        data["items"] = rows;
-        callback(jsonResponse(responseEnvelope(true, "OK", "monitoring states returned", data)));
-    }, {drogon::Get});
-
-    server.registerHandler("/api/v1/monitoring/states/{1}", [identity, monitoring](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback, const std::string& assetId) {
-        const auto session = requireSession(identity, request, callback);
-        if (!session || !requirePermission(identity, *session, "asset:read", callback)) {
-            return;
-        }
-        writeRequestLog(request, session);
-        const auto state = monitoring->findState(assetId);
-        if (!state) {
-            callback(notFound("runtime state not found"));
-            return;
-        }
-        callback(jsonResponse(responseEnvelope(true, "OK", "runtime state returned", runtimeStateToJson(*state))));
-    }, {drogon::Get});
-
-    server.registerHandler("/api/v1/monitoring/states", [identity, monitoring](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
-        const auto session = requireSession(identity, request, callback);
-        if (!session || !requirePermission(identity, *session, "monitoring:write", callback)) {
-            return;
-        }
-        writeRequestLog(request, session);
-        const auto payload = request->getJsonObject();
-        if (!payload || !payload->isMember("assetId") || !payload->isMember("state")) {
-            callback(invalidRequest("assetId and state are required"));
-            return;
-        }
-        const auto runtimeState = (*payload)["state"].asString();
-        if (!modules::isSupportedRuntimeState(runtimeState)) {
-            callback(invalidRequest("unsupported runtime state"));
-            return;
-        }
-        auto severity = payload->isMember("severity") ? (*payload)["severity"].asString() : "info";
-        if (!modules::isSupportedRuntimeSeverity(severity)) {
-            callback(invalidRequest("unsupported runtime severity"));
-            return;
-        }
-        const auto state = monitoring->updateState(modules::RuntimeState{
-            (*payload)["assetId"].asString(),
-            runtimeState,
-            payload->isMember("metricSummary") ? (*payload)["metricSummary"].asString() : "",
-            payload->isMember("updatedAt") ? (*payload)["updatedAt"].asString() : "",
-            severity});
-        callback(jsonResponse(responseEnvelope(true, "OK", "runtime state updated", runtimeStateToJson(state))));
-    }, {drogon::Post});
+    registerAuthRoutes(server, context);
+    registerAssetRoutes(server, context);
+    registerMonitoringRoutes(server, context);
 
     server.registerHandler("/api/v1/alerts", [identity, alerts](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
         const auto session = requireSession(identity, request, callback);

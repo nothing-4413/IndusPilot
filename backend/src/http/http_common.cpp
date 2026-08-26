@@ -86,8 +86,8 @@ void writeRequestLog(const drogon::HttpRequestPtr& request, const std::optional<
         "\"traceId\":\"" << traceIdFor(request) << "\"," <<
         "\"method\":\"" << request->methodString() << "\"," <<
         "\"path\":\"" << request->path() << "\"," <<
-              << "\"user\":\"" << (session ? session->user.username : "anonymous") << "\"}"
-              << std::endl;
+        "\"user\":\"" << (session ? session->user.username : "anonymous") << "\"}"
+        << std::endl;
 }
 
 std::string bearerToken(const drogon::HttpRequestPtr& request) {

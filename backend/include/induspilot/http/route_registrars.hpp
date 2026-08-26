@@ -1,0 +1,13 @@
+#pragma once
+
+#include "induspilot/http/http_server_context.hpp"
+
+#include <drogon/drogon.h>
+
+namespace induspilot::http {
+
+void registerAuthRoutes(drogon::HttpAppFramework& server, const HttpServerContext& context);
+void registerAssetRoutes(drogon::HttpAppFramework& server, const HttpServerContext& context);
+void registerMonitoringRoutes(drogon::HttpAppFramework& server, const HttpServerContext& context);
+
+}  // namespace induspilot::http
