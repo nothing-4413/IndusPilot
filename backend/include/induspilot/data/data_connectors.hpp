@@ -6,6 +6,13 @@
 
 namespace induspilot::data {
 
+struct DependencyRequirements {
+    bool mysql{false};
+    bool redis{false};
+    bool mongodb{false};
+    bool ai{false};
+};
+
 struct DependencyStatus {
     bool mysql{false};
     bool redis{false};
@@ -17,6 +24,7 @@ class DataConnectors {
 public:
     explicit DataConnectors(app::AppConfig config = app::AppConfig{});
 
+    DependencyRequirements requirements() const;
     DependencyStatus probe() const;
     std::string describe() const;
 

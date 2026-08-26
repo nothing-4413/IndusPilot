@@ -113,6 +113,22 @@ int main() {
     invalidConfig = induspilot::app::AppConfig{};
     invalidConfig.readiness.probeCacheMs = -1;
     assert(!induspilot::app::validateConfig(invalidConfig).valid);
+
+    const auto memoryRequirements = induspilot::data::DataConnectors{induspilot::app::AppConfig{}}.requirements();
+    assert(!memoryRequirements.mysql);
+    assert(!memoryRequirements.redis);
+    assert(!memoryRequirements.mongodb);
+    assert(!memoryRequirements.ai);
+    auto mysqlConfig = induspilot::app::AppConfig{};
+    mysqlConfig.storage.repositoryStore = "mysql";
+    assert(induspilot::data::DataConnectors{mysqlConfig}.requirements().mysql);
+    auto redisConfig = induspilot::app::AppConfig{};
+    redisConfig.redis.sessionStore = "redis";
+    assert(induspilot::data::DataConnectors{redisConfig}.requirements().redis);
+    auto aiConfig = induspilot::app::AppConfig{};
+    aiConfig.ai.enabled = true;
+    aiConfig.ai.provider = "http";
+    assert(induspilot::data::DataConnectors{aiConfig}.requirements().ai);
 #ifdef _WIN32
     _putenv_s("INDUSPILOT_SERVER_PORT", "");
     _putenv_s("INDUSPILOT_REDIS_SESSION_TTL_SECONDS", "");

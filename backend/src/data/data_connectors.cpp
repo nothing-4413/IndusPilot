@@ -122,24 +122,33 @@ bool tcpReachable(const Endpoint& endpoint) {
 
 DataConnectors::DataConnectors(app::AppConfig config) : config_(std::move(config)) {}
 
+DependencyRequirements DataConnectors::requirements() const {
+    return DependencyRequirements{
+        config_.storage.repositoryStore == "mysql",
+        config_.redis.sessionStore == "redis",
+        false,
+        config_.ai.enabled && config_.ai.provider == "http",
+    };
+}
+
 DependencyStatus DataConnectors::probe() const {
+    const auto required = requirements();
     const auto mysqlEndpoint = config_.mysql.uri.empty()
         ? endpointFromHostPort(config_.mysql.host, config_.mysql.port)
         : endpointFromUri(config_.mysql.uri, config_.mysql.port > 0 ? config_.mysql.port : 3306);
     const auto redisEndpoint = endpointFromUri(config_.redis.uri, config_.redis.port);
-    const auto mongodbEndpoint = endpointFromUri(config_.mongodb.uri, config_.mongodb.port > 0 ? config_.mongodb.port : 27017);
     const auto aiEndpoint = endpointFromUri(config_.ai.endpoint, 80);
 
     return DependencyStatus{
-        tcpReachable(mysqlEndpoint),
-        tcpReachable(redisEndpoint),
-        tcpReachable(mongodbEndpoint),
-        config_.ai.enabled ? tcpReachable(aiEndpoint) : false,
+        required.mysql ? tcpReachable(mysqlEndpoint) : false,
+        required.redis ? tcpReachable(redisEndpoint) : false,
+        false,
+        required.ai ? tcpReachable(aiEndpoint) : false,
     };
 }
 
 std::string DataConnectors::describe() const {
-    return "MySQL/Redis/MongoDB/AI dependency probes use configured TCP endpoints";
+    return "MySQL, Redis and enabled HTTP AI probes use configured TCP endpoints; MongoDB is optional and not probed";
 }
 
 }  // namespace induspilot::data
