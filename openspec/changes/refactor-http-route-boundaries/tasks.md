@@ -2,10 +2,10 @@
 
 ## 1. OpenSpec
 - [x] 1.1 编写 HTTP 模块边界 proposal、design、spec 和 tasks
-- [ ] 1.2 完成严格结构校验或等价仓库验证
+- [x] 1.2 完成严格结构校验或等价仓库验证
 
 ## 2. HTTP 公共边界
-- [ ] 2.1 提取 HttpServerContext 和 composition root
+- [x] 2.1 提取 HttpServerContext 和 composition root
 - [ ] 2.2 提取公共响应、认证授权、trace、metrics 和序列化 helper
 - [ ] 2.3 保持现有 `/health`、`/metrics` 和错误响应兼容
 

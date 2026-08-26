@@ -16,6 +16,7 @@ set(INDUSPILOT_BACKEND_CORE_SOURCES
   src/modules/monitoring_service.cpp
   src/modules/password_hasher.cpp
   src/modules/session_store.cpp
+  src/http/http_server_context.cpp
 )
 
 if(INDUSPILOT_WITH_DROGON)
