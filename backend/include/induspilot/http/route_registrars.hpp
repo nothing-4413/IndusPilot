@@ -13,5 +13,6 @@ void registerAlertRoutes(drogon::HttpAppFramework& server, const HttpServerConte
 void registerWorkOrderRoutes(drogon::HttpAppFramework& server, const HttpServerContext& context);
 void registerAuditRoutes(drogon::HttpAppFramework& server, const HttpServerContext& context);
 void registerAiRoutes(drogon::HttpAppFramework& server, const HttpServerContext& context);
+void registerPlatformRoutes(drogon::HttpAppFramework& server, const HttpServerContext& context);
 
 }  // namespace induspilot::http

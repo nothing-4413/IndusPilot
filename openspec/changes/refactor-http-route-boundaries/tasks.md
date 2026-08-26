@@ -13,10 +13,10 @@
 - [x] 3.1 拆分认证、资产和运行监控路由
 - [x] 3.2 拆分告警和维护工单路由
 - [x] 3.3 拆分操作审计和 AI 路由
-- [ ] 3.4 让主 HTTP 启动文件只负责运行时启动和 registrar 编排
-- [ ] 3.5 按业务上下文迁移对应 DTO 和序列化 helper
+- [x] 3.4 让主 HTTP 启动文件只负责运行时启动和 registrar 编排
+- [x] 3.5 按业务上下文迁移对应 DTO 和序列化 helper
 
 ## 4. 验证与交付
-- [ ] 4.1 运行质量门禁、PowerShell 语法检查和 CTest
-- [ ] 4.2 运行 HTTP integration smoke 并确认 API 行为兼容
-- [ ] 4.3 按可验证部分提交并推送 GitHub
+- [x] 4.1 运行质量门禁、PowerShell 语法检查和 CTest
+- [x] 4.2 运行 HTTP integration smoke 并确认 API 行为兼容
+- [x] 4.3 按可验证部分提交并推送 GitHub

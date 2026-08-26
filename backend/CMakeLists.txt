@@ -30,6 +30,7 @@ if(INDUSPILOT_WITH_DROGON)
     src/http/routes/work_order_routes.cpp
     src/http/routes/audit_routes.cpp
     src/http/routes/ai_routes.cpp
+    src/http/routes/platform_routes.cpp
     src/data/mysql_repositories.cpp)
 endif()
 
