@@ -12,7 +12,7 @@
 ## 3. 启动状态与 HTTP 检查
 - [x] 3.1 增加 liveness/readiness/startup 状态模型
 - [x] 3.2 实现 `/health/live`、`/health/ready`、`/health/startup` 和兼容 `/health`
-- [ ] 3.3 实现依赖探测超时、缓存和恢复后的重新评估
+- [x] 3.3 实现依赖探测超时、缓存和恢复后的重新评估
 
 ## 4. 部署、测试与文档
 - [ ] 4.1 扩展 HTTP smoke 验证三类 health endpoint 和 503 语义

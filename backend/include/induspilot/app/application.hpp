@@ -5,7 +5,9 @@
 #include "induspilot/app/config.hpp"
 #include "induspilot/data/data_connectors.hpp"
 
+#include <chrono>
 #include <map>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -35,13 +37,18 @@ public:
 
 private:
     void registerRoutes();
+    void refreshDependenciesLocked() const;
 
     AppConfig config_;
-    data::DependencyStatus dependencies_;
-    ConfigValidation configValidation_;
+    mutable data::DependencyStatus dependencies_;
+    mutable data::DependencyRequirements requirements_;
+    mutable ConfigValidation configValidation_;
     api::Router router_;
-    bool initialized_{false};
-    bool running_{false};
+    mutable bool initialized_{false};
+    mutable bool running_{false};
+    mutable bool hasProbe_{false};
+    mutable std::chrono::steady_clock::time_point lastProbeAt_{};
+    mutable std::mutex stateMutex_;
 };
 
 }  // namespace induspilot::app

@@ -188,6 +188,19 @@ int main() {
     assert(!invalidApplication.startup().configurationValid);
     assert(!invalidApplication.startup().initialized);
 
+    auto unavailableDependencyConfig = induspilot::app::AppConfig{};
+    unavailableDependencyConfig.storage.repositoryStore = "mysql";
+    unavailableDependencyConfig.mysql.host = "127.0.0.1";
+    unavailableDependencyConfig.mysql.port = 1;
+    unavailableDependencyConfig.readiness.probeTimeoutMs = 25;
+    unavailableDependencyConfig.readiness.probeCacheMs = 1000;
+    induspilot::app::Application unavailableDependencyApplication(unavailableDependencyConfig);
+    assert(unavailableDependencyApplication.start());
+    const auto unavailableReadiness = unavailableDependencyApplication.readiness();
+    assert(!unavailableReadiness.ready);
+    assert(unavailableReadiness.dependencies.at("mysql").required);
+    assert(!unavailableReadiness.dependencies.at("mysql").available);
+
     induspilot::modules::IdentityService identity;
     const auto login = identity.login({"admin", "admin123"});
     assert(login.success);

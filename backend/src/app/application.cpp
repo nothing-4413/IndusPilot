@@ -2,6 +2,8 @@
 
 #include "induspilot/api/api_types.hpp"
 
+#include <chrono>
+#include <mutex>
 #include <utility>
 
 namespace induspilot::app {
@@ -11,6 +13,7 @@ Application::Application(AppConfig config) : config_(std::move(config)) {
 }
 
 bool Application::start() {
+    std::lock_guard lock(stateMutex_);
     configValidation_ = validateConfig(config_);
     if (!configValidation_.valid) {
         initialized_ = false;
@@ -18,25 +21,30 @@ bool Application::start() {
         return false;
     }
 
-    dependencies_ = data::DataConnectors{config_}.probe();
+    requirements_ = data::DataConnectors{config_}.requirements();
+    refreshDependenciesLocked();
     initialized_ = true;
     running_ = true;
     return true;
 }
 
 void Application::stop() {
+    std::lock_guard lock(stateMutex_);
     running_ = false;
 }
 
 bool Application::isRunning() const {
+    std::lock_guard lock(stateMutex_);
     return running_;
 }
 
 bool Application::isInitialized() const {
+    std::lock_guard lock(stateMutex_);
     return initialized_;
 }
 
 api::HealthCheck Application::health() const {
+    std::lock_guard lock(stateMutex_);
     api::HealthCheck health;
     health.dependencies = {
         {"mysql", dependencies_.mysql.available},
@@ -44,7 +52,13 @@ api::HealthCheck Application::health() const {
         {"mongodb", dependencies_.mongodb.available},
         {"ai", dependencies_.ai.available},
     };
-    for (const auto& dependency : readiness().dependencies) {
+    const std::map<std::string, data::DependencyCheck> dependencyChecks = {
+        {"mysql", dependencies_.mysql},
+        {"redis", dependencies_.redis},
+        {"mongodb", dependencies_.mongodb},
+        {"ai", dependencies_.ai},
+    };
+    for (const auto& dependency : dependencyChecks) {
         if (dependency.second.required && !dependency.second.available) {
             health.warnings.push_back(dependency.first + ": " + dependency.second.reason);
         }
@@ -53,10 +67,21 @@ api::HealthCheck Application::health() const {
 }
 
 Application::StartupStatus Application::startup() const {
+    std::lock_guard lock(stateMutex_);
     return StartupStatus{configValidation_.valid, initialized_, configValidation_.errors};
 }
 
 Application::ReadinessStatus Application::readiness() const {
+    std::lock_guard lock(stateMutex_);
+    if (initialized_ && running_) {
+        const auto now = std::chrono::steady_clock::now();
+        const auto cacheExpired = !hasProbe_ ||
+            now - lastProbeAt_ >= std::chrono::milliseconds(config_.readiness.probeCacheMs);
+        if (cacheExpired) {
+            refreshDependenciesLocked();
+        }
+    }
+
     ReadinessStatus status;
     status.dependencies = {
         {"mysql", dependencies_.mysql},
@@ -71,6 +96,12 @@ Application::ReadinessStatus Application::readiness() const {
         }
     }
     return status;
+}
+
+void Application::refreshDependenciesLocked() const {
+    dependencies_ = data::DataConnectors{config_}.probe();
+    lastProbeAt_ = std::chrono::steady_clock::now();
+    hasProbe_ = true;
 }
 
 api::Router& Application::router() {

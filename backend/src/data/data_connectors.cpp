@@ -1,6 +1,7 @@
 #include "induspilot/data/data_connectors.hpp"
 
 #include <chrono>
+#include <cerrno>
 #include <string>
 #include <utility>
 
@@ -12,7 +13,9 @@
 #include <ws2tcpip.h>
 #else
 #include <arpa/inet.h>
+#include <fcntl.h>
 #include <netdb.h>
+#include <sys/select.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #endif
@@ -65,7 +68,7 @@ Endpoint endpointFromHostPort(const std::string& host, int port) {
     return Endpoint{host, port};
 }
 
-bool tcpReachable(const Endpoint& endpoint) {
+bool tcpReachable(const Endpoint& endpoint, int timeoutMs) {
     if (endpoint.host.empty() || endpoint.port <= 0) {
         return false;
     }
@@ -97,13 +100,54 @@ bool tcpReachable(const Endpoint& endpoint) {
         if (socketHandle == INVALID_SOCKET) {
             continue;
         }
-        connected = connect(socketHandle, item->ai_addr, static_cast<int>(item->ai_addrlen)) == 0;
+        u_long nonBlocking = 1;
+        if (ioctlsocket(socketHandle, FIONBIO, &nonBlocking) != 0) {
+            closesocket(socketHandle);
+            continue;
+        }
+        const auto connectResult = connect(socketHandle, item->ai_addr, static_cast<int>(item->ai_addrlen));
+        if (connectResult == 0) {
+            connected = true;
+        } else {
+            const auto errorCode = WSAGetLastError();
+            if (errorCode == WSAEWOULDBLOCK || errorCode == WSAEINPROGRESS) {
+                fd_set writable;
+                FD_ZERO(&writable);
+                FD_SET(socketHandle, &writable);
+                timeval timeout{timeoutMs / 1000, (timeoutMs % 1000) * 1000};
+                if (select(0, nullptr, &writable, nullptr, &timeout) > 0) {
+                    int error = 0;
+                    int errorSize = sizeof(error);
+                    getsockopt(socketHandle, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&error), &errorSize);
+                    connected = error == 0;
+                }
+            }
+        }
         closesocket(socketHandle);
 #else
         if (socketHandle < 0) {
             continue;
         }
-        connected = connect(socketHandle, item->ai_addr, item->ai_addrlen) == 0;
+        const auto flags = fcntl(socketHandle, F_GETFL, 0);
+        if (flags < 0 || fcntl(socketHandle, F_SETFL, flags | O_NONBLOCK) < 0) {
+            close(socketHandle);
+            continue;
+        }
+        const auto connectResult = connect(socketHandle, item->ai_addr, item->ai_addrlen);
+        if (connectResult == 0) {
+            connected = true;
+        } else if (errno == EINPROGRESS) {
+            fd_set writable;
+            FD_ZERO(&writable);
+            FD_SET(socketHandle, &writable);
+            timeval timeout{timeoutMs / 1000, (timeoutMs % 1000) * 1000};
+            if (select(socketHandle + 1, nullptr, &writable, nullptr, &timeout) > 0) {
+                int error = 0;
+                socklen_t errorSize = sizeof(error);
+                getsockopt(socketHandle, SOL_SOCKET, SO_ERROR, &error, &errorSize);
+                connected = error == 0;
+            }
+        }
         close(socketHandle);
 #endif
         if (connected) {
@@ -139,9 +183,9 @@ DependencyStatus DataConnectors::probe() const {
     const auto redisEndpoint = endpointFromUri(config_.redis.uri, config_.redis.port);
     const auto aiEndpoint = endpointFromUri(config_.ai.endpoint, 80);
 
-    const auto mysqlAvailable = required.mysql && tcpReachable(mysqlEndpoint);
-    const auto redisAvailable = required.redis && tcpReachable(redisEndpoint);
-    const auto aiAvailable = required.ai && tcpReachable(aiEndpoint);
+    const auto mysqlAvailable = required.mysql && tcpReachable(mysqlEndpoint, config_.readiness.probeTimeoutMs);
+    const auto redisAvailable = required.redis && tcpReachable(redisEndpoint, config_.readiness.probeTimeoutMs);
+    const auto aiAvailable = required.ai && tcpReachable(aiEndpoint, config_.readiness.probeTimeoutMs);
 
     return DependencyStatus{
         {required.mysql, required.mysql ? mysqlAvailable : true,
