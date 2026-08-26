@@ -60,11 +60,37 @@ docker compose up -d
 - `INDUSPILOT_MONGODB_DATABASE`
 - `INDUSPILOT_MONGODB_URI`
 - `INDUSPILOT_AI_ENABLED`
+- `INDUSPILOT_AI_REQUIRED`
 - `INDUSPILOT_AI_PROVIDER`
 - `INDUSPILOT_AI_ENDPOINT`
 - `INDUSPILOT_AI_TIMEOUT_MS`
 - `INDUSPILOT_AI_MAX_CONTEXT_ITEMS`
 - `INDUSPILOT_AI_STORE_INTERACTION_RECORDS`
+- `INDUSPILOT_READINESS_PROBE_TIMEOUT_MS`
+- `INDUSPILOT_READINESS_PROBE_CACHE_MS`
+
+## 启动与健康检查
+
+后端启动时先校验静态配置。配置错误会返回退出码 `78`，且不会启动 HTTP listener；MySQL、Redis 或 required AI 暂时不可用不会导致进程退出，而会让 readiness 返回 `503`。
+
+编排系统应分别使用以下 endpoint：
+
+- `/health/live`：只判断进程是否已运行，不执行外部依赖探测，返回 `200` 才继续保留实例。
+- `/health/ready`：判断 required 依赖，全部可用返回 `200`，否则返回 `503`；响应包含每个依赖的 `required`、`available` 和 `reason`。
+- `/health/startup`：判断配置校验和初始化是否完成；有效启动后返回 `200`。
+- `/health`：兼容旧客户端，继续返回 `200` 以及 `service`、`dependencies`、`warnings` 字段。
+
+readiness 探测使用 `INDUSPILOT_READINESS_PROBE_TIMEOUT_MS` 限制单次 TCP connect 等待，并在 `INDUSPILOT_READINESS_PROBE_CACHE_MS` 内复用结果。缓存过期后下一次 readiness 请求会重新探测，依赖恢复后可自动回到 `200`。
+
+本地或反向代理可用以下命令确认状态：
+
+```powershell
+Invoke-WebRequest http://127.0.0.1:8080/health/live
+Invoke-WebRequest http://127.0.0.1:8080/health/ready
+Invoke-WebRequest http://127.0.0.1:8080/health/startup
+```
+
+`deployment/docker-compose.yml` 中的 healthcheck 只表示 MySQL、Redis、MongoDB 容器自身可接受连接；它不能替代后端 `/health/ready`。MongoDB 当前没有业务仓储接入，因此即使 compose 健康，也不会成为核心 readiness 条件。
 
 ## 仓储运行时
 

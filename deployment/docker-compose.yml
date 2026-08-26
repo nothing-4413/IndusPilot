@@ -13,6 +13,7 @@ services:
       - ./data/mysql:/var/lib/mysql
       - ../database/mysql:/docker-entrypoint-initdb.d:ro
     healthcheck:
+      # Compose 只负责依赖容器自身健康；后端流量准入使用 /health/ready。
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u\"$${MYSQL_USER}\" -p\"$${MYSQL_PASSWORD}\" --silent"]
       interval: 10s
       timeout: 5s
@@ -30,6 +31,7 @@ services:
     volumes:
       - ./data/redis:/data
     healthcheck:
+      # 后端 readiness 会单独探测 Redis；这里用于 compose 的依赖启动顺序。
       test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep PONG"]
       interval: 10s
       timeout: 5s
@@ -49,6 +51,7 @@ services:
       - ./data/mongodb:/data/db
       - ../database/mongodb:/docker-entrypoint-initdb.d:ro
     healthcheck:
+      # MongoDB 当前是可选能力，不参与核心后端 readiness。
       test: ["CMD-SHELL", "mongosh --quiet --username \"$${MONGO_INITDB_ROOT_USERNAME}\" --password \"$${MONGO_INITDB_ROOT_PASSWORD}\" --authenticationDatabase admin --eval \"db.adminCommand('ping').ok\" | grep 1"]
       interval: 10s
       timeout: 5s
