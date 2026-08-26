@@ -28,6 +28,8 @@ if(INDUSPILOT_WITH_DROGON)
     src/http/routes/monitoring_routes.cpp
     src/http/routes/alert_routes.cpp
     src/http/routes/work_order_routes.cpp
+    src/http/routes/audit_routes.cpp
+    src/http/routes/ai_routes.cpp
     src/data/mysql_repositories.cpp)
 endif()
 
