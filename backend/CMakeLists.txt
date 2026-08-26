@@ -38,6 +38,7 @@ endif()
 add_library(induspilot_backend_core ${INDUSPILOT_BACKEND_CORE_SOURCES})
 
 target_include_directories(induspilot_backend_core PUBLIC include)
+target_link_libraries(induspilot_backend_core PUBLIC Threads::Threads)
 
 target_compile_options(induspilot_backend_core PRIVATE
   $<$<CXX_COMPILER_ID:MSVC>:/utf-8 /EHsc>

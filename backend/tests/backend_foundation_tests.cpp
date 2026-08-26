@@ -46,6 +46,8 @@ int main() {
     assert(requestLifecycle.accepting());
     assert(requestLifecycle.tryBeginRequest());
     assert(requestLifecycle.inFlightRequests() == 1);
+    assert(requestLifecycle.tryBeginControlPlaneRequest());
+    assert(requestLifecycle.inFlightRequests() == 2);
     requestLifecycle.stopAccepting();
     assert(!requestLifecycle.accepting());
     assert(!requestLifecycle.tryBeginRequest());

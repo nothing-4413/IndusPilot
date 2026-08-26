@@ -11,8 +11,8 @@
 
 ## 3. HTTP 排空与 runtime
 - [x] 3.1 增加统一 HTTP 请求 gate 和在途请求计数
-- [ ] 3.2 接入 TERM/INT shutdown coordinator，停止接收新请求并等待排空
-- [ ] 3.3 处理 listener 绑定失败并定义非零退出码
+- [x] 3.2 接入 TERM/INT shutdown coordinator，停止接收新请求并等待排空
+- [x] 3.3 处理 listener 绑定失败并定义非零退出码
 - [ ] 3.4 增加 HTTP shutdown smoke，验证 ready 503、live 200 和新业务请求 503
 
 ## 4. 交付

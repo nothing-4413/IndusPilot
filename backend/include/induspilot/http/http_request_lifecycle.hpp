@@ -9,6 +9,7 @@ namespace induspilot::http {
 class HttpRequestLifecycle {
 public:
     bool tryBeginRequest();
+    bool tryBeginControlPlaneRequest();
     void finishRequest();
     void stopAccepting();
     void waitForDrain() const;

@@ -213,6 +213,8 @@ void registerRequestLifecycleAdvice(drogon::HttpAppFramework& server, const Http
             drogon::AdviceCallback&& callback,
             drogon::AdviceChainCallback&& chain) {
             if (isControlPlanePath(request->path())) {
+                requestLifecycle->tryBeginControlPlaneRequest();
+                request->attributes()->insert(kRequestLeaseAttribute, true);
                 chain();
                 return;
             }

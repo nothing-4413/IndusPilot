@@ -11,6 +11,12 @@ bool HttpRequestLifecycle::tryBeginRequest() {
     return true;
 }
 
+bool HttpRequestLifecycle::tryBeginControlPlaneRequest() {
+    std::lock_guard lock(mutex_);
+    ++inFlight_;
+    return true;
+}
+
 void HttpRequestLifecycle::finishRequest() {
     std::lock_guard lock(mutex_);
     if (inFlight_ == 0) {
