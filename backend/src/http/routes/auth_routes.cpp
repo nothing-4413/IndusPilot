@@ -54,7 +54,7 @@ void registerAuthRoutes(drogon::HttpAppFramework& server, const HttpServerContex
         }
 
         writeRequestLog(request, result.session);
-        recordAuditEvent(audit, result.session->user.username, "auth.login", "session", result.session->token, "success", traceIdFor(request));
+        recordAuditEvent(audit, result.session->user.username, "auth.login", "user", result.session->user.id, "success", traceIdFor(request));
         callback(jsonResponse(responseEnvelope(true, "OK", "login succeeded", sessionToJson(*result.session))));
     }, {drogon::Post});
 

@@ -296,6 +296,8 @@ try {
     Assert-True $loginAudit.success "Operation audit query failed."
     $adminLoginAudit = @($loginAudit.data) | Where-Object { $_.actor -eq "admin" -and $_.action -eq "auth.login" }
     Assert-True (@($adminLoginAudit).Count -ge 1) "Admin login audit event was not recorded."
+    Assert-True (@($adminLoginAudit)[0].resourceType -eq "user") "Admin login audit resource type must be user."
+    Assert-True (@($adminLoginAudit)[0].resourceId -ne $adminToken) "Admin login audit must not contain the session token."
     Assert-True (-not [string]::IsNullOrWhiteSpace(@($adminLoginAudit)[0].previousHash)) "Admin login audit previous hash was not returned."
     Assert-True (-not [string]::IsNullOrWhiteSpace(@($adminLoginAudit)[0].eventHash)) "Admin login audit event hash was not returned."
     $pagedLoginAudit = Invoke-RestMethod -Uri "$BaseUrl/api/v1/audit/events?actor=admin&action=auth.login&limit=1&offset=0" -Method Get -Headers $adminHeaders -TimeoutSec 10
@@ -307,6 +309,7 @@ try {
     $loginAuditCsv = Invoke-RestMethod -Uri "$BaseUrl/api/v1/audit/events/export?actor=admin&action=auth.login" -Method Get -Headers $adminHeaders -TimeoutSec 10
     Assert-True ($loginAuditCsv -like "id,actor,action,resourceType,resourceId,result,traceId,occurredAt,previousHash,eventHash*") "Operation audit CSV header was not returned."
     Assert-True ($loginAuditCsv -like "*auth.login*") "Operation audit CSV content did not include login event."
+    Assert-True (-not $loginAuditCsv.Contains($adminToken)) "Operation audit CSV must not contain the session token."
     $auditIntegrity = Invoke-RestMethod -Uri "$BaseUrl/api/v1/audit/integrity" -Method Get -Headers $adminHeaders -TimeoutSec 10
     Assert-True $auditIntegrity.success "Operation audit integrity query failed."
     Assert-True $auditIntegrity.data.verified "Operation audit hash chain was not verified."
