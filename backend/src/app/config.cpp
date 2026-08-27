@@ -176,6 +176,8 @@ void applyConfigValue(
         parseInteger(config.readiness.probeTimeoutMs);
     } else if (section == "readiness" && (key == "probeCacheMs" || key == "probe_cache_ms")) {
         parseInteger(config.readiness.probeCacheMs);
+    } else if (section == "shutdown" && (key == "drainTimeoutMs" || key == "drain_timeout_ms")) {
+        parseInteger(config.shutdown.drainTimeoutMs);
     } else if (section == "security" && (key == "loginLockoutEnabled" || key == "login_lockout_enabled")) {
         parseBoolean(config.security.loginLockoutEnabled);
     } else if (section == "security" && (key == "loginMaxFailures" || key == "login_max_failures")) {
@@ -231,6 +233,7 @@ void applyEnvironmentOverrides(AppConfig& config) {
 
     applyIntEnv(config, "INDUSPILOT_READINESS_PROBE_TIMEOUT_MS", "readiness.probe_timeout_ms", config.readiness.probeTimeoutMs);
     applyIntEnv(config, "INDUSPILOT_READINESS_PROBE_CACHE_MS", "readiness.probe_cache_ms", config.readiness.probeCacheMs);
+    applyIntEnv(config, "INDUSPILOT_SHUTDOWN_DRAIN_TIMEOUT_MS", "shutdown.drain_timeout_ms", config.shutdown.drainTimeoutMs);
 
     applyBoolEnv(config, "INDUSPILOT_SECURITY_LOGIN_LOCKOUT_ENABLED", "security.login_lockout_enabled", config.security.loginLockoutEnabled);
     applyIntEnv(config, "INDUSPILOT_SECURITY_LOGIN_MAX_FAILURES", "security.login_max_failures", config.security.loginMaxFailures);
@@ -270,7 +273,7 @@ AppConfig loadConfig(const std::string& path) {
                 section = trim(line.substr(0, pos));
                 if (section != "server" && section != "log" && section != "mysql" && section != "redis" &&
                     section != "storage" && section != "mongodb" && section != "security" && section != "ai" &&
-                    section != "readiness") {
+                    section != "readiness" && section != "shutdown") {
                     addLoadError(config, "line " + std::to_string(lineNumber) + ": unknown configuration section " + section);
                 }
                 continue;
@@ -341,6 +344,9 @@ ConfigValidation validateConfig(const AppConfig& config) {
     }
     if (config.readiness.probeCacheMs < 0) {
         addError("readiness.probe_cache_ms must not be negative");
+    }
+    if (config.shutdown.drainTimeoutMs < 1) {
+        addError("shutdown.drain_timeout_ms must be greater than zero");
     }
     return result;
 }

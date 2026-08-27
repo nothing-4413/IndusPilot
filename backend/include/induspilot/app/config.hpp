@@ -44,6 +44,10 @@ struct ReadinessConfig {
     int probeCacheMs{1000};
 };
 
+struct ShutdownConfig {
+    int drainTimeoutMs{10000};
+};
+
 struct SecurityConfig {
     bool loginLockoutEnabled{true};
     int loginMaxFailures{5};
@@ -64,6 +68,7 @@ struct AppConfig {
     DatabaseConfig mongodb{"127.0.0.1", 27017, "induspilot", "", "", "mongodb://127.0.0.1:27017"};
     AiConfig ai{};
     ReadinessConfig readiness{};
+    ShutdownConfig shutdown{};
     SecurityConfig security{};
     StorageConfig storage{};
     std::vector<std::string> loadErrors;

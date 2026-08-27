@@ -12,6 +12,7 @@ int main() {
     induspilot::app::AppConfig config;
     config.host = "127.0.0.1";
     config.port = 18083;
+    config.shutdown.drainTimeoutMs = 1000;
 
     std::atomic<bool> signalSent{false};
     std::thread signalThread([&] {

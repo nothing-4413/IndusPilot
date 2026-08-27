@@ -76,6 +76,8 @@ $env:INDUSPILOT_REPOSITORY_STORE="mysql"
 .\build\dev-http\backend\induspilot-backend.exe config\backend.example.yaml
 ```
 
+收到 SIGTERM 或 SIGINT 后，后端会停止接受新的业务请求，等待在途请求完成，最长等待时间由 `shutdown.drain_timeout_ms` 控制，也可以通过 `INDUSPILOT_SHUTDOWN_DRAIN_TIMEOUT_MS` 覆盖。超过 deadline 后会记录剩余请求数量并退出 HTTP runtime。
+
 生产部署前仍需要替换开发口令和演示盐值、补齐登录失败锁定、后端真实仓储端到端测试、监控指标、外部 AI 推理传输，同时补充真实外部通知通道适配器、异步重试队列和更细粒度审计能力。
 
 ## 操作审计本地验证

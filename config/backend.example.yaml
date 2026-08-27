@@ -61,3 +61,7 @@ readiness:
   # readiness 单次依赖探测超时和结果缓存时间，单位为毫秒。
   probe_timeout_ms: 1000
   probe_cache_ms: 1000
+
+shutdown:
+  # 优雅停机等待在途请求的最长时间；到期后记录剩余请求并退出 HTTP runtime。
+  drain_timeout_ms: 10000

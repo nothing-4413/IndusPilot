@@ -56,6 +56,13 @@ int main() {
     requestLifecycle.waitForDrain();
     assert(requestLifecycle.inFlightRequests() == 0);
 
+    induspilot::http::HttpRequestLifecycle timedRequestLifecycle;
+    assert(timedRequestLifecycle.tryBeginRequest());
+    timedRequestLifecycle.stopAccepting();
+    assert(!timedRequestLifecycle.waitForDrainFor(std::chrono::milliseconds(10)));
+    timedRequestLifecycle.finishRequest();
+    assert(timedRequestLifecycle.waitForDrainFor(std::chrono::milliseconds(10)));
+
 #ifdef _WIN32
     _putenv_s("INDUSPILOT_SERVER_PORT", "18080");
     _putenv_s("INDUSPILOT_REDIS_SESSION_TTL_SECONDS", "60");
@@ -73,6 +80,7 @@ int main() {
     _putenv_s("INDUSPILOT_AI_REQUIRE_STRUCTURED_RESPONSE", "false");
     _putenv_s("INDUSPILOT_READINESS_PROBE_TIMEOUT_MS", "1200");
     _putenv_s("INDUSPILOT_READINESS_PROBE_CACHE_MS", "250");
+    _putenv_s("INDUSPILOT_SHUTDOWN_DRAIN_TIMEOUT_MS", "4200");
     _putenv_s("INDUSPILOT_MYSQL_URI", "host=127.0.0.1 port=3306 dbname=induspilot user=induspilot");
     _putenv_s("INDUSPILOT_SECURITY_LOGIN_MAX_FAILURES", "3");
     _putenv_s("INDUSPILOT_SECURITY_LOGIN_LOCKOUT_SECONDS", "120");
@@ -93,6 +101,7 @@ int main() {
     setenv("INDUSPILOT_AI_REQUIRE_STRUCTURED_RESPONSE", "false", 1);
     setenv("INDUSPILOT_READINESS_PROBE_TIMEOUT_MS", "1200", 1);
     setenv("INDUSPILOT_READINESS_PROBE_CACHE_MS", "250", 1);
+    setenv("INDUSPILOT_SHUTDOWN_DRAIN_TIMEOUT_MS", "4200", 1);
     setenv("INDUSPILOT_MYSQL_URI", "host=127.0.0.1 port=3306 dbname=induspilot user=induspilot", 1);
     setenv("INDUSPILOT_SECURITY_LOGIN_MAX_FAILURES", "3", 1);
     setenv("INDUSPILOT_SECURITY_LOGIN_LOCKOUT_SECONDS", "120", 1);
@@ -114,6 +123,7 @@ int main() {
     assert(!loadedConfig.ai.requireStructuredResponse);
     assert(loadedConfig.readiness.probeTimeoutMs == 1200);
     assert(loadedConfig.readiness.probeCacheMs == 250);
+    assert(loadedConfig.shutdown.drainTimeoutMs == 4200);
     assert(loadedConfig.mysql.uri == "host=127.0.0.1 port=3306 dbname=induspilot user=induspilot");
     assert(loadedConfig.security.loginMaxFailures == 3);
     assert(loadedConfig.security.loginLockoutSeconds == 120);
@@ -167,6 +177,9 @@ int main() {
     invalidConfig = induspilot::app::AppConfig{};
     invalidConfig.readiness.probeCacheMs = -1;
     assert(!induspilot::app::validateConfig(invalidConfig).valid);
+    invalidConfig = induspilot::app::AppConfig{};
+    invalidConfig.shutdown.drainTimeoutMs = 0;
+    assert(!induspilot::app::validateConfig(invalidConfig).valid);
 
     const auto memoryRequirements = induspilot::data::DataConnectors{induspilot::app::AppConfig{}}.requirements();
     assert(!memoryRequirements.mysql);
@@ -208,6 +221,7 @@ int main() {
     _putenv_s("INDUSPILOT_AI_REQUIRE_STRUCTURED_RESPONSE", "");
     _putenv_s("INDUSPILOT_READINESS_PROBE_TIMEOUT_MS", "");
     _putenv_s("INDUSPILOT_READINESS_PROBE_CACHE_MS", "");
+    _putenv_s("INDUSPILOT_SHUTDOWN_DRAIN_TIMEOUT_MS", "");
     _putenv_s("INDUSPILOT_MYSQL_URI", "");
     _putenv_s("INDUSPILOT_SECURITY_LOGIN_MAX_FAILURES", "");
     _putenv_s("INDUSPILOT_SECURITY_LOGIN_LOCKOUT_SECONDS", "");
@@ -228,6 +242,7 @@ int main() {
     unsetenv("INDUSPILOT_AI_REQUIRE_STRUCTURED_RESPONSE");
     unsetenv("INDUSPILOT_READINESS_PROBE_TIMEOUT_MS");
     unsetenv("INDUSPILOT_READINESS_PROBE_CACHE_MS");
+    unsetenv("INDUSPILOT_SHUTDOWN_DRAIN_TIMEOUT_MS");
     unsetenv("INDUSPILOT_MYSQL_URI");
     unsetenv("INDUSPILOT_SECURITY_LOGIN_MAX_FAILURES");
     unsetenv("INDUSPILOT_SECURITY_LOGIN_LOCKOUT_SECONDS");

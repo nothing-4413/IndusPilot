@@ -41,6 +41,11 @@ void HttpRequestLifecycle::waitForDrain() const {
     condition_.wait(lock, [this] { return inFlight_ == 0; });
 }
 
+bool HttpRequestLifecycle::waitForDrainFor(const std::chrono::milliseconds timeout) const {
+    std::unique_lock lock(mutex_);
+    return condition_.wait_for(lock, timeout, [this] { return inFlight_ == 0; });
+}
+
 std::size_t HttpRequestLifecycle::inFlightRequests() const {
     std::lock_guard lock(mutex_);
     return inFlight_;

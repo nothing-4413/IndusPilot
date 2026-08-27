@@ -149,7 +149,13 @@ int runDrogonServer(const app::AppConfig& config) {
         context.application->beginDraining();
         std::cerr << "shutdown requested; draining "
                   << context.requestLifecycle->inFlightRequests() << " in-flight request(s)" << std::endl;
-        context.requestLifecycle->waitForDrain();
+        const auto drained = context.requestLifecycle->waitForDrainFor(
+            std::chrono::milliseconds(config.shutdown.drainTimeoutMs));
+        if (!drained) {
+            std::cerr << "shutdown drain timeout after " << config.shutdown.drainTimeoutMs
+                      << " ms; forcing HTTP runtime exit with "
+                      << context.requestLifecycle->inFlightRequests() << " in-flight request(s) remaining" << std::endl;
+        }
         drogon::app().quit();
     });
 

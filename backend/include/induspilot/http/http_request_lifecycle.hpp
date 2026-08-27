@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <condition_variable>
 #include <cstddef>
 #include <mutex>
@@ -13,6 +14,7 @@ public:
     void finishRequest();
     void stopAccepting();
     void waitForDrain() const;
+    bool waitForDrainFor(std::chrono::milliseconds timeout) const;
     std::size_t inFlightRequests() const;
     bool accepting() const;
 
