@@ -53,6 +53,10 @@ ai:
   auth_header: "Authorization"
   auth_scheme: "Bearer"
   timeoutMs: 15000
+  # 仅重试 transport、408、429 和 5xx；所有尝试共享 timeoutMs 总预算。
+  max_retries: 0
+  # Provider 响应超过该字节数时直接降级，避免处理无界响应。
+  max_response_bytes: 1048576
   maxContextItems: 20
   storeInteractionRecords: true
   require_structured_response: true

@@ -180,7 +180,7 @@ HTTP 服务会读取 `X-Trace-Id` 或 `X-Request-Id`，优先使用 `X-Trace-Id`
 HTTP 登录接口复用身份服务的安全策略。`security.login_lockout_enabled` 开启后，同一用户名在 `security.login_failure_window_seconds` 窗口内连续失败达到 `security.login_max_failures`，后续登录会返回 `429 Too Many Requests`，并通过 `Retry-After` 告知剩余锁定时间。失败和锁定事件分别写入 `auth.login.failed`、`auth.login.locked` 操作审计，审计事件沿用当前请求追踪编号。
 ## AI Provider 鉴权与响应校验
 
-HTTP AI Provider 支持通过 `ai.api_key`、`ai.auth_header`、`ai.auth_scheme` 配置鉴权头，生产环境建议使用 `INDUSPILOT_AI_API_KEY` 注入密钥而不是写入配置文件。默认开启 `ai.require_structured_response`，Provider 响应必须是 JSON，并提供 `content`、`summary`、`text`、`output_text` 或兼容 OpenAI `choices/output` 的文本字段；缺少可用文本时系统会降级为不可用结果并继续记录 AI 交互。
+HTTP AI Provider 支持通过 `ai.api_key`、`ai.auth_header`、`ai.auth_scheme` 配置鉴权头，生产环境建议使用 `INDUSPILOT_AI_API_KEY` 注入密钥而不是写入配置文件。`ai.max_retries` 默认为 0，仅允许对 transport、408、429 和 5xx 做有限重试，所有尝试共享 `ai.timeoutMs` 总预算；`ai.max_response_bytes` 限制响应体大小。Provider 响应默认必须是 JSON，并提供 `content`、`summary`、`text`、`output_text` 或兼容 OpenAI `choices/output` 的文本字段；缺少可用文本时系统会降级为不可用结果并继续记录 AI 交互。常见 `token`、`password`、`secret`、`api_key`、`authorization` 和 `credential` 键值在 outbound prompt/context 与 AI 交互输入中会替换为 `[REDACTED]`。
 
 可用 `backend/tests/ai_provider_http_smoke.ps1` 配合本地 fake provider 验证成功、非 2xx、非 JSON 和超时场景。该 smoke 同时断言 POST path、`operation`、受 `ai.max_context_items` 限制的 `contextItems`、`X-IndusPilot-Ai-Operation`、自定义鉴权头、provider 文本透传、失败降级和 AI 交互审计。
 ## 可观测性指标
