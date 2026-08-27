@@ -6,12 +6,14 @@
 namespace induspilot::data {
 
 InMemoryUserRepository::InMemoryUserRepository() {
+    std::lock_guard<std::mutex> lock(mutex_);
     users_["admin"] = UserCredential{domain::User{"user-admin", "admin", {"admin"}}, "plain:admin123"};
     users_["operator"] = UserCredential{domain::User{"user-operator", "operator", {"operator"}}, "plain:operator123"};
     users_["maintainer"] = UserCredential{domain::User{"user-maintainer", "maintainer", {"maintainer"}}, "plain:maintainer123"};
 }
 
 std::optional<UserCredential> InMemoryUserRepository::findByUsername(const std::string& username) const {
+    std::lock_guard<std::mutex> lock(mutex_);
     const auto it = users_.find(username);
     if (it == users_.end()) {
         return std::nullopt;
@@ -20,11 +22,22 @@ std::optional<UserCredential> InMemoryUserRepository::findByUsername(const std::
 }
 
 std::vector<domain::User> InMemoryUserRepository::listUsers() const {
+    std::lock_guard<std::mutex> lock(mutex_);
     std::vector<domain::User> users;
     for (const auto& item : users_) {
         users.push_back(item.second.user);
     }
     return users;
+}
+
+bool InMemoryUserRepository::updatePasswordHash(const std::string& username, const std::string& passwordHash) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    const auto it = users_.find(username);
+    if (it == users_.end()) {
+        return false;
+    }
+    it->second.passwordHash = passwordHash;
+    return true;
 }
 
 InMemoryPermissionRepository::InMemoryPermissionRepository() {

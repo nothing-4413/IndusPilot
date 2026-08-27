@@ -15,8 +15,10 @@ public:
 
     std::optional<UserCredential> findByUsername(const std::string& username) const override;
     std::vector<domain::User> listUsers() const override;
+    bool updatePasswordHash(const std::string& username, const std::string& passwordHash) override;
 
 private:
+    mutable std::mutex mutex_;
     std::map<std::string, UserCredential> users_;
 };
 

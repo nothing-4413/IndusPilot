@@ -318,6 +318,14 @@ std::vector<domain::User> MySqlUserRepository::listUsers() const {
     return users;
 }
 
+bool MySqlUserRepository::updatePasswordHash(const std::string& username, const std::string& passwordHash) {
+    const auto result = client_->execSqlSync(
+        "UPDATE users SET password_hash = ? WHERE username = ? AND enabled = TRUE",
+        passwordHash,
+        username);
+    return result.affectedRows() > 0;
+}
+
 MySqlPermissionRepository::MySqlPermissionRepository(drogon::orm::DbClientPtr client) : client_(std::move(client)) {}
 
 std::vector<std::string> MySqlPermissionRepository::permissionsForRoles(const std::vector<std::string>& roles) const {

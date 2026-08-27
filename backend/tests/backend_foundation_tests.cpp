@@ -378,6 +378,11 @@ int main() {
 
     induspilot::data::InMemoryUserRepository users;
     assert(users.findByUsername("admin").has_value());
+    const auto originalAdminHash = users.findByUsername("admin")->passwordHash;
+    assert(users.updatePasswordHash("admin", generatedPasswordHash));
+    assert(users.findByUsername("admin")->passwordHash == generatedPasswordHash);
+    assert(originalAdminHash != generatedPasswordHash);
+    assert(!users.updatePasswordHash("not-found", generatedPasswordHash));
     induspilot::data::InMemoryPermissionRepository permissionStore;
     assert(!permissionStore.permissionsForRoles({"admin"}).empty());
     induspilot::data::InMemoryAssetRepository assetStore;

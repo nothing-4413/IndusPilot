@@ -19,6 +19,7 @@ public:
 
     virtual std::optional<UserCredential> findByUsername(const std::string& username) const = 0;
     virtual std::vector<domain::User> listUsers() const = 0;
+    virtual bool updatePasswordHash(const std::string& username, const std::string& passwordHash) = 0;
 };
 
 class PermissionRepository {

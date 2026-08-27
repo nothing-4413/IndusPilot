@@ -20,6 +20,7 @@ public:
 
     std::optional<UserCredential> findByUsername(const std::string& username) const override;
     std::vector<domain::User> listUsers() const override;
+    bool updatePasswordHash(const std::string& username, const std::string& passwordHash) override;
 
 private:
     drogon::orm::DbClientPtr client_;
