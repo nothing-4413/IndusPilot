@@ -68,6 +68,66 @@ void registerAuthRoutes(drogon::HttpAppFramework& server, const HttpServerContex
         callback(jsonResponse(responseEnvelope(true, "OK", "session is valid", sessionToJson(*session))));
     }, {drogon::Get});
 
+    server.registerHandler("/api/v1/auth/password", [identity, audit](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+        const auto session = requireSession(identity, request, callback);
+        if (!session) {
+            return;
+        }
+
+        const auto payload = request->getJsonObject();
+        if (!payload || !payload->isMember("currentPassword") || !payload->isMember("newPassword")) {
+            callback(invalidRequest("currentPassword and newPassword are required"));
+            return;
+        }
+
+        const auto result = identity->changePassword(
+            session->user.username,
+            (*payload)["currentPassword"].asString(),
+            (*payload)["newPassword"].asString());
+        if (!result.success) {
+            const auto auditResult = result.code == "CURRENT_PASSWORD_INVALID"
+                ? "invalid_current_password"
+                : result.code == "PASSWORD_POLICY_VIOLATION"
+                    ? "invalid_new_password"
+                    : "storage_failed";
+            recordAuditEvent(
+                audit,
+                session->user.username,
+                "auth.password.change.failed",
+                "user",
+                session->user.id,
+                auditResult,
+                traceIdFor(request));
+            if (result.code == "CURRENT_PASSWORD_INVALID") {
+                callback(jsonResponse(
+                    responseEnvelope(false, result.code, "current password is invalid"),
+                    drogon::k401Unauthorized));
+                return;
+            }
+            if (result.code == "PASSWORD_POLICY_VIOLATION") {
+                callback(jsonResponse(
+                    responseEnvelope(false, result.code, result.message),
+                    drogon::k400BadRequest));
+                return;
+            }
+            callback(jsonResponse(
+                responseEnvelope(false, "PASSWORD_UPDATE_FAILED", "password update failed"),
+                drogon::k503ServiceUnavailable));
+            return;
+        }
+
+        writeRequestLog(request, session);
+        recordAuditEvent(
+            audit,
+            session->user.username,
+            "auth.password.changed",
+            "user",
+            session->user.id,
+            "success",
+            traceIdFor(request));
+        callback(jsonResponse(responseEnvelope(true, "OK", "password changed")));
+    }, {drogon::Post});
+
     server.registerHandler("/api/v1/auth/logout", [identity](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
         if (!identity->logout(bearerToken(request))) {
             callback(unauthorized());
