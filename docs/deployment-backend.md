@@ -100,10 +100,10 @@ HTTP runtime 已将 `SIGTERM` 和 `SIGINT` 绑定到同一个 shutdown coordinat
 
 1. 停止接受新的业务请求；新业务请求返回 `503` 和 `SERVER_DRAINING`。
 2. Application 进入 draining；此时 `/health/ready` 返回 `503`，`/health/live` 仍返回 `200`，让编排器完成摘流。
-3. 等待已通过请求 gate 的请求完成。
+3. 在 `shutdown.drain_timeout_ms` deadline 内等待已通过请求 gate 的请求完成。
 4. 调用 Drogon `quit()`，释放 listener 和运行时资源，进程正常返回 `0`。
 
-健康检查和 `/metrics` 在 draining 阶段仍可访问，以便观察状态。当前策略不强制中断超时业务请求；如部署平台的 termination grace period 到期，平台可能直接终止进程。listener 预检失败返回退出码 `69`，静态配置错误仍返回 `78`。
+健康检查和 `/metrics` 在 draining 阶段仍可访问，以便观察状态。deadline 到期不会强制取消业务线程，但会记录剩余请求数量并让 HTTP runtime 退出；部署平台的 termination grace period 应大于该 deadline。listener 预检失败返回退出码 `69`，静态配置错误仍返回 `78`。
 
 ## 仓储运行时
 
@@ -111,7 +111,7 @@ HTTP runtime 已将 `SIGTERM` 和 `SIGINT` 绑定到同一个 shutdown coordinat
 
 ## 身份口令边界
 
-内存仓储保留 `admin/admin123`、`operator/operator123`、`maintainer/maintainer123` 作为开发演示口令，并通过显式 `plain:` 兼容格式标识。MySQL 初始化脚本写入 PBKDF2-SHA256 演示哈希，便于本地依赖链路登录验证；生产部署前必须为每个账号生成唯一盐哈希，并补充密码轮换、锁定、审计和最小权限账户治理。
+内存仓储保留 `admin/admin123`、`operator/operator123`、`maintainer/maintainer123` 作为开发演示口令，并通过显式 `plain:` 兼容格式标识。MySQL 初始化脚本写入 PBKDF2-SHA256 演示哈希，便于本地依赖链路登录验证；生产部署前必须为每个账号生成唯一盐哈希、替换演示口令，并补充密码轮换和最小权限账户治理。
 
 ## 当前配置边界
 

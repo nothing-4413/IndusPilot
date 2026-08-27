@@ -63,6 +63,7 @@ $requiredFiles = @(
     "database/mysql/007_operation_audit_events_schema.sql",
     "database/mysql/008_operation_audit_export_permission.sql",
     "database/mysql/009_operation_audit_integrity_schema.sql",
+    "database/mysql/010_redact_legacy_login_audit_tokens.sql",
     "database/mongodb/init_collections.js",
     "database/mongodb/integration/real_crud_smoke.js",
     "backend/tests/http_runtime_profile_smoke.ps1"
@@ -144,7 +145,8 @@ $schemaScripts = @(
     "database/mysql/006_alert_notification_delivery_schema.sql",
     "database/mysql/007_operation_audit_events_schema.sql",
     "database/mysql/008_operation_audit_export_permission.sql",
-    "database/mysql/009_operation_audit_integrity_schema.sql"
+    "database/mysql/009_operation_audit_integrity_schema.sql",
+    "database/mysql/010_redact_legacy_login_audit_tokens.sql"
 )
 $expectedMigrations = @(
     "001_foundation_schema",
@@ -155,7 +157,8 @@ $expectedMigrations = @(
     "006_alert_notification_delivery_schema",
     "007_operation_audit_events_schema",
     "008_operation_audit_export_permission",
-    "009_operation_audit_integrity_schema"
+    "009_operation_audit_integrity_schema",
+    "010_redact_legacy_login_audit_tokens"
 )
 foreach ($migration in $expectedMigrations) {
     $found = $false
@@ -189,6 +192,14 @@ foreach ($scriptPath in $schemaScripts) {
     } elseif ($usesIndexAlter) {
         Write-CheckOk "MySQL 索引迁移具备幂等保护：$scriptPath"
     }
+}
+
+$legacyAuditCleanup = Get-FileText "database/mysql/010_redact_legacy_login_audit_tokens.sql"
+if ($legacyAuditCleanup -match "action = 'auth\.login'" -and $legacyAuditCleanup -match "resource_type = 'session'" -and
+    $legacyAuditCleanup -match "resource_type = 'user'" -and $legacyAuditCleanup -match "resource_id = actor") {
+    Write-CheckOk "历史登录审计 token 清理迁移具备限定条件"
+} else {
+    Write-CheckFail "历史登录审计 token 清理迁移缺少限定条件"
 }
 
 $seed = Get-FileText "database/mysql/002_seed_identity.sql"
