@@ -88,6 +88,10 @@ if(INDUSPILOT_BUILD_TESTS)
       COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/tests/http_integration_smoke.ps1
         -BackendExe $<TARGET_FILE:induspilot-backend>
         -ConfigPath ${CMAKE_SOURCE_DIR}/config/backend.example.yaml)
+    add_test(NAME induspilot-ai-provider-http-smoke
+      COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/tests/ai_provider_http_smoke.ps1
+        -BackendExe $<TARGET_FILE:induspilot-backend>
+        -ConfigPath ${CMAKE_SOURCE_DIR}/config/backend.example.yaml)
     add_test(NAME induspilot-http-readiness-unavailable-smoke
       COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/tests/http_integration_smoke.ps1
         -BackendExe $<TARGET_FILE:induspilot-backend>
