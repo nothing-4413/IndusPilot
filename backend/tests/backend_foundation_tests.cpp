@@ -41,6 +41,26 @@ static_assert(std::is_base_of_v<induspilot::data::RuntimeStateRepository, indusp
 static_assert(std::is_base_of_v<induspilot::data::AiInteractionRepository, induspilot::data::MySqlAiInteractionRepository>);
 #endif
 
+class FailingPasswordUpdateUserRepository final : public induspilot::data::UserRepository {
+public:
+    std::optional<induspilot::data::UserCredential> findByUsername(const std::string& username) const override {
+        if (username != "admin") {
+            return std::nullopt;
+        }
+        return induspilot::data::UserCredential{
+            induspilot::domain::User{"user-admin", "admin", {"admin"}},
+            "plain:admin123"};
+    }
+
+    std::vector<induspilot::domain::User> listUsers() const override {
+        return {induspilot::domain::User{"user-admin", "admin", {"admin"}}};
+    }
+
+    bool updatePasswordHash(const std::string&, const std::string&) override {
+        return false;
+    }
+};
+
 int main() {
     induspilot::http::HttpRequestLifecycle requestLifecycle;
     assert(requestLifecycle.accepting());
@@ -359,6 +379,16 @@ int main() {
     assert(changedPassword.success);
     assert(passwordIdentity.authenticate("admin", "a-long-new-password"));
     assert(!passwordIdentity.authenticate("admin", "admin123"));
+    induspilot::modules::IdentityService storageFailureIdentity(
+        std::make_shared<induspilot::modules::InMemorySessionStore>(),
+        std::chrono::hours(8),
+        std::make_shared<FailingPasswordUpdateUserRepository>(),
+        std::make_shared<induspilot::data::InMemoryPermissionRepository>(),
+        {},
+        passwordPolicy);
+    const auto storageFailure = storageFailureIdentity.changePassword("admin", "admin123", "a-long-new-password");
+    assert(!storageFailure.success);
+    assert(storageFailure.code == "PASSWORD_UPDATE_FAILED");
 
     induspilot::modules::LoginSecurityPolicy lockoutPolicy;
     lockoutPolicy.maxFailures = 2;

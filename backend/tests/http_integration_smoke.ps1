@@ -171,6 +171,8 @@ $oldMongoDbUri = $env:INDUSPILOT_MONGODB_URI
 $oldLoginMaxFailures = $env:INDUSPILOT_SECURITY_LOGIN_MAX_FAILURES
 $oldLoginFailureWindow = $env:INDUSPILOT_SECURITY_LOGIN_FAILURE_WINDOW_SECONDS
 $oldLoginLockoutSeconds = $env:INDUSPILOT_SECURITY_LOGIN_LOCKOUT_SECONDS
+$oldPasswordMinLength = $env:INDUSPILOT_SECURITY_PASSWORD_MIN_LENGTH
+$oldPasswordIterations = $env:INDUSPILOT_SECURITY_PASSWORD_ITERATIONS
 $baseUri = [Uri]$BaseUrl
 $env:INDUSPILOT_SERVER_PORT = [string]$baseUri.Port
 $env:INDUSPILOT_REPOSITORY_STORE = $RepositoryStore
@@ -187,10 +189,27 @@ Write-Host "[http-smoke] repository_store=$RepositoryStore session_store=$Sessio
 $env:INDUSPILOT_SECURITY_LOGIN_MAX_FAILURES = "2"
 $env:INDUSPILOT_SECURITY_LOGIN_FAILURE_WINDOW_SECONDS = "60"
 $env:INDUSPILOT_SECURITY_LOGIN_LOCKOUT_SECONDS = "30"
+$env:INDUSPILOT_SECURITY_PASSWORD_MIN_LENGTH = "8"
+$env:INDUSPILOT_SECURITY_PASSWORD_ITERATIONS = "100000"
 
 $stdout = [System.IO.Path]::GetTempFileName()
 $stderr = [System.IO.Path]::GetTempFileName()
-$proc = Start-Process -FilePath $BackendExe -ArgumentList $ConfigPath -WorkingDirectory (Split-Path -Parent (Split-Path -Parent $BackendExe)) -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru
+$startInfo = New-Object System.Diagnostics.ProcessStartInfo
+$startInfo.FileName = $BackendExe
+$startInfo.Arguments = '"' + $ConfigPath.Replace('"', '\"') + '"'
+$startInfo.WorkingDirectory = Split-Path -Parent (Split-Path -Parent $BackendExe)
+$startInfo.UseShellExecute = $false
+$startInfo.CreateNoWindow = $true
+$startInfo.RedirectStandardOutput = $true
+$startInfo.RedirectStandardError = $true
+$proc = New-Object System.Diagnostics.Process
+$proc.StartInfo = $startInfo
+$started = $proc.Start()
+if (-not $started) {
+    throw "Backend process could not be started."
+}
+$stdoutReaderTask = $proc.StandardOutput.ReadToEndAsync()
+$stderrReaderTask = $proc.StandardError.ReadToEndAsync()
 
 try {
     $health = $null
@@ -263,13 +282,35 @@ try {
     $lockedLogin = Invoke-ExpectStatusResponse -Uri "$BaseUrl/api/v1/auth/login" -Method Post -Status 429 -Body '{"username":"lockout-http-user","password":"bad-2"}'
     Assert-True (-not [string]::IsNullOrWhiteSpace($lockedLogin.Headers["Retry-After"])) "Locked login did not include Retry-After header."
 
-    $operatorLogin = Invoke-RestMethod -Uri "$BaseUrl/api/v1/auth/login" -Method Post -ContentType "application/json" -Body '{"username":"operator","password":"operator123"}' -TimeoutSec 10
+    $operatorPassword = "operator123"
+    try {
+        $operatorLogin = Invoke-RestMethod -Uri "$BaseUrl/api/v1/auth/login" -Method Post -ContentType "application/json" -Body (('{"username":"operator","password":"' + $operatorPassword + '"}')) -TimeoutSec 10
+    } catch {
+        $operatorPassword = "operator-rotated-password"
+        $operatorLogin = Invoke-RestMethod -Uri "$BaseUrl/api/v1/auth/login" -Method Post -ContentType "application/json" -Body (('{"username":"operator","password":"' + $operatorPassword + '"}')) -TimeoutSec 10
+    }
     Assert-True $operatorLogin.success "Operator login failed."
     $operatorToken = $operatorLogin.data.token
     $operatorHeaders = @{ Authorization = "Bearer $operatorToken"; "X-Trace-Id" = "trace-it-operator" }
 
     $session = Invoke-RestMethod -Uri "$BaseUrl/api/v1/auth/session" -Method Get -Headers $operatorHeaders -TimeoutSec 10
     Assert-True $session.success "Session validation failed."
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/auth/password" -Method Post -Status 401 -Body '{"currentPassword":"operator123","newPassword":"operator-rotated-password"}'
+    $invalidPasswordChange = Invoke-ExpectStatusResponse -Uri "$BaseUrl/api/v1/auth/password" -Method Post -Status 401 -Headers $operatorHeaders -Body '{"currentPassword":"wrong-password","newPassword":"operator-rotated-password"}'
+    $invalidPasswordChangePayload = $invalidPasswordChange.Content | ConvertFrom-Json
+    Assert-True ($invalidPasswordChangePayload.code -eq "CURRENT_PASSWORD_INVALID") "Invalid current password code did not match."
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/auth/password" -Method Post -Status 400 -Headers $operatorHeaders -Body '{"currentPassword":"operator123","newPassword":"short"}'
+    $rotatedPassword = "operator-rotated-password"
+    $changedPassword = Invoke-RestMethod -Uri "$BaseUrl/api/v1/auth/password" -Method Post -Headers $operatorHeaders -ContentType "application/json" -Body (('{"currentPassword":"' + $operatorPassword + '","newPassword":"' + $rotatedPassword + '"}')) -TimeoutSec 10
+    Assert-True $changedPassword.success "Password rotation failed."
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/auth/login" -Method Post -Status 401 -Body (('{"username":"operator","password":"' + $operatorPassword + '"}'))
+    $rotatedLogin = Invoke-RestMethod -Uri "$BaseUrl/api/v1/auth/login" -Method Post -ContentType "application/json" -Body (('{"username":"operator","password":"' + $rotatedPassword + '"}')) -TimeoutSec 10
+    Assert-True $rotatedLogin.success "Rotated operator password could not log in."
+    $rotatedHeaders = @{ Authorization = "Bearer $($rotatedLogin.data.token)"; "X-Trace-Id" = "trace-it-operator-rotated" }
+    $rotatedSession = Invoke-RestMethod -Uri "$BaseUrl/api/v1/auth/session" -Method Get -Headers $rotatedHeaders -TimeoutSec 10
+    Assert-True $rotatedSession.success "Rotated operator session validation failed."
+    $restorePassword = Invoke-RestMethod -Uri "$BaseUrl/api/v1/auth/password" -Method Post -Headers $rotatedHeaders -ContentType "application/json" -Body (('{"currentPassword":"' + $rotatedPassword + '","newPassword":"operator123"}')) -TimeoutSec 10
+    Assert-True $restorePassword.success "Operator password restore failed."
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/monitoring/states" -Method Post -Status 401 -Body '{"assetId":"asset-it-001","state":"online"}'
 
     $emptyMonitoring = Invoke-RestMethod -Uri "$BaseUrl/api/v1/monitoring/states" -Method Get -Headers $operatorHeaders -TimeoutSec 10
@@ -288,6 +329,15 @@ try {
     Assert-True $adminLogin.success "Admin login failed."
     $adminToken = $adminLogin.data.token
     $adminHeaders = @{ Authorization = "Bearer $adminToken"; "X-Trace-Id" = "trace-it-admin" }
+
+    $passwordAudit = Invoke-RestMethod -Uri "$BaseUrl/api/v1/audit/events?actor=operator&action=auth.password.changed" -Method Get -Headers $adminHeaders -TimeoutSec 10
+    Assert-True $passwordAudit.success "Password audit query failed."
+    $passwordAuditRows = @($passwordAudit.data) | Where-Object { $_.action -eq "auth.password.changed" }
+    Assert-True (@($passwordAuditRows).Count -ge 2) "Password rotation audit events were not recorded."
+    $passwordAuditText = $passwordAuditRows | ConvertTo-Json -Compress
+    Assert-True (-not $passwordAuditText.Contains("operator123")) "Password audit must not contain the old password."
+    Assert-True (-not $passwordAuditText.Contains("operator-rotated-password")) "Password audit must not contain the new password."
+    Assert-True (-not $passwordAuditText.Contains("wrong-password")) "Password audit must not contain an attempted password."
 
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/audit/events" -Method Get -Status 403 -Headers $operatorHeaders
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/audit/events/export" -Method Get -Status 403 -Headers $operatorHeaders
@@ -560,5 +610,7 @@ try {
     $env:INDUSPILOT_SECURITY_LOGIN_MAX_FAILURES = $oldLoginMaxFailures
     $env:INDUSPILOT_SECURITY_LOGIN_FAILURE_WINDOW_SECONDS = $oldLoginFailureWindow
     $env:INDUSPILOT_SECURITY_LOGIN_LOCKOUT_SECONDS = $oldLoginLockoutSeconds
+    $env:INDUSPILOT_SECURITY_PASSWORD_MIN_LENGTH = $oldPasswordMinLength
+    $env:INDUSPILOT_SECURITY_PASSWORD_ITERATIONS = $oldPasswordIterations
     Remove-Item -LiteralPath $stdout, $stderr -Force -ErrorAction SilentlyContinue
 }
