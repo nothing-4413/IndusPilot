@@ -16,4 +16,4 @@
 ## 4. 文档与交付
 - [x] 4.1 更新 AI provider 和生产 readiness 文档
 - [x] 4.2 同步 AI 主规格、运行全量门禁并归档 change
-- [ ] 4.3 按独立阶段提交并推送 GitHub
+- [x] 4.3 按独立阶段提交并推送 GitHub
