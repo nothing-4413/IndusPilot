@@ -55,6 +55,8 @@ struct SecurityConfig {
     int loginMaxFailures{5};
     int loginFailureWindowSeconds{60};
     int loginLockoutSeconds{900};
+    int passwordMinLength{12};
+    int passwordIterations{120000};
 };
 
 struct StorageConfig {

@@ -190,6 +190,10 @@ void applyConfigValue(
         parseInteger(config.security.loginFailureWindowSeconds);
     } else if (section == "security" && (key == "loginLockoutSeconds" || key == "login_lockout_seconds")) {
         parseInteger(config.security.loginLockoutSeconds);
+    } else if (section == "security" && (key == "passwordMinLength" || key == "password_min_length")) {
+        parseInteger(config.security.passwordMinLength);
+    } else if (section == "security" && (key == "passwordIterations" || key == "password_iterations")) {
+        parseInteger(config.security.passwordIterations);
     } else if (section == "storage" && key == "repository_store") {
         config.storage.repositoryStore = value;
     } else {
@@ -245,6 +249,8 @@ void applyEnvironmentOverrides(AppConfig& config) {
     applyIntEnv(config, "INDUSPILOT_SECURITY_LOGIN_MAX_FAILURES", "security.login_max_failures", config.security.loginMaxFailures);
     applyIntEnv(config, "INDUSPILOT_SECURITY_LOGIN_FAILURE_WINDOW_SECONDS", "security.login_failure_window_seconds", config.security.loginFailureWindowSeconds);
     applyIntEnv(config, "INDUSPILOT_SECURITY_LOGIN_LOCKOUT_SECONDS", "security.login_lockout_seconds", config.security.loginLockoutSeconds);
+    applyIntEnv(config, "INDUSPILOT_SECURITY_PASSWORD_MIN_LENGTH", "security.password_min_length", config.security.passwordMinLength);
+    applyIntEnv(config, "INDUSPILOT_SECURITY_PASSWORD_ITERATIONS", "security.password_iterations", config.security.passwordIterations);
 
     applyStringEnv("INDUSPILOT_REPOSITORY_STORE", config.storage.repositoryStore);
 }
@@ -359,6 +365,12 @@ ConfigValidation validateConfig(const AppConfig& config) {
     }
     if (config.shutdown.drainTimeoutMs < 1) {
         addError("shutdown.drain_timeout_ms must be greater than zero");
+    }
+    if (config.security.passwordMinLength < 8 || config.security.passwordMinLength > 1024) {
+        addError("security.password_min_length must be between 8 and 1024");
+    }
+    if (config.security.passwordIterations < 100000 || config.security.passwordIterations > 1000000) {
+        addError("security.password_iterations must be between 100000 and 1000000");
     }
     return result;
 }

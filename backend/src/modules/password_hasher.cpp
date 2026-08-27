@@ -4,6 +4,7 @@
 #include <array>
 #include <cstdint>
 #include <iomanip>
+#include <random>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -208,6 +209,19 @@ std::string pbkdf2Sha256PasswordHash(const std::string& password, const std::str
         return {};
     }
     return "pbkdf2_sha256$" + std::to_string(iterations) + "$" + salt + "$" + toHex(pbkdf2Sha256Bytes(password, salt, iterations));
+}
+
+std::string generatePbkdf2Sha256PasswordHash(const std::string& password, int iterations) {
+    if (iterations < 1) {
+        return {};
+    }
+
+    std::array<unsigned char, 16> saltBytes{};
+    std::random_device random;
+    for (auto& byte : saltBytes) {
+        byte = static_cast<unsigned char>(random());
+    }
+    return pbkdf2Sha256PasswordHash(password, toHex(Bytes(saltBytes.begin(), saltBytes.end())), iterations);
 }
 
 bool verifyPassword(const std::string& password, const std::string& storedHash) {

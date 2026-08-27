@@ -40,6 +40,8 @@ security:
   login_max_failures: 5
   login_failure_window_seconds: 60
   login_lockout_seconds: 900
+  password_min_length: 12
+  password_iterations: 120000
 
 ai:
   # provider 支持 disabled/http；启用 Drogon 构建时 http 会向 endpoint 发起真实推理请求。

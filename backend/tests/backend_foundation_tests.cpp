@@ -133,6 +133,8 @@ int main() {
     assert(loadedConfig.mysql.uri == "host=127.0.0.1 port=3306 dbname=induspilot user=induspilot");
     assert(loadedConfig.security.loginMaxFailures == 3);
     assert(loadedConfig.security.loginLockoutSeconds == 120);
+    assert(loadedConfig.security.passwordMinLength == 12);
+    assert(loadedConfig.security.passwordIterations == 120000);
     assert(induspilot::app::validateConfig(induspilot::app::AppConfig{}).valid);
 
 #ifdef _WIN32
@@ -191,6 +193,12 @@ int main() {
     assert(!induspilot::app::validateConfig(invalidConfig).valid);
     invalidConfig = induspilot::app::AppConfig{};
     invalidConfig.shutdown.drainTimeoutMs = 0;
+    assert(!induspilot::app::validateConfig(invalidConfig).valid);
+    invalidConfig = induspilot::app::AppConfig{};
+    invalidConfig.security.passwordMinLength = 7;
+    assert(!induspilot::app::validateConfig(invalidConfig).valid);
+    invalidConfig = induspilot::app::AppConfig{};
+    invalidConfig.security.passwordIterations = 99999;
     assert(!induspilot::app::validateConfig(invalidConfig).valid);
 
     const auto memoryRequirements = induspilot::data::DataConnectors{induspilot::app::AppConfig{}}.requirements();
@@ -353,6 +361,10 @@ int main() {
     assert(lockedSuccessAttempt.code == "AUTHENTICATION_LOCKED");
 
     assert(induspilot::modules::verifyPassword("admin123", "plain:admin123"));
+    const auto generatedPasswordHash = induspilot::modules::generatePbkdf2Sha256PasswordHash("rotated-password", 100000);
+    assert(generatedPasswordHash.rfind("pbkdf2_sha256$100000$", 0) == 0);
+    assert(induspilot::modules::verifyPassword("rotated-password", generatedPasswordHash));
+    assert(!induspilot::modules::verifyPassword("wrong-password", generatedPasswordHash));
     assert(induspilot::modules::verifyPassword("admin123", "pbkdf2_sha256$1000$identity-test-salt$3d8943413e05ec9118c53174a59bf506b84c558ead29bc37acd901f632a256f1"));
     assert(!induspilot::modules::verifyPassword("wrong-password", "pbkdf2_sha256$1000$identity-test-salt$3d8943413e05ec9118c53174a59bf506b84c558ead29bc37acd901f632a256f1"));
     assert(identity.logout(login.session->token));
