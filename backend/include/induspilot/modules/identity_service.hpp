@@ -27,12 +27,23 @@ struct LoginSecurityPolicy {
     std::chrono::seconds lockDuration{std::chrono::minutes(15)};
 };
 
+struct PasswordPolicy {
+    int minimumLength{12};
+    int iterations{120000};
+};
+
 struct AuthResult {
     bool success{false};
     std::string message;
     std::optional<SessionInfo> session;
     std::string code;
     int retryAfterSeconds{0};
+};
+
+struct PasswordChangeResult {
+    bool success{false};
+    std::string message;
+    std::string code;
 };
 
 class IdentityService {
@@ -44,10 +55,15 @@ public:
         std::chrono::seconds sessionTtl,
         std::shared_ptr<data::UserRepository> userRepository,
         std::shared_ptr<data::PermissionRepository> permissionRepository,
-        LoginSecurityPolicy securityPolicy = {});
+        LoginSecurityPolicy securityPolicy = {},
+        PasswordPolicy passwordPolicy = {});
 
     ServiceStatus status() const;
     AuthResult login(const LoginRequest& request);
+    PasswordChangeResult changePassword(
+        const std::string& username,
+        const std::string& currentPassword,
+        const std::string& newPassword);
     bool logout(const std::string& token);
     std::optional<SessionInfo> validateSession(const std::string& token) const;
     bool authenticate(const std::string& username, const std::string& password) const;
@@ -72,6 +88,7 @@ private:
     std::shared_ptr<data::UserRepository> userRepository_;
     std::shared_ptr<data::PermissionRepository> permissionRepository_;
     LoginSecurityPolicy securityPolicy_{};
+    PasswordPolicy passwordPolicy_{};
     std::mutex loginFailureMutex_;
     std::unordered_map<std::string, LoginFailureState> loginFailures_;
 };

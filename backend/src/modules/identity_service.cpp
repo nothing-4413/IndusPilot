@@ -28,12 +28,14 @@ IdentityService::IdentityService(
     std::chrono::seconds sessionTtl,
     std::shared_ptr<data::UserRepository> userRepository,
     std::shared_ptr<data::PermissionRepository> permissionRepository,
-    LoginSecurityPolicy securityPolicy)
+    LoginSecurityPolicy securityPolicy,
+    PasswordPolicy passwordPolicy)
     : sessionStore_(std::move(sessionStore)),
       sessionTtl_(sessionTtl),
       userRepository_(std::move(userRepository)),
       permissionRepository_(std::move(permissionRepository)),
-      securityPolicy_(securityPolicy) {
+      securityPolicy_(securityPolicy),
+      passwordPolicy_(passwordPolicy) {
     if (!sessionStore_) {
         sessionStore_ = std::make_shared<InMemorySessionStore>();
     }
@@ -73,6 +75,28 @@ AuthResult IdentityService::login(const LoginRequest& request) {
     }
 
     return AuthResult{true, "登录成功", session, "OK"};
+}
+
+PasswordChangeResult IdentityService::changePassword(
+    const std::string& username,
+    const std::string& currentPassword,
+    const std::string& newPassword) {
+    const auto credential = userRepository_->findByUsername(username);
+    if (!credential || !verifyPassword(currentPassword, credential->passwordHash)) {
+        return PasswordChangeResult{false, "当前密码不正确", "CURRENT_PASSWORD_INVALID"};
+    }
+    if (static_cast<int>(newPassword.size()) < passwordPolicy_.minimumLength) {
+        return PasswordChangeResult{false, "新密码不符合密码策略", "PASSWORD_POLICY_VIOLATION"};
+    }
+
+    const auto passwordHash = generatePbkdf2Sha256PasswordHash(newPassword, passwordPolicy_.iterations);
+    if (passwordHash.empty()) {
+        return PasswordChangeResult{false, "密码哈希生成失败", "PASSWORD_HASH_FAILED"};
+    }
+    if (!userRepository_->updatePasswordHash(username, passwordHash)) {
+        return PasswordChangeResult{false, "密码更新失败", "PASSWORD_UPDATE_FAILED"};
+    }
+    return PasswordChangeResult{true, "密码修改成功", "OK"};
 }
 
 int IdentityService::retryAfterSeconds(const LoginFailureState& state, std::chrono::system_clock::time_point now) const {

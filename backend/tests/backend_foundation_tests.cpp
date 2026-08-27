@@ -339,6 +339,27 @@ int main() {
     assert(identity.authenticate("admin", "admin123"));
     assert(!identity.authenticate("admin", "wrong-password"));
 
+    induspilot::modules::PasswordPolicy passwordPolicy;
+    passwordPolicy.minimumLength = 12;
+    passwordPolicy.iterations = 100000;
+    induspilot::modules::IdentityService passwordIdentity(
+        std::make_shared<induspilot::modules::InMemorySessionStore>(),
+        std::chrono::hours(8),
+        std::make_shared<induspilot::data::InMemoryUserRepository>(),
+        std::make_shared<induspilot::data::InMemoryPermissionRepository>(),
+        {},
+        passwordPolicy);
+    const auto shortPassword = passwordIdentity.changePassword("admin", "admin123", "short");
+    assert(!shortPassword.success);
+    assert(shortPassword.code == "PASSWORD_POLICY_VIOLATION");
+    const auto incorrectCurrentPassword = passwordIdentity.changePassword("admin", "wrong-password", "a-long-new-password");
+    assert(!incorrectCurrentPassword.success);
+    assert(incorrectCurrentPassword.code == "CURRENT_PASSWORD_INVALID");
+    const auto changedPassword = passwordIdentity.changePassword("admin", "admin123", "a-long-new-password");
+    assert(changedPassword.success);
+    assert(passwordIdentity.authenticate("admin", "a-long-new-password"));
+    assert(!passwordIdentity.authenticate("admin", "admin123"));
+
     induspilot::modules::LoginSecurityPolicy lockoutPolicy;
     lockoutPolicy.maxFailures = 2;
     lockoutPolicy.failureWindow = std::chrono::seconds(60);

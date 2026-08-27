@@ -32,6 +32,10 @@ modules::LoginSecurityPolicy loginSecurityPolicyFrom(const app::AppConfig& confi
     return policy;
 }
 
+modules::PasswordPolicy passwordPolicyFrom(const app::AppConfig& config) {
+    return modules::PasswordPolicy{config.security.passwordMinLength, config.security.passwordIterations};
+}
+
 #ifdef INDUSPILOT_WITH_DROGON
 std::shared_ptr<modules::IdentityService> createIdentityService(
     const app::AppConfig& config,
@@ -39,6 +43,7 @@ std::shared_ptr<modules::IdentityService> createIdentityService(
     const auto ttl = std::chrono::seconds(config.redis.sessionTtlSeconds > 0 ? config.redis.sessionTtlSeconds : 28800);
     const auto sessionStore = createSessionStore(config);
     const auto securityPolicy = loginSecurityPolicyFrom(config);
+    const auto passwordPolicy = passwordPolicyFrom(config);
 
     if (config.storage.repositoryStore == "mysql") {
         return std::make_shared<modules::IdentityService>(
@@ -46,7 +51,8 @@ std::shared_ptr<modules::IdentityService> createIdentityService(
             ttl,
             std::make_shared<data::MySqlUserRepository>(mysqlClient),
             std::make_shared<data::MySqlPermissionRepository>(mysqlClient),
-            securityPolicy);
+            securityPolicy,
+            passwordPolicy);
     }
 
     return std::make_shared<modules::IdentityService>(
@@ -54,7 +60,8 @@ std::shared_ptr<modules::IdentityService> createIdentityService(
         ttl,
         std::make_shared<data::InMemoryUserRepository>(),
         std::make_shared<data::InMemoryPermissionRepository>(),
-        securityPolicy);
+        securityPolicy,
+        passwordPolicy);
 }
 
 std::shared_ptr<data::AssetRepository> createAssetRepository(
