@@ -67,7 +67,9 @@ function Invoke-Scenario {
         [string]$Name,
         [string]$Mode,
         [bool]$ExpectAvailable,
-        [int]$ProviderDelayMs = 500
+        [int]$ProviderDelayMs = 500,
+        [int]$MaxRetries = 0,
+        [int]$MaxResponseBytes = 1048576
     )
 
     $backendPort = Get-FreePort
@@ -104,6 +106,8 @@ function Invoke-Scenario {
         $env:INDUSPILOT_AI_AUTH_HEADER = "X-Test-AI-Key"
         $env:INDUSPILOT_AI_AUTH_SCHEME = "Token"
         $env:INDUSPILOT_AI_TIMEOUT_MS = if ($Mode -eq "timeout") { "100" } else { "2000" }
+        $env:INDUSPILOT_AI_MAX_RETRIES = [string]$MaxRetries
+        $env:INDUSPILOT_AI_MAX_RESPONSE_BYTES = [string]$MaxResponseBytes
         $env:INDUSPILOT_AI_MAX_CONTEXT_ITEMS = "2"
         $env:INDUSPILOT_AI_REQUIRE_STRUCTURED_RESPONSE = "true"
         $env:INDUSPILOT_AI_STORE_INTERACTION_RECORDS = "true"
@@ -120,7 +124,7 @@ function Invoke-Scenario {
             -Body '{"username":"operator","password":"operator123"}' -TimeoutSec 10
         Assert-True $login.success "${Name}: operator login failed"
         $headers = @{ Authorization = "Bearer $($login.data.token)" }
-        $diagnosisBody = '{"relatedType":"alert","relatedId":"ai-provider-smoke","prompt":"diagnose critical temperature","context":{"assetId":"asset-smoke","severity":"critical","contextItems":["first","second","third"]}}'
+        $diagnosisBody = '{"relatedType":"alert","relatedId":"ai-provider-smoke","prompt":"diagnose critical temperature token=prompt-secret","context":{"assetId":"asset-smoke","severity":"critical","operatorDescription":"password=operator-secret","contextItems":["token=client-secret","second","third"]}}'
         $diagnosis = Invoke-RestMethod -Uri "$baseUrl/api/v1/ai/diagnose" -Method Post -Headers $headers `
             -ContentType "application/json" -Body $diagnosisBody -TimeoutSec 10
         Assert-True $diagnosis.success "${Name}: diagnosis request failed"
@@ -131,18 +135,23 @@ function Invoke-Scenario {
 
         $interaction = Invoke-RestMethod -Uri "$baseUrl/api/v1/ai/interactions?relatedId=ai-provider-smoke" -Method Get -Headers $headers -TimeoutSec 10
         Assert-True (@($interaction.data).Count -eq 1) "${Name}: AI interaction audit was not written"
+        $interactionItem = @($interaction.data)[0]
+        Assert-True (-not ([string]$interactionItem.input).Contains("prompt-secret")) "${Name}: prompt secret reached AI audit"
+        Assert-True (-not ([string]$interactionItem.input).Contains("operator-secret")) "${Name}: context secret reached AI audit"
 
-        for ($attempt = 0; $attempt -lt 20; $attempt++) {
+        for ($attempt = 0; $attempt -lt 40; $attempt++) {
             if (Test-Path -LiteralPath $providerLog) {
-                $logText = Get-Content -LiteralPath $providerLog -Raw
-                if (-not [string]::IsNullOrWhiteSpace($logText)) {
+                $logLines = @(Get-Content -LiteralPath $providerLog | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+                if ($logLines.Count -ge 1) {
                     break
                 }
             }
             Start-Sleep -Milliseconds 50
         }
         Assert-True (Test-Path -LiteralPath $providerLog) "${Name}: provider request log was not created"
-        $record = (Get-Content -LiteralPath $providerLog -Raw).Trim() | ConvertFrom-Json
+        $records = @(Get-Content -LiteralPath $providerLog | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object { $_ | ConvertFrom-Json })
+        Assert-True ($records.Count -ge 1) "${Name}: provider request log was empty"
+        $record = $records[0]
         Assert-True ($record.method -eq "POST") "${Name}: provider method mismatch"
         Assert-True ($record.path -eq "/v1/complete") "${Name}: provider path mismatch"
         Assert-True ($record.headers.'X-IndusPilot-Ai-Operation' -eq "diagnose") "${Name}: provider operation header mismatch"
@@ -151,9 +160,13 @@ function Invoke-Scenario {
         Assert-True ($providerBody.operation -eq "diagnose") "${Name}: provider operation body mismatch"
         Assert-True ($providerBody.prompt -like "*critical temperature*") "${Name}: provider prompt mismatch"
         Assert-True (@($providerBody.contextItems).Count -eq 2) "${Name}: provider context bound was not enforced"
+        Assert-True (-not ([string]$providerBody.prompt).Contains("prompt-secret")) "${Name}: prompt secret reached provider"
+        Assert-True (-not ([string]$providerBody.contextItems[0]).Contains("client-secret")) "${Name}: context secret reached provider"
 
         if ($Mode -eq "success") {
             Assert-True ($diagnosis.data.rawProviderOutput -eq "fake provider response") "${Name}: provider content was not preserved"
+        } elseif ($Mode -eq "retry-success") {
+            Assert-True ($diagnosis.data.rawProviderOutput -eq "retry provider response") "${Name}: retry response was not preserved"
         } else {
             Assert-True (-not [string]::IsNullOrWhiteSpace([string]$diagnosis.data.rawProviderOutput)) "${Name}: fallback reason was not returned"
             Assert-True ([string]$diagnosis.data.rawProviderOutput -like "*HTTP provider*") "${Name}: provider failure was not surfaced"
@@ -177,6 +190,7 @@ foreach ($name in @(
     "INDUSPILOT_SERVER_PORT", "INDUSPILOT_REPOSITORY_STORE", "INDUSPILOT_REDIS_SESSION_STORE",
     "INDUSPILOT_AI_ENABLED", "INDUSPILOT_AI_PROVIDER", "INDUSPILOT_AI_ENDPOINT", "INDUSPILOT_AI_API_KEY",
     "INDUSPILOT_AI_AUTH_HEADER", "INDUSPILOT_AI_AUTH_SCHEME", "INDUSPILOT_AI_TIMEOUT_MS",
+    "INDUSPILOT_AI_MAX_RETRIES", "INDUSPILOT_AI_MAX_RESPONSE_BYTES",
     "INDUSPILOT_AI_MAX_CONTEXT_ITEMS", "INDUSPILOT_AI_REQUIRE_STRUCTURED_RESPONSE",
     "INDUSPILOT_AI_STORE_INTERACTION_RECORDS"
 )) {
@@ -187,7 +201,9 @@ try {
     Invoke-Scenario "success" "success" $true
     Invoke-Scenario "failure" "failure" $false
     Invoke-Scenario "non-json" "non-json" $false
-    Invoke-Scenario "timeout" "timeout" $false 500
+    Invoke-Scenario "retry-success" "retry-success" $true 500 1
+    Invoke-Scenario "oversized" "oversized" $false 500 0 128
+    Invoke-Scenario "timeout" "timeout" $false 500 1
     Write-Host "[ai-provider-smoke] all scenarios passed"
 } finally {
     foreach ($entry in $oldEnvironment.GetEnumerator()) {

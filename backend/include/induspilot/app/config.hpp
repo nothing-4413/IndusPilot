@@ -33,6 +33,8 @@ struct AiConfig {
     std::string authHeader{"Authorization"};
     std::string authScheme{"Bearer"};
     int timeoutMs{15000};
+    int maxRetries{0};
+    int maxResponseBytes{1048576};
     int maxContextItems{20};
     bool storeInteractionRecords{true};
     bool requireStructuredResponse{true};

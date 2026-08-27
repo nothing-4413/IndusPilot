@@ -8,7 +8,7 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$ReadyFile,
 
-    [ValidateSet("success", "failure", "non-json", "timeout")]
+    [ValidateSet("success", "failure", "non-json", "timeout", "retry-success", "oversized")]
     [string]$Mode = "success",
 
     [int]$DelayMs = 500
@@ -46,6 +46,7 @@ function Write-RequestRecord {
 try {
     $listener.Start()
     [System.IO.File]::WriteAllText($ReadyFile, "ready", [System.Text.Encoding]::UTF8)
+    $requestCount = 0
     while ($true) {
         $client = $listener.AcceptTcpClient()
         $stream = $null
@@ -78,6 +79,7 @@ try {
                 $requestBytes.Write($buffer, 0, $read)
             }
             $requestText = [System.Text.Encoding]::UTF8.GetString($requestBytes.ToArray())
+            $requestCount++
             Write-RequestRecord $requestText
             switch ($Mode) {
                 "success" {
@@ -90,6 +92,17 @@ try {
                     $contentType = "application/json"
                     $responseBody = '{"error":"fake provider unavailable"}'
                 }
+                "retry-success" {
+                    if ($requestCount -eq 1) {
+                        $statusLine = "503 Service Unavailable"
+                        $contentType = "application/json"
+                        $responseBody = '{"error":"fake provider transient failure"}'
+                    } else {
+                        $statusLine = "200 OK"
+                        $contentType = "application/json"
+                        $responseBody = '{"content":"retry provider response"}'
+                    }
+                }
                 "non-json" {
                     $statusLine = "200 OK"
                     $contentType = "text/plain"
@@ -100,6 +113,11 @@ try {
                     $statusLine = "200 OK"
                     $contentType = "application/json"
                     $responseBody = '{"content":"late fake provider response"}'
+                }
+                "oversized" {
+                    $statusLine = "200 OK"
+                    $contentType = "application/json"
+                    $responseBody = '{"content":"' + ("x" * 2048) + '"}'
                 }
             }
             $responseBytes = [System.Text.Encoding]::UTF8.GetBytes($responseBody)

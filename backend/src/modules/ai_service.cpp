@@ -7,8 +7,12 @@
 #endif
 
 #include <algorithm>
+#include <array>
+#include <chrono>
+#include <cctype>
 #include <cstddef>
 #include <sstream>
+#include <string_view>
 #include <utility>
 
 namespace induspilot::modules {
@@ -39,19 +43,107 @@ std::string joinLines(const std::vector<std::string>& items) {
     return out.str();
 }
 
+bool sensitiveKeyAt(const std::string& text, std::size_t position, std::size_t& keyLength) {
+    static constexpr std::array<std::string_view, 7> sensitiveKeys{
+        "authorization", "api_key", "credential", "password", "secret", "token", "api-key"};
+    const auto boundary = [](unsigned char ch) {
+        return std::isalnum(ch) || ch == '_' || ch == '-';
+    };
+    if (position > 0 && boundary(static_cast<unsigned char>(text[position - 1]))) {
+        return false;
+    }
+    for (const auto key : sensitiveKeys) {
+        if (position + key.size() > text.size()) {
+            continue;
+        }
+        bool matches = true;
+        for (std::size_t offset = 0; offset < key.size(); ++offset) {
+            const auto actual = static_cast<unsigned char>(text[position + offset]);
+            if (static_cast<char>(std::tolower(actual)) != key[offset]) {
+                matches = false;
+                break;
+            }
+        }
+        if (matches && (position + key.size() == text.size() || !boundary(static_cast<unsigned char>(text[position + key.size()])))) {
+            keyLength = key.size();
+            return true;
+        }
+    }
+    return false;
+}
+
+std::string redactSensitiveText(const std::string& text) {
+    std::string redacted;
+    redacted.reserve(text.size());
+    for (std::size_t position = 0; position < text.size();) {
+        std::size_t keyLength = 0;
+        if (!sensitiveKeyAt(text, position, keyLength)) {
+            redacted.push_back(text[position++]);
+            continue;
+        }
+
+        auto valueStart = position + keyLength;
+        while (valueStart < text.size() && std::isspace(static_cast<unsigned char>(text[valueStart]))) {
+            ++valueStart;
+        }
+        if (valueStart < text.size() && (text[valueStart] == '"' || text[valueStart] == '\'')) {
+            ++valueStart;
+            while (valueStart < text.size() && std::isspace(static_cast<unsigned char>(text[valueStart]))) {
+                ++valueStart;
+            }
+        }
+        if (valueStart >= text.size() || (text[valueStart] != ':' && text[valueStart] != '=')) {
+            redacted.append(text, position, keyLength);
+            position += keyLength;
+            continue;
+        }
+        ++valueStart;
+        while (valueStart < text.size() && std::isspace(static_cast<unsigned char>(text[valueStart]))) {
+            ++valueStart;
+        }
+        redacted.append(text, position, valueStart - position);
+        if (valueStart < text.size() && (text[valueStart] == '"' || text[valueStart] == '\'')) {
+            const auto quote = text[valueStart++];
+            redacted += "[REDACTED]";
+            while (valueStart < text.size()) {
+                const auto escaped = text[valueStart] == '\\' && valueStart + 1 < text.size();
+                if (text[valueStart] == quote && !escaped) {
+                    redacted.push_back(quote);
+                    ++valueStart;
+                    break;
+                }
+                ++valueStart;
+            }
+        } else {
+            redacted += "[REDACTED]";
+            while (valueStart < text.size() && !std::isspace(static_cast<unsigned char>(text[valueStart])) &&
+                   text[valueStart] != ',' && text[valueStart] != ';' && text[valueStart] != ']' && text[valueStart] != '}') {
+                ++valueStart;
+            }
+        }
+        position = valueStart;
+    }
+    return redacted;
+}
+
 std::string summarizeContext(const DiagnosisRequest& request) {
     std::ostringstream out;
     out << "relatedType=" << request.relatedType << "\n";
     out << "relatedId=" << request.relatedId << "\n";
-    out << "prompt=" << request.prompt << "\n";
+    out << "prompt=" << redactSensitiveText(request.prompt) << "\n";
     out << "assetId=" << request.context.assetId << "\n";
     out << "alertTitle=" << request.context.alertTitle << "\n";
     out << "runtimeState=" << request.context.runtimeState << "\n";
     out << "severity=" << request.context.severity << "\n";
-    out << "metricSummary=" << request.context.metricSummary << "\n";
-    out << "workOrderHistory=" << request.context.workOrderHistory << "\n";
-    out << "operatorDescription=" << request.context.operatorDescription << "\n";
-    out << "contextItems=" << joinLines(request.context.contextItems);
+    out << "metricSummary=" << redactSensitiveText(request.context.metricSummary) << "\n";
+    out << "workOrderHistory=" << redactSensitiveText(request.context.workOrderHistory) << "\n";
+    out << "operatorDescription=" << redactSensitiveText(request.context.operatorDescription) << "\n";
+    std::vector<std::string> redactedItems;
+    redactedItems.reserve(request.context.contextItems.size());
+    for (const auto& item : request.context.contextItems) {
+        redactedItems.push_back(redactSensitiveText(item));
+    }
+    out << "contextItems=" << joinLines(redactedItems);
     return out.str();
 }
 
@@ -164,10 +256,10 @@ std::vector<std::string> limitedContextItems(const AiProviderRequest& request, i
 Json::Value providerRequestToJson(const AiProviderRequest& request, int maxContextItems) {
     Json::Value value;
     value["operation"] = request.operation;
-    value["prompt"] = request.prompt;
+    value["prompt"] = redactSensitiveText(request.prompt);
     Json::Value context(Json::arrayValue);
     for (const auto& item : limitedContextItems(request, maxContextItems)) {
-        context.append(item);
+        context.append(redactSensitiveText(item));
     }
     value["contextItems"] = context;
     return value;
@@ -218,6 +310,10 @@ std::string extractProviderContent(const Json::Value& value) {
 
     return {};
 }
+
+bool isRetryableStatus(int statusCode) {
+    return statusCode == 408 || statusCode == 429 || statusCode >= 500;
+}
 #endif
 class DisabledAiProvider final : public AiProvider {
 public:
@@ -256,43 +352,58 @@ public:
         return AiProviderResult{false, "http", "当前构建未启用 Drogon HTTP 传输，已按 " + request.operation + " 使用本地规则降级"};
 #else
         try {
-            auto client = drogon::HttpClient::newHttpClient(parsed.baseUrl);
-            auto httpRequest = drogon::HttpRequest::newHttpJsonRequest(providerRequestToJson(request, config_.maxContextItems));
-            httpRequest->setMethod(drogon::Post);
-            httpRequest->setPath(parsed.path);
-            httpRequest->addHeader("X-IndusPilot-Ai-Operation", request.operation);
-            if (!config_.apiKey.empty() && !config_.authHeader.empty()) {
-                const auto authValue = config_.authScheme.empty() ? config_.apiKey : config_.authScheme + " " + config_.apiKey;
-                httpRequest->addHeader(config_.authHeader, authValue);
-            }
-
-            const auto timeoutSeconds = static_cast<double>((std::max)(config_.timeoutMs, 1)) / 1000.0;
-            const auto responsePair = client->sendRequest(httpRequest, timeoutSeconds);
-            if (responsePair.first != drogon::ReqResult::Ok || !responsePair.second) {
-                return AiProviderResult{false, "http", "HTTP provider 调用失败，已按 " + request.operation + " 使用本地规则降级"};
-            }
-
-            const auto statusCode = static_cast<int>(responsePair.second->statusCode());
-            if (statusCode < 200 || statusCode >= 300) {
-                return AiProviderResult{false, "http", "HTTP provider 返回状态码 " + std::to_string(statusCode) + "，已按 " + request.operation + " 使用本地规则降级"};
-            }
-
-            const auto json = responsePair.second->getJsonObject();
-            if (json) {
-                const auto content = extractProviderContent(*json);
-                if (content.empty()) {
-                    return AiProviderResult{false, "http", "HTTP provider 响应缺少可用文本字段，已按 " + request.operation + " 使用本地规则降级"};
+            const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds((std::max)(config_.timeoutMs, 1));
+            std::string lastFailure = "HTTP provider 调用失败";
+            for (int attempt = 0; attempt <= config_.maxRetries; ++attempt) {
+                const auto now = std::chrono::steady_clock::now();
+                if (now >= deadline) {
+                    break;
                 }
-                return AiProviderResult{true, "http", content};
+                const auto remainingMs = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now).count();
+                auto client = drogon::HttpClient::newHttpClient(parsed.baseUrl);
+                auto httpRequest = drogon::HttpRequest::newHttpJsonRequest(providerRequestToJson(request, config_.maxContextItems));
+                httpRequest->setMethod(drogon::Post);
+                httpRequest->setPath(parsed.path);
+                httpRequest->addHeader("X-IndusPilot-Ai-Operation", request.operation);
+                if (!config_.apiKey.empty() && !config_.authHeader.empty()) {
+                    const auto authValue = config_.authScheme.empty() ? config_.apiKey : config_.authScheme + " " + config_.apiKey;
+                    httpRequest->addHeader(config_.authHeader, authValue);
+                }
+
+                const auto timeoutSeconds = static_cast<double>((std::max)(remainingMs, 1LL)) / 1000.0;
+                const auto responsePair = client->sendRequest(httpRequest, timeoutSeconds);
+                if (responsePair.first != drogon::ReqResult::Ok || !responsePair.second) {
+                    lastFailure = "HTTP provider 调用失败";
+                } else {
+                    const auto statusCode = static_cast<int>(responsePair.second->statusCode());
+                    const auto body = std::string(responsePair.second->getBody());
+                    if (statusCode >= 200 && statusCode < 300) {
+                        if (body.size() > static_cast<std::size_t>(config_.maxResponseBytes)) {
+                            return AiProviderResult{false, "http", "HTTP provider 响应超过大小限制，已按 " + request.operation + " 使用本地规则降级"};
+                        }
+                        const auto json = responsePair.second->getJsonObject();
+                        if (json) {
+                            const auto content = extractProviderContent(*json);
+                            if (content.empty()) {
+                                return AiProviderResult{false, "http", "HTTP provider 响应缺少可用文本字段，已按 " + request.operation + " 使用本地规则降级"};
+                            }
+                            return AiProviderResult{true, "http", content};
+                        }
+                        if (config_.requireStructuredResponse) {
+                            return AiProviderResult{false, "http", "HTTP provider 响应不是 JSON，已按 " + request.operation + " 使用本地规则降级"};
+                        }
+                        if (body.empty()) {
+                            return AiProviderResult{false, "http", "HTTP provider 响应为空，已按 " + request.operation + " 使用本地规则降级"};
+                        }
+                        return AiProviderResult{true, "http", body};
+                    }
+                    lastFailure = "HTTP provider 返回状态码 " + std::to_string(statusCode);
+                    if (!isRetryableStatus(statusCode)) {
+                        break;
+                    }
+                }
             }
-            if (config_.requireStructuredResponse) {
-                return AiProviderResult{false, "http", "HTTP provider 响应不是 JSON，已按 " + request.operation + " 使用本地规则降级"};
-            }
-            const auto body = std::string(responsePair.second->getBody());
-            if (body.empty()) {
-                return AiProviderResult{false, "http", "HTTP provider 响应为空，已按 " + request.operation + " 使用本地规则降级"};
-            }
-            return AiProviderResult{true, "http", body};
+            return AiProviderResult{false, "http", lastFailure + "，已按 " + request.operation + " 使用本地规则降级"};
         } catch (const std::exception& ex) {
             return AiProviderResult{false, "http", std::string("HTTP provider 异常：") + ex.what() + "，已按 " + request.operation + " 使用本地规则降级"};
         }
@@ -391,7 +502,7 @@ void AiService::recordInteraction(const AiRequest& request, const AiSuggestion& 
     }
     std::ostringstream id;
     id << "ai-interaction-" << repository_->list().size() + 1;
-    repository_->save(domain::AiInteraction{id.str(), request.relatedType, request.relatedId, request.prompt, suggestion.content});
+    repository_->save(domain::AiInteraction{id.str(), request.relatedType, request.relatedId, redactSensitiveText(request.prompt), suggestion.content});
 }
 
 void AiService::recordDiagnosis(const DiagnosisRequest& request, const DiagnosisResult& result) {

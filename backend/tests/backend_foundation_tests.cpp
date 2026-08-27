@@ -72,6 +72,8 @@ int main() {
     _putenv_s("INDUSPILOT_AI_PROVIDER", "http");
     _putenv_s("INDUSPILOT_AI_REQUIRED", "true");
     _putenv_s("INDUSPILOT_AI_TIMEOUT_MS", "2500");
+    _putenv_s("INDUSPILOT_AI_MAX_RETRIES", "2");
+    _putenv_s("INDUSPILOT_AI_MAX_RESPONSE_BYTES", "2048");
     _putenv_s("INDUSPILOT_AI_MAX_CONTEXT_ITEMS", "3");
     _putenv_s("INDUSPILOT_AI_STORE_INTERACTION_RECORDS", "false");
     _putenv_s("INDUSPILOT_AI_API_KEY", "test-ai-key");
@@ -93,6 +95,8 @@ int main() {
     setenv("INDUSPILOT_AI_PROVIDER", "http", 1);
     setenv("INDUSPILOT_AI_REQUIRED", "true", 1);
     setenv("INDUSPILOT_AI_TIMEOUT_MS", "2500", 1);
+    setenv("INDUSPILOT_AI_MAX_RETRIES", "2", 1);
+    setenv("INDUSPILOT_AI_MAX_RESPONSE_BYTES", "2048", 1);
     setenv("INDUSPILOT_AI_MAX_CONTEXT_ITEMS", "3", 1);
     setenv("INDUSPILOT_AI_STORE_INTERACTION_RECORDS", "false", 1);
     setenv("INDUSPILOT_AI_API_KEY", "test-ai-key", 1);
@@ -115,6 +119,8 @@ int main() {
     assert(loadedConfig.ai.provider == "http");
     assert(loadedConfig.ai.required);
     assert(loadedConfig.ai.timeoutMs == 2500);
+    assert(loadedConfig.ai.maxRetries == 2);
+    assert(loadedConfig.ai.maxResponseBytes == 2048);
     assert(loadedConfig.ai.maxContextItems == 3);
     assert(!loadedConfig.ai.storeInteractionRecords);
     assert(loadedConfig.ai.apiKey == "test-ai-key");
@@ -175,6 +181,12 @@ int main() {
     invalidConfig.ai.required = true;
     assert(!induspilot::app::validateConfig(invalidConfig).valid);
     invalidConfig = induspilot::app::AppConfig{};
+    invalidConfig.ai.maxRetries = -1;
+    assert(!induspilot::app::validateConfig(invalidConfig).valid);
+    invalidConfig = induspilot::app::AppConfig{};
+    invalidConfig.ai.maxResponseBytes = 0;
+    assert(!induspilot::app::validateConfig(invalidConfig).valid);
+    invalidConfig = induspilot::app::AppConfig{};
     invalidConfig.readiness.probeCacheMs = -1;
     assert(!induspilot::app::validateConfig(invalidConfig).valid);
     invalidConfig = induspilot::app::AppConfig{};
@@ -213,6 +225,8 @@ int main() {
     _putenv_s("INDUSPILOT_AI_PROVIDER", "");
     _putenv_s("INDUSPILOT_AI_REQUIRED", "");
     _putenv_s("INDUSPILOT_AI_TIMEOUT_MS", "");
+    _putenv_s("INDUSPILOT_AI_MAX_RETRIES", "");
+    _putenv_s("INDUSPILOT_AI_MAX_RESPONSE_BYTES", "");
     _putenv_s("INDUSPILOT_AI_MAX_CONTEXT_ITEMS", "");
     _putenv_s("INDUSPILOT_AI_STORE_INTERACTION_RECORDS", "");
     _putenv_s("INDUSPILOT_AI_API_KEY", "");
@@ -234,6 +248,8 @@ int main() {
     unsetenv("INDUSPILOT_AI_PROVIDER");
     unsetenv("INDUSPILOT_AI_REQUIRED");
     unsetenv("INDUSPILOT_AI_TIMEOUT_MS");
+    unsetenv("INDUSPILOT_AI_MAX_RETRIES");
+    unsetenv("INDUSPILOT_AI_MAX_RESPONSE_BYTES");
     unsetenv("INDUSPILOT_AI_MAX_CONTEXT_ITEMS");
     unsetenv("INDUSPILOT_AI_STORE_INTERACTION_RECORDS");
     unsetenv("INDUSPILOT_AI_API_KEY");

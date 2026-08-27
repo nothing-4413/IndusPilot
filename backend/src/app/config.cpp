@@ -166,6 +166,10 @@ void applyConfigValue(
         config.ai.authScheme = value;
     } else if (section == "ai" && (key == "timeoutMs" || key == "timeout_ms")) {
         parseInteger(config.ai.timeoutMs);
+    } else if (section == "ai" && (key == "maxRetries" || key == "max_retries")) {
+        parseInteger(config.ai.maxRetries);
+    } else if (section == "ai" && (key == "maxResponseBytes" || key == "max_response_bytes")) {
+        parseInteger(config.ai.maxResponseBytes);
     } else if (section == "ai" && (key == "maxContextItems" || key == "max_context_items")) {
         parseInteger(config.ai.maxContextItems);
     } else if (section == "ai" && (key == "storeInteractionRecords" || key == "store_interaction_records")) {
@@ -227,6 +231,8 @@ void applyEnvironmentOverrides(AppConfig& config) {
     applyStringEnv("INDUSPILOT_AI_AUTH_HEADER", config.ai.authHeader);
     applyStringEnv("INDUSPILOT_AI_AUTH_SCHEME", config.ai.authScheme);
     applyIntEnv(config, "INDUSPILOT_AI_TIMEOUT_MS", "ai.timeout_ms", config.ai.timeoutMs);
+    applyIntEnv(config, "INDUSPILOT_AI_MAX_RETRIES", "ai.max_retries", config.ai.maxRetries);
+    applyIntEnv(config, "INDUSPILOT_AI_MAX_RESPONSE_BYTES", "ai.max_response_bytes", config.ai.maxResponseBytes);
     applyIntEnv(config, "INDUSPILOT_AI_MAX_CONTEXT_ITEMS", "ai.max_context_items", config.ai.maxContextItems);
     applyBoolEnv(config, "INDUSPILOT_AI_STORE_INTERACTION_RECORDS", "ai.store_interaction_records", config.ai.storeInteractionRecords);
     applyBoolEnv(config, "INDUSPILOT_AI_REQUIRE_STRUCTURED_RESPONSE", "ai.require_structured_response", config.ai.requireStructuredResponse);
@@ -335,6 +341,12 @@ ConfigValidation validateConfig(const AppConfig& config) {
     }
     if (config.ai.timeoutMs < 1) {
         addError("ai.timeout_ms must be greater than zero");
+    }
+    if (config.ai.maxRetries < 0) {
+        addError("ai.max_retries must not be negative");
+    }
+    if (config.ai.maxResponseBytes < 1) {
+        addError("ai.max_response_bytes must be greater than zero");
     }
     if (config.ai.maxContextItems < 1) {
         addError("ai.max_context_items must be greater than zero");
