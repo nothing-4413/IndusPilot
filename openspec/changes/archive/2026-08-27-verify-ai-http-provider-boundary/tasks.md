@@ -11,4 +11,4 @@
 ## 3. 文档与交付
 - [x] 3.1 修正文档中的 provider 传输边界和结构化结果责任
 - [x] 3.2 同步 AI 主规格并运行质量门禁、CTest、HTTP smoke
-- [ ] 3.3 归档 change，提交并推送 GitHub
+- [x] 3.3 归档 change，提交并推送 GitHub
