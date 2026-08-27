@@ -106,5 +106,13 @@ if(INDUSPILOT_BUILD_TESTS)
     )
     target_compile_definitions(induspilot-http-shutdown-smoke PRIVATE INDUSPILOT_WITH_DROGON)
     add_test(NAME induspilot-http-shutdown-smoke COMMAND $<TARGET_FILE:induspilot-http-shutdown-smoke>)
+
+    add_executable(induspilot-http-common-tests tests/http_common_tests.cpp)
+    target_link_libraries(induspilot-http-common-tests PRIVATE induspilot_backend_core)
+    target_compile_options(induspilot-http-common-tests PRIVATE
+      $<$<CXX_COMPILER_ID:MSVC>:/utf-8 /EHsc>
+    )
+    target_compile_definitions(induspilot-http-common-tests PRIVATE INDUSPILOT_WITH_DROGON)
+    add_test(NAME induspilot-http-common-tests COMMAND $<TARGET_FILE:induspilot-http-common-tests>)
   endif()
 endif()

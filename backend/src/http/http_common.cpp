@@ -88,12 +88,16 @@ std::string traceIdFor(const drogon::HttpRequestPtr& request) {
 }
 
 void writeRequestLog(const drogon::HttpRequestPtr& request, const std::optional<modules::SessionInfo>& session) {
-    std::cout << "{\"event\":\"http_request\"," <<
-        "\"traceId\":\"" << traceIdFor(request) << "\"," <<
-        "\"method\":\"" << request->methodString() << "\"," <<
-        "\"path\":\"" << request->path() << "\"," <<
-        "\"user\":\"" << (session ? session->user.username : "anonymous") << "\"}"
-        << std::endl;
+    Json::Value event(Json::objectValue);
+    event["event"] = "http_request";
+    event["traceId"] = traceIdFor(request);
+    event["method"] = request->methodString();
+    event["path"] = request->path();
+    event["user"] = session ? session->user.username : "anonymous";
+
+    Json::StreamWriterBuilder builder;
+    builder["indentation"] = "";
+    std::cout << Json::writeString(builder, event) << std::endl;
 }
 
 std::string bearerToken(const drogon::HttpRequestPtr& request) {
