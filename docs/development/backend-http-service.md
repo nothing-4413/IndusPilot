@@ -68,7 +68,7 @@ ctest --preset dev-http
 
 ## 后续约束
 
-当前 HTTP 层已经接入会话守卫、权限守卫、统一错误响应和仓储边界。`storage.repository_store` 为 `memory` 时使用内存仓储；设置为 `mysql` 时，身份认证、资产、告警、告警规则、告警通知投递审计、工单、运行状态和 AI 交互审计使用 MySQL 仓储。AI 模块会读取 `ai.enabled`、`ai.provider` 与 `ai.endpoint`，通过 Provider 边界生成结构化 agent 诊断结果并写入审计；当前 `disabled/http` provider 都使用本地规则降级，尚未执行外部推理传输。
+当前 HTTP 层已经接入会话守卫、权限守卫、统一错误响应和仓储边界。`storage.repository_store` 为 `memory` 时使用内存仓储；设置为 `mysql` 时，身份认证、资产、告警、告警规则、告警通知投递审计、工单、运行状态和 AI 交互审计使用 MySQL 仓储。AI 模块会读取 `ai.enabled`、`ai.provider` 与 `ai.endpoint`，通过 Provider 边界生成结构化 agent 诊断结果并写入审计。`disabled` provider 使用本地规则；启用 Drogon 构建下的 `http` provider 会向配置 endpoint 发起受控 JSON POST，失败时回到本地规则降级。当前风险等级、可能原因、建议动作和人工复核标记仍由本地编排器生成，外部响应只作为 provider 文本输入。
 
 ## Qt 客户端联机
 
@@ -181,6 +181,8 @@ HTTP 登录接口复用身份服务的安全策略。`security.login_lockout_ena
 ## AI Provider 鉴权与响应校验
 
 HTTP AI Provider 支持通过 `ai.api_key`、`ai.auth_header`、`ai.auth_scheme` 配置鉴权头，生产环境建议使用 `INDUSPILOT_AI_API_KEY` 注入密钥而不是写入配置文件。默认开启 `ai.require_structured_response`，Provider 响应必须是 JSON，并提供 `content`、`summary`、`text`、`output_text` 或兼容 OpenAI `choices/output` 的文本字段；缺少可用文本时系统会降级为不可用结果并继续记录 AI 交互。
+
+可用 `backend/tests/ai_provider_http_smoke.ps1` 配合本地 fake provider 验证成功、非 2xx、非 JSON 和超时场景。该 smoke 同时断言 POST path、`operation`、受 `ai.max_context_items` 限制的 `contextItems`、`X-IndusPilot-Ai-Operation`、自定义鉴权头、provider 文本透传、失败降级和 AI 交互审计。
 ## 可观测性指标
 
 启用 Drogon 运行时时，后端提供 `GET /metrics`，返回 Prometheus 文本格式指标。指标覆盖 HTTP 请求总数、错误数、AI 请求数、告警关闭次数、工单关闭次数以及按方法、归一化路径和状态码聚合的请求耗时。详细说明见 `docs/development/observability-metrics.md`。
