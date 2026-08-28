@@ -61,3 +61,45 @@ The system SHALL authenticate users and resolve role permissions through configu
 - **WHEN** the identity service receives a login request
 - **THEN** it retrieves the user credential from the configured user repository and resolves permissions from the configured permission repository
 
+### Requirement: Configurable password policy
+The system SHALL load and validate minimum password length and PBKDF2 iteration count from configuration or environment variables before starting the listener.
+
+#### Scenario: Unsafe password policy is rejected
+- **WHEN** the configured minimum length or PBKDF2 iteration count is below the production floor
+- **THEN** configuration validation fails and the listener does not start
+
+### Requirement: Authenticated password rotation
+The system SHALL allow an authenticated user to replace their password after verifying the current password and the configured password policy.
+
+#### Scenario: Password rotation succeeds
+- **WHEN** a valid session submits the correct current password and a compliant new password
+- **THEN** the new password is stored as a versioned PBKDF2-SHA256 hash and the endpoint returns success
+
+#### Scenario: Password rotation is rejected
+- **WHEN** the current password is incorrect or the new password violates policy
+- **THEN** the endpoint returns a safe failure response and does not change the stored hash
+
+### Requirement: Password rotation revokes user sessions
+The system SHALL revoke all active sessions belonging to a user after successfully persisting a password rotation.
+
+#### Scenario: All existing sessions are invalidated
+- **WHEN** an authenticated user submits a valid current password and a compliant new password
+- **THEN** every active session for that user, including the session used for the request, is rejected by protected endpoints
+
+#### Scenario: A new session can be issued after revocation
+- **WHEN** a user has successfully rotated a password and then authenticates with the new password
+- **THEN** the system issues a new valid session
+
+### Requirement: Session revocation failure is observable
+The system SHALL not report a password rotation as fully successful when its session store cannot complete user-scoped revocation.
+
+#### Scenario: Session store is unavailable during revocation
+- **WHEN** the password hash update succeeds but the session store reports a revocation failure
+- **THEN** the endpoint returns `SESSION_REVOCATION_FAILED` with HTTP 503 and records an audit failure without exposing credential or token data
+
+### Requirement: Credential data is excluded from operational records
+The system SHALL not include plaintext passwords or password hashes in HTTP logs, response bodies, or password rotation audit events.
+
+#### Scenario: Password rotation is audited
+- **WHEN** a password rotation succeeds or fails
+- **THEN** an audit event records the actor, user resource, result and trace id without credential values

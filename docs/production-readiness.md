@@ -13,7 +13,7 @@
 
 ## 当前边界
 
-- 身份安全：当前已支持版本化 PBKDF2-SHA256 密码校验、登录失败锁定和密钥扫描门禁，并保留显式开发兼容格式；生产前仍必须替换演示盐值、补齐密码轮换、审计和最小权限账户治理。
+- 身份安全：当前已支持版本化 PBKDF2-SHA256 密码校验、登录失败锁定、可配置密码策略、认证后密码轮换、密码轮换审计、按用户撤销全部 session 和密钥扫描门禁，并保留显式开发兼容格式；生产前仍必须替换演示口令、执行首登/种子账号治理、验证分布式限流、最小权限账户和审计保留策略。
 - 依赖健康：`/health` 保持旧客户端的 200 兼容语义；`/health/ready` 按 `repository_store`、`session_store` 和 AI required 配置判断核心依赖，使用 single-flight、并发依赖探测、统一 DNS/connect deadline 和缓存重新评估恢复状态，并暴露探测次数、耗时、失败/恢复计数；部署前预检会检查离线 schema 版本基线，CI dependency smoke 会验证真实 MySQL/Redis/MongoDB 启动、认证、迁移幂等、MySQL 核心业务 CRUD、Redis 数据结构读写和 MongoDB 文档 CRUD。
 - 配置边界：配置文件读取失败、未知字段、错误层级和非法整数/布尔值会在 listener 启动前阻止进程启动，并以退出码 `78` 报告；外部依赖暂时不可用仍由 readiness `503` 表达。
 - 停机边界：收到 SIGTERM/SIGINT 后新业务请求返回 `503/SERVER_DRAINING`，readiness 立即为 `503`、liveness 在最终停止前保持 `200`，coordinator 在 `shutdown.drain_timeout_ms` deadline 内等待已接受请求完成，超时记录剩余请求并退出；listener 绑定预检失败返回退出码 `69`。
@@ -24,8 +24,8 @@
 
 ## 下一阶段优先级
 
-1. 身份安全深化：在现有密码哈希边界上实现登录失败锁定、会话刷新、审计事件、密码轮换和种子账号替换流程。
-2. 真实依赖集成深化：在现有 CI 服务容器、MySQL CRUD smoke、Redis 数据结构读写、MongoDB 文档 CRUD、可参数化 HTTP smoke profile 和真实运行时 profile runner 基础上，继续把该 runner 接入 CI 构建矩阵，并推进 MongoDB 业务仓储接入。
+1. 真实依赖集成深化：在现有 CI 服务容器、MySQL CRUD smoke、Redis 数据结构读写、MongoDB 文档 CRUD、可参数化 HTTP smoke profile 和真实运行时 profile runner 基础上，先把该 runner 接入 CI 构建矩阵，再推进 MongoDB 业务仓储接入。
+2. 身份安全深化：在现有密码哈希、登录失败锁定、审计、密码轮换和按用户 session 撤销边界上，补充种子账号替换/首登治理和跨副本登录失败限流。
 3. Qt 客户端联机化深化：在现有 HTTP 登录、资产、运行监控列表与状态写入、告警创建/规则/通知投递/列表与处置、维护工单列表、新建/编辑/附件/从告警生成/分派/基础流转、AI 诊断入口和 AI 交互审计查询、分页与 CSV 导出基础上，继续接入真实外部通知通道适配器、异步重试队列和投递指标。
 4. 外部 AI Provider：在已有 HTTP 传输、有限重试、总超时、响应大小限制、常见凭据键值脱敏和降级审计基础上，继续实现提示词版本、结构化响应协议和 provider 运行指标。
 5. 可观测性：在已有结构化请求日志、请求追踪和关键业务指标基础上，补充 readiness 状态变化指标、日志脱敏/保留策略和运行告警。
@@ -49,6 +49,10 @@ openspec validate agent-diagnosis-orchestration --strict
 - 优雅停机必须设置适合业务最长请求耗时的 `shutdown.drain_timeout_ms`，并监控 timeout 日志中的剩余请求数量。
 - 所有 AI 建议必须可降级、可审计，并保留人工复核。
 - 新模块先进入 OpenSpec，再实现仓储、服务、HTTP、测试和文档，最后按模块提交。
+
+## 身份凭据轮换边界
+
+密码轮换已经具备配置、仓储、服务、HTTP 和 smoke 覆盖，并在成功后撤销该用户全部 session（包括当前 session）。它不会自动替换种子账号；部署编排必须显式执行首轮口令治理，并把分布式限流作为后续变更管理。Redis session store 会维护用户索引，并扫描既有 session key 兼容升级前会话。
 
 ## 操作审计生产边界
 
