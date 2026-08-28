@@ -52,6 +52,7 @@ struct ShutdownConfig {
 
 struct SecurityConfig {
     bool loginLockoutEnabled{true};
+    std::string loginRateLimitStore{"memory"};
     int loginMaxFailures{5};
     int loginFailureWindowSeconds{60};
     int loginLockoutSeconds{900};

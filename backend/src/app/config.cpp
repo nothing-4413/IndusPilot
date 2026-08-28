@@ -184,6 +184,8 @@ void applyConfigValue(
         parseInteger(config.shutdown.drainTimeoutMs);
     } else if (section == "security" && (key == "loginLockoutEnabled" || key == "login_lockout_enabled")) {
         parseBoolean(config.security.loginLockoutEnabled);
+    } else if (section == "security" && key == "login_rate_limit_store") {
+        config.security.loginRateLimitStore = value;
     } else if (section == "security" && (key == "loginMaxFailures" || key == "login_max_failures")) {
         parseInteger(config.security.loginMaxFailures);
     } else if (section == "security" && (key == "loginFailureWindowSeconds" || key == "login_failure_window_seconds")) {
@@ -246,6 +248,7 @@ void applyEnvironmentOverrides(AppConfig& config) {
     applyIntEnv(config, "INDUSPILOT_SHUTDOWN_DRAIN_TIMEOUT_MS", "shutdown.drain_timeout_ms", config.shutdown.drainTimeoutMs);
 
     applyBoolEnv(config, "INDUSPILOT_SECURITY_LOGIN_LOCKOUT_ENABLED", "security.login_lockout_enabled", config.security.loginLockoutEnabled);
+    applyStringEnv("INDUSPILOT_SECURITY_LOGIN_RATE_LIMIT_STORE", config.security.loginRateLimitStore);
     applyIntEnv(config, "INDUSPILOT_SECURITY_LOGIN_MAX_FAILURES", "security.login_max_failures", config.security.loginMaxFailures);
     applyIntEnv(config, "INDUSPILOT_SECURITY_LOGIN_FAILURE_WINDOW_SECONDS", "security.login_failure_window_seconds", config.security.loginFailureWindowSeconds);
     applyIntEnv(config, "INDUSPILOT_SECURITY_LOGIN_LOCKOUT_SECONDS", "security.login_lockout_seconds", config.security.loginLockoutSeconds);
@@ -371,6 +374,12 @@ ConfigValidation validateConfig(const AppConfig& config) {
     }
     if (config.security.passwordIterations < 100000 || config.security.passwordIterations > 1000000) {
         addError("security.password_iterations must be between 100000 and 1000000");
+    }
+    if (config.security.loginRateLimitStore != "memory" && config.security.loginRateLimitStore != "redis") {
+        addError("security.login_rate_limit_store must be memory or redis");
+    }
+    if (config.security.loginRateLimitStore == "redis" && config.redis.uri.empty()) {
+        addError("redis.uri must not be empty when security.login_rate_limit_store=redis");
     }
     return result;
 }

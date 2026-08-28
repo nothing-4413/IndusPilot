@@ -48,6 +48,11 @@ void registerAuthRoutes(drogon::HttpAppFramework& server, const HttpServerContex
                 callback(response);
                 return;
             }
+            if (code == "AUTHENTICATION_RATE_LIMITER_UNAVAILABLE") {
+                recordAuditEvent(audit, username, "auth.login.rate_limiter_unavailable", "user", username, "unavailable", traceIdFor(request));
+                callback(jsonResponse(responseEnvelope(false, code, "login security policy unavailable"), drogon::k503ServiceUnavailable));
+                return;
+            }
             recordAuditEvent(audit, username, "auth.login.failed", "user", username, "failed", traceIdFor(request));
             callback(jsonResponse(responseEnvelope(false, code, "invalid username or password"), drogon::k401Unauthorized));
             return;

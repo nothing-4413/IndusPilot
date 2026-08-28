@@ -9,6 +9,7 @@
 
 #include <chrono>
 #include <memory>
+#include <stdexcept>
 #include <utility>
 
 namespace induspilot::http {
@@ -32,6 +33,19 @@ modules::LoginSecurityPolicy loginSecurityPolicyFrom(const app::AppConfig& confi
     return policy;
 }
 
+std::shared_ptr<modules::LoginRateLimiter> createLoginRateLimiter(const app::AppConfig& config) {
+#ifdef INDUSPILOT_WITH_REDIS
+    if (config.security.loginRateLimitStore == "redis") {
+        return modules::makeRedisLoginRateLimiter(config.redis.uri);
+    }
+#else
+    if (config.security.loginRateLimitStore == "redis") {
+        throw std::runtime_error("Redis login rate limiting requires INDUSPILOT_WITH_REDIS");
+    }
+#endif
+    return std::make_shared<modules::InMemoryLoginRateLimiter>();
+}
+
 modules::PasswordPolicy passwordPolicyFrom(const app::AppConfig& config) {
     return modules::PasswordPolicy{config.security.passwordMinLength, config.security.passwordIterations};
 }
@@ -44,6 +58,7 @@ std::shared_ptr<modules::IdentityService> createIdentityService(
     const auto sessionStore = createSessionStore(config);
     const auto securityPolicy = loginSecurityPolicyFrom(config);
     const auto passwordPolicy = passwordPolicyFrom(config);
+    const auto loginRateLimiter = createLoginRateLimiter(config);
 
     if (config.storage.repositoryStore == "mysql") {
         return std::make_shared<modules::IdentityService>(
@@ -52,7 +67,8 @@ std::shared_ptr<modules::IdentityService> createIdentityService(
             std::make_shared<data::MySqlUserRepository>(mysqlClient),
             std::make_shared<data::MySqlPermissionRepository>(mysqlClient),
             securityPolicy,
-            passwordPolicy);
+            passwordPolicy,
+            loginRateLimiter);
     }
 
     return std::make_shared<modules::IdentityService>(
@@ -61,7 +77,8 @@ std::shared_ptr<modules::IdentityService> createIdentityService(
         std::make_shared<data::InMemoryUserRepository>(),
         std::make_shared<data::InMemoryPermissionRepository>(),
         securityPolicy,
-        passwordPolicy);
+        passwordPolicy,
+        loginRateLimiter);
 }
 
 std::shared_ptr<data::AssetRepository> createAssetRepository(

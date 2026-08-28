@@ -11,6 +11,7 @@ set(INDUSPILOT_BACKEND_CORE_SOURCES
   src/modules/audit_service.cpp
   src/modules/asset_service.cpp
   src/modules/identity_service.cpp
+  src/modules/login_rate_limiter.cpp
   src/modules/maintenance_service.cpp
   src/modules/metrics_service.cpp
   src/modules/monitoring_service.cpp

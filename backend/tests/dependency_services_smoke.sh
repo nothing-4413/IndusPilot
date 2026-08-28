@@ -35,8 +35,10 @@ echo "[integration] run Redis real CRUD smoke"
   session_key="induspilot:smoke:session"
   counter_key="induspilot:smoke:counter"
   hash_key="induspilot:smoke:hash"
+  limit_key="induspilot:smoke:login-limit"
+  lock_key="induspilot:smoke:login-limit:lock"
   session_payload="{\"user\":\"admin\",\"scope\":\"dependency-smoke\"}"
-  redis-cli -a "${REDIS_PASSWORD}" --no-auth-warning del "${session_key}" "${counter_key}" "${hash_key}" >/dev/null
+  redis-cli -a "${REDIS_PASSWORD}" --no-auth-warning del "${session_key}" "${counter_key}" "${hash_key}" "${limit_key}" "${lock_key}" >/dev/null
   redis-cli -a "${REDIS_PASSWORD}" --no-auth-warning set "${session_key}" "${session_payload}" EX 120 | grep OK
   test "$(redis-cli -a "${REDIS_PASSWORD}" --no-auth-warning get "${session_key}")" = "${session_payload}"
   test "$(redis-cli -a "${REDIS_PASSWORD}" --no-auth-warning ttl "${session_key}")" -gt 0
@@ -44,6 +46,11 @@ echo "[integration] run Redis real CRUD smoke"
   redis-cli -a "${REDIS_PASSWORD}" --no-auth-warning expire "${counter_key}" 120 | grep 1
   redis-cli -a "${REDIS_PASSWORD}" --no-auth-warning hset "${hash_key}" actor admin action dependency-smoke >/dev/null
   test "$(redis-cli -a "${REDIS_PASSWORD}" --no-auth-warning hget "${hash_key}" action)" = "dependency-smoke"
+  login_script="local count = redis.call('INCR', KEYS[1]); if count == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]); end; if count >= tonumber(ARGV[2]) then redis.call('SET', KEYS[2], '1', 'EX', ARGV[3]); return ARGV[3]; end; return 0"
+  test "$(redis-cli -a "${REDIS_PASSWORD}" --no-auth-warning --raw eval "${login_script}" 2 "${limit_key}" "${lock_key}" 60 2 30)" = "0"
+  test "$(redis-cli -a "${REDIS_PASSWORD}" --no-auth-warning --raw eval "${login_script}" 2 "${limit_key}" "${lock_key}" 60 2 30)" = "30"
+  test "$(redis-cli -a "${REDIS_PASSWORD}" --no-auth-warning pttl "${lock_key}")" -gt 0
+  redis-cli -a "${REDIS_PASSWORD}" --no-auth-warning del "${limit_key}" "${lock_key}" >/dev/null
   echo redis_real_crud_smoke_passed
 '
 

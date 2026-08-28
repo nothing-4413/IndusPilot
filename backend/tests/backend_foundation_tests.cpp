@@ -152,6 +152,7 @@ int main() {
     assert(loadedConfig.shutdown.drainTimeoutMs == 4200);
     assert(loadedConfig.mysql.uri == "host=127.0.0.1 port=3306 dbname=induspilot user=induspilot");
     assert(loadedConfig.security.loginMaxFailures == 3);
+    assert(loadedConfig.security.loginRateLimitStore == "memory");
     assert(loadedConfig.security.loginLockoutSeconds == 120);
     assert(loadedConfig.security.passwordMinLength == 12);
     assert(loadedConfig.security.passwordIterations == 120000);
@@ -219,6 +220,9 @@ int main() {
     assert(!induspilot::app::validateConfig(invalidConfig).valid);
     invalidConfig = induspilot::app::AppConfig{};
     invalidConfig.security.passwordIterations = 99999;
+    assert(!induspilot::app::validateConfig(invalidConfig).valid);
+    invalidConfig = induspilot::app::AppConfig{};
+    invalidConfig.security.loginRateLimitStore = "unknown";
     assert(!induspilot::app::validateConfig(invalidConfig).valid);
 
     const auto memoryRequirements = induspilot::data::DataConnectors{induspilot::app::AppConfig{}}.requirements();
