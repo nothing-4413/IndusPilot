@@ -51,7 +51,7 @@ bool readField(const std::string& data, std::size_t& cursor, std::string& value)
 
 std::string serializeSession(const SessionInfo& session) {
     std::ostringstream out;
-    out << "v1;" << (session.active ? "1" : "0") << ';';
+    out << "v2;" << (session.active ? "1" : "0") << ';';
     writeField(out, session.token);
     writeField(out, session.user.id);
     writeField(out, session.user.username);
@@ -59,6 +59,7 @@ std::string serializeSession(const SessionInfo& session) {
     for (const auto& role : session.user.roles) {
         writeField(out, role);
     }
+    out << session.credentialVersion << ';';
     return out.str();
 }
 
@@ -66,7 +67,7 @@ std::optional<SessionInfo> deserializeSession(const std::string& value) {
     std::size_t cursor = 0;
     std::string version;
     std::string active;
-    if (!readUntil(value, cursor, ';', version) || version != "v1") {
+    if (!readUntil(value, cursor, ';', version) || (version != "v1" && version != "v2")) {
         return std::nullopt;
     }
     if (!readUntil(value, cursor, ';', active)) {
@@ -100,6 +101,21 @@ std::optional<SessionInfo> deserializeSession(const std::string& value) {
             return std::nullopt;
         }
         session.user.roles.push_back(role);
+    }
+
+    if (version == "v1") {
+        // Legacy sessions are readable for cleanup but fail identity validation.
+        session.credentialVersion = 0;
+    } else {
+        std::string credentialVersionText;
+        if (!readUntil(value, cursor, ';', credentialVersionText)) {
+            return std::nullopt;
+        }
+        try {
+            session.credentialVersion = std::stoull(credentialVersionText);
+        } catch (...) {
+            return std::nullopt;
+        }
     }
 
     if (!session.active) {
@@ -254,6 +270,9 @@ bool RedisSessionStore::removeForUser(const std::string& userId) {
             std::vector<std::string> keys;
             cursor = impl_->redis.scan(cursor, keyPrefix_ + "*", 100, std::back_inserter(keys));
             for (const auto& key : keys) {
+                if (key.rfind(keyPrefix_ + "user:", 0) == 0) {
+                    continue;
+                }
                 const auto value = impl_->redis.get(key);
                 if (!value) {
                     continue;

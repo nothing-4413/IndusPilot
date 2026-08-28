@@ -274,12 +274,12 @@ MySqlUserRepository::MySqlUserRepository(drogon::orm::DbClientPtr client) : clie
 
 std::optional<UserCredential> MySqlUserRepository::findByUsername(const std::string& username) const {
     const auto result = client_->execSqlSync(
-        "SELECT u.id, u.username, u.password_hash, GROUP_CONCAT(r.code ORDER BY r.code) AS roles "
+        "SELECT u.id, u.username, u.password_hash, u.credential_version, GROUP_CONCAT(r.code ORDER BY r.code) AS roles "
         "FROM users u "
         "LEFT JOIN user_roles ur ON ur.user_id = u.id "
         "LEFT JOIN roles r ON r.id = ur.role_id "
         "WHERE u.username = ? AND u.enabled = TRUE "
-        "GROUP BY u.id, u.username, u.password_hash",
+        "GROUP BY u.id, u.username, u.password_hash, u.credential_version",
         username);
     if (result.empty()) {
         return std::nullopt;
@@ -290,6 +290,7 @@ std::optional<UserCredential> MySqlUserRepository::findByUsername(const std::str
     credential.user.id = std::to_string(row["id"].as<long long>());
     credential.user.username = row["username"].as<std::string>();
     credential.passwordHash = row["password_hash"].as<std::string>();
+    credential.credentialVersion = row["credential_version"].as<unsigned long long>();
     if (!row["roles"].isNull()) {
         credential.user.roles = splitRoles(row["roles"].as<std::string>());
     }
@@ -320,7 +321,8 @@ std::vector<domain::User> MySqlUserRepository::listUsers() const {
 
 bool MySqlUserRepository::updatePasswordHash(const std::string& username, const std::string& passwordHash) {
     const auto result = client_->execSqlSync(
-        "UPDATE users SET password_hash = ? WHERE username = ? AND enabled = TRUE",
+        "UPDATE users SET password_hash = ?, credential_version = credential_version + 1 "
+        "WHERE username = ? AND enabled = TRUE",
         passwordHash,
         username);
     return result.affectedRows() > 0;

@@ -37,6 +37,7 @@ bool InMemoryUserRepository::updatePasswordHash(const std::string& username, con
         return false;
     }
     it->second.passwordHash = passwordHash;
+    ++it->second.credentialVersion;
     return true;
 }
 

@@ -2,6 +2,7 @@
 
 #include "induspilot/domain/domain_types.hpp"
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <vector>
@@ -11,6 +12,7 @@ namespace induspilot::data {
 struct UserCredential {
     domain::User user;
     std::string passwordHash;
+    std::uint64_t credentialVersion{1};
 };
 
 class UserRepository {

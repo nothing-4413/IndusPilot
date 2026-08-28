@@ -373,6 +373,8 @@ int main() {
     assert(passwordSession.success);
     const auto secondPasswordSession = passwordIdentity.login({"admin", "admin123"});
     assert(secondPasswordSession.success);
+    assert(passwordSession.session->credentialVersion == 1);
+    assert(secondPasswordSession.session->credentialVersion == passwordSession.session->credentialVersion);
     const auto shortPassword = passwordIdentity.changePassword("admin", "admin123", "short");
     assert(!shortPassword.success);
     assert(shortPassword.code == "PASSWORD_POLICY_VIOLATION");
@@ -387,6 +389,7 @@ int main() {
     assert(!passwordIdentity.validateSession(secondPasswordSession.session->token).has_value());
     const auto reLoginAfterRotation = passwordIdentity.login({"admin", "a-long-new-password"});
     assert(reLoginAfterRotation.success);
+    assert(reLoginAfterRotation.session->credentialVersion == 2);
     assert(passwordIdentity.validateSession(reLoginAfterRotation.session->token).has_value());
     induspilot::modules::IdentityService storageFailureIdentity(
         std::make_shared<induspilot::modules::InMemorySessionStore>(),
@@ -441,6 +444,7 @@ int main() {
     const auto originalAdminHash = users.findByUsername("admin")->passwordHash;
     assert(users.updatePasswordHash("admin", generatedPasswordHash));
     assert(users.findByUsername("admin")->passwordHash == generatedPasswordHash);
+    assert(users.findByUsername("admin")->credentialVersion == 2);
     assert(originalAdminHash != generatedPasswordHash);
     assert(!users.updatePasswordHash("not-found", generatedPasswordHash));
     induspilot::data::InMemoryPermissionRepository permissionStore;

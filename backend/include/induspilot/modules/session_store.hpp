@@ -3,6 +3,7 @@
 #include "induspilot/domain/domain_types.hpp"
 
 #include <chrono>
+#include <cstdint>
 #include <iterator>
 #include <map>
 #include <memory>
@@ -17,6 +18,7 @@ struct SessionInfo {
     std::string token;
     domain::User user;
     bool active{true};
+    std::uint64_t credentialVersion{1};
 };
 
 class SessionStore {

@@ -69,7 +69,7 @@ AuthResult IdentityService::login(const LoginRequest& request) {
     clearFailedLogin(request.username);
 
     const auto token = issueToken();
-    auto session = SessionInfo{token, credential->user, true};
+    auto session = SessionInfo{token, credential->user, true, credential->credentialVersion};
     if (!sessionStore_->save(session, sessionTtl_)) {
         return AuthResult{false, "会话创建失败", std::nullopt, "SESSION_CREATE_FAILED"};
     }
@@ -172,7 +172,15 @@ std::optional<SessionInfo> IdentityService::validateSession(const std::string& t
     if (token.empty()) {
         return std::nullopt;
     }
-    return sessionStore_->find(token);
+    const auto session = sessionStore_->find(token);
+    if (!session) {
+        return std::nullopt;
+    }
+    const auto credential = userRepository_->findByUsername(session->user.username);
+    if (!credential || credential->credentialVersion != session->credentialVersion) {
+        return std::nullopt;
+    }
+    return session;
 }
 
 bool IdentityService::authenticate(const std::string& username, const std::string& password) const {

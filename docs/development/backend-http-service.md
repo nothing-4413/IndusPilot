@@ -70,6 +70,8 @@ ctest --preset dev-http
 
 当前 HTTP 层已经接入会话守卫、权限守卫、统一错误响应和仓储边界。`storage.repository_store` 为 `memory` 时使用内存仓储；设置为 `mysql` 时，身份认证、资产、告警、告警规则、告警通知投递审计、工单、运行状态和 AI 交互审计使用 MySQL 仓储。AI 模块会读取 `ai.enabled`、`ai.provider` 与 `ai.endpoint`，通过 Provider 边界生成结构化 agent 诊断结果并写入审计。`disabled` provider 使用本地规则；启用 Drogon 构建下的 `http` provider 会向配置 endpoint 发起受控 JSON POST，失败时回到本地规则降级。当前风险等级、可能原因、建议动作和人工复核标记仍由本地编排器生成，外部响应只作为 provider 文本输入。
 
+密码轮换会在 MySQL 中原子更新密码哈希和 `credential_version`，新会话携带当前版本；身份校验会拒绝版本不一致的旧会话。Redis 会话值使用 `v2` 格式，同时可读取旧 `v1` 值用于清理，但旧值没有有效凭据版本，无法通过身份校验。
+
 ## Qt 客户端联机
 
 Qt 客户端会读取 `config/client.example.json` 中的 `apiBaseUrl`。当前已接入：

@@ -64,6 +64,7 @@ $requiredFiles = @(
     "database/mysql/008_operation_audit_export_permission.sql",
     "database/mysql/009_operation_audit_integrity_schema.sql",
     "database/mysql/010_redact_legacy_login_audit_tokens.sql",
+    "database/mysql/011_credential_version.sql",
     "database/mongodb/init_collections.js",
     "database/mongodb/integration/real_crud_smoke.js",
     "backend/tests/http_runtime_profile_smoke.ps1"
@@ -146,7 +147,8 @@ $schemaScripts = @(
     "database/mysql/007_operation_audit_events_schema.sql",
     "database/mysql/008_operation_audit_export_permission.sql",
     "database/mysql/009_operation_audit_integrity_schema.sql",
-    "database/mysql/010_redact_legacy_login_audit_tokens.sql"
+    "database/mysql/010_redact_legacy_login_audit_tokens.sql",
+    "database/mysql/011_credential_version.sql"
 )
 $expectedMigrations = @(
     "001_foundation_schema",
@@ -158,7 +160,8 @@ $expectedMigrations = @(
     "007_operation_audit_events_schema",
     "008_operation_audit_export_permission",
     "009_operation_audit_integrity_schema",
-    "010_redact_legacy_login_audit_tokens"
+    "010_redact_legacy_login_audit_tokens",
+    "011_credential_version"
 )
 foreach ($migration in $expectedMigrations) {
     $found = $false
