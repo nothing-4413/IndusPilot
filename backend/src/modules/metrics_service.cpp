@@ -110,6 +110,11 @@ void MetricsRegistry::recordHttpRequest(const std::string& method, const std::st
     }
 }
 
+void MetricsRegistry::recordReadiness(const ReadinessMetricSnapshot& snapshot) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    readiness_ = snapshot;
+}
+
 std::string MetricsRegistry::renderPrometheus() const {
     std::lock_guard<std::mutex> lock(mutex_);
     std::ostringstream out;
@@ -133,6 +138,25 @@ std::string MetricsRegistry::renderPrometheus() const {
     out << "# HELP induspilot_work_order_closures_total Total successful work-order close operations.\n";
     out << "# TYPE induspilot_work_order_closures_total counter\n";
     appendCounter(out, "induspilot_work_order_closures_total", workOrderClosures_);
+
+    out << "# HELP induspilot_readiness Current readiness state (1 ready, 0 not ready).\n";
+    out << "# TYPE induspilot_readiness gauge\n";
+    out << "induspilot_readiness " << (readiness_.ready ? 1 : 0) << '\n';
+    out << "# HELP induspilot_readiness_probes_total Total readiness probes completed.\n";
+    out << "# TYPE induspilot_readiness_probes_total counter\n";
+    appendCounter(out, "induspilot_readiness_probes_total", readiness_.probeCount);
+    out << "# HELP induspilot_readiness_failures_total Total readiness failures.\n";
+    out << "# TYPE induspilot_readiness_failures_total counter\n";
+    appendCounter(out, "induspilot_readiness_failures_total", readiness_.failureCount);
+    out << "# HELP induspilot_readiness_recoveries_total Total readiness recoveries.\n";
+    out << "# TYPE induspilot_readiness_recoveries_total counter\n";
+    appendCounter(out, "induspilot_readiness_recoveries_total", readiness_.recoveryCount);
+    out << "# HELP induspilot_readiness_probe_duration_ms Latest readiness probe duration in milliseconds.\n";
+    out << "# TYPE induspilot_readiness_probe_duration_ms gauge\n";
+    out << "induspilot_readiness_probe_duration_ms " << readiness_.lastProbeDurationMs << '\n';
+    out << "# HELP induspilot_readiness_last_probe_at_unix_ms Unix timestamp of the latest readiness probe.\n";
+    out << "# TYPE induspilot_readiness_last_probe_at_unix_ms gauge\n";
+    out << "induspilot_readiness_last_probe_at_unix_ms " << readiness_.lastProbeAtUnixMs << '\n';
 
     out << "# HELP induspilot_http_route_requests_total HTTP requests grouped by method, normalized path and status.\n";
     out << "# TYPE induspilot_http_route_requests_total counter\n";

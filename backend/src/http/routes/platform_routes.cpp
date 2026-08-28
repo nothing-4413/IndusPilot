@@ -62,9 +62,16 @@ void registerPlatformRoutes(drogon::HttpAppFramework& server, const HttpServerCo
                               application->isRunning() ? drogon::k200OK : drogon::k503ServiceUnavailable));
     }, {drogon::Get});
 
-    server.registerHandler("/health/ready", [application](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+    server.registerHandler("/health/ready", [application, metrics](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
         writeRequestLog(request);
         const auto status = application->readiness();
+        metrics->recordReadiness(modules::ReadinessMetricSnapshot{
+            status.ready,
+            status.probeCount,
+            status.failureCount,
+            status.recoveryCount,
+            status.lastProbeDurationMs,
+            status.lastProbeAtUnixMs});
         Json::Value data;
         data["ready"] = status.ready;
         data["dependencies"] = dependencyChecksToJson(status.dependencies);

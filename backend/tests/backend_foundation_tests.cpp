@@ -503,6 +503,7 @@ int main() {
     metrics.recordHttpRequest("POST", "/api/v1/alerts/alert-001/close", 200, 3.0);
     metrics.recordHttpRequest("POST", "/api/v1/work-orders/wo-001/close", 200, 4.0);
     metrics.recordHttpRequest("GET", "/api/v1/assets/not-exist", 404, 1.0);
+    metrics.recordReadiness({true, 4, 1, 2, 18, 1700000000000});
     assert(metrics.totalRequests() == 5);
     assert(metrics.totalErrors() == 1);
     assert(metrics.aiRequests() == 1);
@@ -513,6 +514,10 @@ int main() {
     assert(metricsText.find("induspilot_http_requests_total 5") != std::string::npos);
     assert(metricsText.find("path=\"/api/v1/assets/{id}\"") != std::string::npos);
     assert(metricsText.find("induspilot_ai_requests_total 1") != std::string::npos);
+    assert(metricsText.find("induspilot_readiness 1") != std::string::npos);
+    assert(metricsText.find("induspilot_readiness_probes_total 4") != std::string::npos);
+    assert(metricsText.find("induspilot_readiness_failures_total 1") != std::string::npos);
+    assert(metricsText.find("induspilot_readiness_recoveries_total 2") != std::string::npos);
     induspilot::modules::AiService ai;
     assert(ai.status().message.find("AI 未启用") != std::string::npos);
     induspilot::modules::AiService configuredAi(induspilot::app::AiConfig{true, "http", "http://127.0.0.1:9000"});
