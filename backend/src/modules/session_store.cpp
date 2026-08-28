@@ -111,11 +111,13 @@ std::optional<SessionInfo> deserializeSession(const std::string& value) {
 }  // namespace
 
 bool InMemorySessionStore::save(const SessionInfo& session, std::chrono::seconds ttl) {
+    std::lock_guard<std::mutex> lock(mutex_);
     sessions_[session.token] = StoredSession{session, std::chrono::system_clock::now() + ttl};
     return true;
 }
 
 std::optional<SessionInfo> InMemorySessionStore::find(const std::string& token) const {
+    std::lock_guard<std::mutex> lock(mutex_);
     const auto it = sessions_.find(token);
     if (it == sessions_.end()) {
         return std::nullopt;
@@ -127,7 +129,23 @@ std::optional<SessionInfo> InMemorySessionStore::find(const std::string& token) 
 }
 
 bool InMemorySessionStore::remove(const std::string& token) {
+    std::lock_guard<std::mutex> lock(mutex_);
     return sessions_.erase(token) > 0;
+}
+
+bool InMemorySessionStore::removeForUser(const std::string& userId) {
+    if (userId.empty()) {
+        return false;
+    }
+    std::lock_guard<std::mutex> lock(mutex_);
+    for (auto it = sessions_.begin(); it != sessions_.end();) {
+        if (it->second.session.user.id == userId) {
+            it = sessions_.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    return true;
 }
 
 #ifdef INDUSPILOT_WITH_REDIS
@@ -152,9 +170,18 @@ bool RedisSessionStore::save(const SessionInfo& session, std::chrono::seconds tt
     try {
         if (ttl.count() <= 0) {
             impl_->redis.del(keyFor(session.token));
+            impl_->redis.zrem(userIndexKeyFor(session.user.id), session.token);
             return true;
         }
         impl_->redis.setex(keyFor(session.token), ttl.count(), serializeSession(session));
+        const auto now = std::chrono::duration_cast<std::chrono::seconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count();
+        impl_->redis.zremrangebyscore(
+            userIndexKeyFor(session.user.id),
+            sw::redis::RightBoundedInterval<double>(static_cast<double>(now), sw::redis::BoundType::CLOSED));
+        const auto expiresAt = std::chrono::duration_cast<std::chrono::seconds>(
+            (std::chrono::system_clock::now() + ttl).time_since_epoch()).count();
+        impl_->redis.zadd(userIndexKeyFor(session.user.id), session.token, static_cast<double>(expiresAt));
         return true;
     } catch (const sw::redis::Error&) {
         return false;
@@ -186,7 +213,15 @@ std::optional<SessionInfo> RedisSessionStore::find(const std::string& token) con
 bool RedisSessionStore::remove(const std::string& token) {
 #ifdef INDUSPILOT_WITH_REDIS
     try {
-        return impl_->redis.del(keyFor(token)) > 0;
+        const auto value = impl_->redis.get(keyFor(token));
+        const auto removed = impl_->redis.del(keyFor(token)) > 0;
+        if (value) {
+            const auto session = deserializeSession(*value);
+            if (session) {
+                impl_->redis.zrem(userIndexKeyFor(session->user.id), token);
+            }
+        }
+        return removed;
     } catch (const sw::redis::Error&) {
         return false;
     }
@@ -196,8 +231,56 @@ bool RedisSessionStore::remove(const std::string& token) {
 #endif
 }
 
+bool RedisSessionStore::removeForUser(const std::string& userId) {
+#ifdef INDUSPILOT_WITH_REDIS
+    if (userId.empty()) {
+        return false;
+    }
+    try {
+        const auto indexKey = userIndexKeyFor(userId);
+        const auto now = std::chrono::duration_cast<std::chrono::seconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count();
+        impl_->redis.zremrangebyscore(
+            indexKey,
+            sw::redis::RightBoundedInterval<double>(static_cast<double>(now), sw::redis::BoundType::CLOSED));
+        std::vector<std::string> tokens;
+        impl_->redis.zrange(indexKey, 0, -1, std::back_inserter(tokens));
+        for (const auto& token : tokens) {
+            impl_->redis.del(keyFor(token));
+        }
+        // Cover sessions written before the user index existed.
+        sw::redis::Cursor cursor = 0;
+        do {
+            std::vector<std::string> keys;
+            cursor = impl_->redis.scan(cursor, keyPrefix_ + "*", 100, std::back_inserter(keys));
+            for (const auto& key : keys) {
+                const auto value = impl_->redis.get(key);
+                if (!value) {
+                    continue;
+                }
+                const auto session = deserializeSession(*value);
+                if (session && session->user.id == userId) {
+                    impl_->redis.del(key);
+                }
+            }
+        } while (cursor != 0);
+        impl_->redis.del(indexKey);
+        return true;
+    } catch (const sw::redis::Error&) {
+        return false;
+    }
+#else
+    (void)userId;
+    return false;
+#endif
+}
+
 std::string RedisSessionStore::keyFor(const std::string& token) const {
     return keyPrefix_ + token;
+}
+
+std::string RedisSessionStore::userIndexKeyFor(const std::string& userId) const {
+    return keyPrefix_ + "user:" + userId;
 }
 
 std::shared_ptr<SessionStore> makeRedisSessionStore(const std::string& uri, const std::string& keyPrefix) {

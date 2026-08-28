@@ -369,6 +369,10 @@ int main() {
         std::make_shared<induspilot::data::InMemoryPermissionRepository>(),
         {},
         passwordPolicy);
+    const auto passwordSession = passwordIdentity.login({"admin", "admin123"});
+    assert(passwordSession.success);
+    const auto secondPasswordSession = passwordIdentity.login({"admin", "admin123"});
+    assert(secondPasswordSession.success);
     const auto shortPassword = passwordIdentity.changePassword("admin", "admin123", "short");
     assert(!shortPassword.success);
     assert(shortPassword.code == "PASSWORD_POLICY_VIOLATION");
@@ -379,6 +383,11 @@ int main() {
     assert(changedPassword.success);
     assert(passwordIdentity.authenticate("admin", "a-long-new-password"));
     assert(!passwordIdentity.authenticate("admin", "admin123"));
+    assert(!passwordIdentity.validateSession(passwordSession.session->token).has_value());
+    assert(!passwordIdentity.validateSession(secondPasswordSession.session->token).has_value());
+    const auto reLoginAfterRotation = passwordIdentity.login({"admin", "a-long-new-password"});
+    assert(reLoginAfterRotation.success);
+    assert(passwordIdentity.validateSession(reLoginAfterRotation.session->token).has_value());
     induspilot::modules::IdentityService storageFailureIdentity(
         std::make_shared<induspilot::modules::InMemorySessionStore>(),
         std::chrono::hours(8),

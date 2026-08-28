@@ -303,6 +303,7 @@ try {
     $rotatedPassword = "operator-rotated-password"
     $changedPassword = Invoke-RestMethod -Uri "$BaseUrl/api/v1/auth/password" -Method Post -Headers $operatorHeaders -ContentType "application/json" -Body (('{"currentPassword":"' + $operatorPassword + '","newPassword":"' + $rotatedPassword + '"}')) -TimeoutSec 10
     Assert-True $changedPassword.success "Password rotation failed."
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/auth/session" -Method Get -Status 401 -Headers $operatorHeaders
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/auth/login" -Method Post -Status 401 -Body (('{"username":"operator","password":"' + $operatorPassword + '"}'))
     $rotatedLogin = Invoke-RestMethod -Uri "$BaseUrl/api/v1/auth/login" -Method Post -ContentType "application/json" -Body (('{"username":"operator","password":"' + $rotatedPassword + '"}')) -TimeoutSec 10
     Assert-True $rotatedLogin.success "Rotated operator password could not log in."
@@ -311,6 +312,10 @@ try {
     Assert-True $rotatedSession.success "Rotated operator session validation failed."
     $restorePassword = Invoke-RestMethod -Uri "$BaseUrl/api/v1/auth/password" -Method Post -Headers $rotatedHeaders -ContentType "application/json" -Body (('{"currentPassword":"' + $rotatedPassword + '","newPassword":"operator123"}')) -TimeoutSec 10
     Assert-True $restorePassword.success "Operator password restore failed."
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/auth/session" -Method Get -Status 401 -Headers $rotatedHeaders
+    $restoredLogin = Invoke-RestMethod -Uri "$BaseUrl/api/v1/auth/login" -Method Post -ContentType "application/json" -Body '{"username":"operator","password":"operator123"}' -TimeoutSec 10
+    Assert-True $restoredLogin.success "Operator password restore login failed."
+    $operatorHeaders = @{ Authorization = "Bearer $($restoredLogin.data.token)"; "X-Trace-Id" = "trace-it-operator-restored" }
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/monitoring/states" -Method Post -Status 401 -Body '{"assetId":"asset-it-001","state":"online"}'
 
     $emptyMonitoring = Invoke-RestMethod -Uri "$BaseUrl/api/v1/monitoring/states" -Method Get -Headers $operatorHeaders -TimeoutSec 10

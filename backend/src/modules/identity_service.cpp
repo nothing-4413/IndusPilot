@@ -96,6 +96,9 @@ PasswordChangeResult IdentityService::changePassword(
     if (!userRepository_->updatePasswordHash(username, passwordHash)) {
         return PasswordChangeResult{false, "密码更新失败", "PASSWORD_UPDATE_FAILED"};
     }
+    if (!sessionStore_->removeForUser(credential->user.id)) {
+        return PasswordChangeResult{false, "密码已更新，但会话撤销失败", "SESSION_REVOCATION_FAILED"};
+    }
     return PasswordChangeResult{true, "密码修改成功", "OK"};
 }
 

@@ -89,7 +89,9 @@ void registerAuthRoutes(drogon::HttpAppFramework& server, const HttpServerContex
                 ? "invalid_current_password"
                 : result.code == "PASSWORD_POLICY_VIOLATION"
                     ? "invalid_new_password"
-                    : "storage_failed";
+                    : result.code == "SESSION_REVOCATION_FAILED"
+                        ? "session_revocation_failed"
+                        : "storage_failed";
             recordAuditEvent(
                 audit,
                 session->user.username,
@@ -108,6 +110,12 @@ void registerAuthRoutes(drogon::HttpAppFramework& server, const HttpServerContex
                 callback(jsonResponse(
                     responseEnvelope(false, result.code, result.message),
                     drogon::k400BadRequest));
+                return;
+            }
+            if (result.code == "SESSION_REVOCATION_FAILED") {
+                callback(jsonResponse(
+                    responseEnvelope(false, result.code, "session revocation failed"),
+                    drogon::k503ServiceUnavailable));
                 return;
             }
             callback(jsonResponse(
