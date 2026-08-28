@@ -15,6 +15,12 @@ GET /metrics
 - `induspilot_ai_requests_total`：AI 辅助请求总数，不包含 AI 状态查询和交互审计查询。
 - `induspilot_alert_closures_total`：成功关闭告警的次数。
 - `induspilot_work_order_closures_total`：成功关闭维护工单的次数。
+- `induspilot_readiness`：最新 readiness 状态，`1` 表示就绪，`0` 表示未就绪。
+- `induspilot_readiness_probes_total`：已完成的 readiness 探测次数。
+- `induspilot_readiness_failures_total`：readiness 失败次数。
+- `induspilot_readiness_recoveries_total`：readiness 从失败恢复的次数。
+- `induspilot_readiness_probe_duration_ms`：最近一次 readiness 探测耗时（毫秒）。
+- `induspilot_readiness_last_probe_at_unix_ms`：最近一次 readiness 探测的 Unix 毫秒时间戳。
 - `induspilot_http_route_requests_total{method,path,status}`：按方法、归一化路径和状态码聚合的请求数。
 - `induspilot_http_route_duration_ms_sum{method,path,status}`：按方法、归一化路径和状态码聚合的请求耗时毫秒总和。
 - `induspilot_http_route_duration_ms_count{method,path,status}`：请求耗时样本数。
@@ -32,4 +38,4 @@ GET /metrics
 
 ## 验证
 
-HTTP smoke 测试会访问 `/metrics`，并检查总请求、错误请求、AI 请求和归一化业务路由是否出现在输出中。
+HTTP smoke 测试会访问 `/metrics`，并检查总请求、错误请求、AI 请求、readiness 状态与探测计数、以及归一化业务路由是否出现在输出中。

@@ -1365,3 +1365,13 @@ The system SHALL provide a local deployment preflight check for runtime dependen
 - **WHEN** 再次执行同一迁移
 - **THEN** 迁移 SHALL 成功完成
 - **AND** 不得重复改变已清理事件或新增重复 schema 版本
+### Requirement: Readiness state is observable through Prometheus
+The system SHALL expose the latest readiness state and probe lifecycle counters through the existing `/metrics` endpoint.
+
+#### Scenario: Readiness metrics are rendered
+- **WHEN** readiness has been evaluated and `/metrics` is requested
+- **THEN** the response contains readiness state, probe, failure, recovery, duration, and timestamp metrics
+
+#### Scenario: Readiness snapshots do not double count
+- **WHEN** `/health/ready` is scraped repeatedly without a new probe
+- **THEN** the exported cumulative counters remain equal to the application readiness snapshot
