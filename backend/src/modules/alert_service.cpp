@@ -24,6 +24,7 @@
 #include <cctype>
 #include <cstdint>
 #include <cstring>
+#include <optional>
 #include <utility>
 
 namespace induspilot::modules {
@@ -103,7 +104,13 @@ struct WebhookEndpoint {
     std::string path{"/"};
     std::string host;
     std::string port;
+    std::uint16_t portNumber{0};
+    bool https{false};
     bool valid{false};
+};
+
+struct ResolvedWebhookAddress {
+    std::string address;
 };
 
 WebhookEndpoint parseWebhookEndpoint(const std::string& target) {
@@ -123,6 +130,7 @@ WebhookEndpoint parseWebhookEndpoint(const std::string& target) {
     }
     WebhookEndpoint endpoint;
     endpoint.valid = true;
+    endpoint.https = scheme == "https";
     if (authority.front() == '[') {
         const auto closingBracket = authority.find(']');
         if (closingBracket == std::string::npos || closingBracket == 1) {
@@ -157,6 +165,7 @@ WebhookEndpoint parseWebhookEndpoint(const std::string& target) {
     if (portResult.ec != std::errc{} || portResult.ptr != endpoint.port.data() + endpoint.port.size() || parsedPort > 65535 || parsedPort < 1) {
         return {};
     }
+    endpoint.portNumber = static_cast<std::uint16_t>(parsedPort);
     if (pathPosition == std::string::npos) {
         endpoint.baseUrl = target;
     } else {
@@ -201,7 +210,7 @@ bool forbiddenIpv6(const unsigned char* bytes) {
     return false;
 }
 
-bool webhookResolvedToPublicAddress(const WebhookEndpoint& endpoint) {
+std::optional<ResolvedWebhookAddress> resolvePublicWebhookAddress(const WebhookEndpoint& endpoint) {
     addrinfo hints{};
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
@@ -211,25 +220,41 @@ bool webhookResolvedToPublicAddress(const WebhookEndpoint& endpoint) {
         if (addresses != nullptr) {
             freeaddrinfo(addresses);
         }
-        return false;
+        return std::nullopt;
     }
     bool hasAddress = false;
     bool publicAddresses = true;
+    std::string selectedAddress;
     for (auto* address = addresses; address != nullptr; address = address->ai_next) {
         if (address->ai_family == AF_INET) {
             hasAddress = true;
             const auto* value = reinterpret_cast<const sockaddr_in*>(address->ai_addr);
             publicAddresses = publicAddresses && !forbiddenIpv4(reinterpret_cast<const unsigned char*>(&value->sin_addr));
+            if (selectedAddress.empty() && !forbiddenIpv4(reinterpret_cast<const unsigned char*>(&value->sin_addr))) {
+                char buffer[INET_ADDRSTRLEN]{};
+                if (inet_ntop(AF_INET, &value->sin_addr, buffer, sizeof(buffer)) != nullptr) {
+                    selectedAddress = buffer;
+                }
+            }
         } else if (address->ai_family == AF_INET6) {
             hasAddress = true;
             const auto* value = reinterpret_cast<const sockaddr_in6*>(address->ai_addr);
             publicAddresses = publicAddresses && !forbiddenIpv6(reinterpret_cast<const unsigned char*>(&value->sin6_addr));
+            if (selectedAddress.empty() && !forbiddenIpv6(reinterpret_cast<const unsigned char*>(&value->sin6_addr))) {
+                char buffer[INET6_ADDRSTRLEN]{};
+                if (inet_ntop(AF_INET6, &value->sin6_addr, buffer, sizeof(buffer)) != nullptr) {
+                    selectedAddress = buffer;
+                }
+            }
         } else {
             publicAddresses = false;
         }
     }
     freeaddrinfo(addresses);
-    return hasAddress && publicAddresses;
+    if (!hasAddress || !publicAddresses || selectedAddress.empty()) {
+        return std::nullopt;
+    }
+    return ResolvedWebhookAddress{selectedAddress};
 }
 
 bool webhookHostAllowed(const std::string& host, const std::string& configuredHosts) {
@@ -293,7 +318,8 @@ public:
         if (!webhookHostAllowed(endpoint.host, config_.webhookAllowedHosts)) {
             return {false, "webhook target host 不在允许列表中"};
         }
-        if (!webhookResolvedToPublicAddress(endpoint)) {
+        const auto resolvedAddress = resolvePublicWebhookAddress(endpoint);
+        if (!resolvedAddress.has_value()) {
             return {false, "webhook target 未解析为公网地址"};
         }
         try {
@@ -306,7 +332,16 @@ public:
             auto request = drogon::HttpRequest::newHttpJsonRequest(payload);
             request->setMethod(drogon::Post);
             request->setPath(endpoint.path);
-            auto client = drogon::HttpClient::newHttpClient(endpoint.baseUrl);
+            auto hostHeader = endpoint.host.find(':') == std::string::npos
+                ? endpoint.host
+                : "[" + endpoint.host + "]";
+            const auto defaultPort = endpoint.https ? 443 : 80;
+            if (endpoint.portNumber != defaultPort) {
+                hostHeader += ":" + endpoint.port;
+            }
+            request->addHeader("Host", hostHeader);
+            auto client = drogon::HttpClient::newHttpClient(
+                resolvedAddress->address, endpoint.portNumber, endpoint.https, nullptr, false, true);
             const auto response = client->sendRequest(
                 request, static_cast<double>((std::max)(config_.webhookTimeoutMs, 1)) / 1000.0);
             if (response.first != drogon::ReqResult::Ok || !response.second) {
