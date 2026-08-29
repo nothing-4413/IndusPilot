@@ -423,8 +423,8 @@ std::shared_ptr<AiProvider> makeAiProvider(const app::AiConfig& config) {
     return std::make_shared<DisabledAiProvider>();
 }
 
-AiService::AiService(app::AiConfig config, std::shared_ptr<data::AiInteractionRepository> repository, std::shared_ptr<AiProvider> provider)
-    : config_(std::move(config)), repository_(std::move(repository)), provider_(std::move(provider)) {
+AiService::AiService(app::AiConfig config, std::shared_ptr<data::AiInteractionRepository> repository, std::shared_ptr<AiProvider> provider, std::shared_ptr<MetricsRegistry> metrics)
+    : config_(std::move(config)), repository_(std::move(repository)), provider_(std::move(provider)), metrics_(std::move(metrics)) {
     if (!repository_) {
         repository_ = std::make_shared<data::InMemoryAiInteractionRepository>();
     }
@@ -449,6 +449,17 @@ std::string AiService::providerEndpoint() const {
     return config_.endpoint;
 }
 
+AiProviderResult AiService::completeProvider(const AiProviderRequest& request) {
+    const auto startedAt = std::chrono::steady_clock::now();
+    const auto result = provider_->complete(request);
+    if (metrics_) {
+        const auto elapsed = std::chrono::steady_clock::now() - startedAt;
+        const auto durationMs = static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count()) / 1000.0;
+        metrics_->recordAiProviderCall(result.provider, request.operation, result.available, durationMs);
+    }
+    return result;
+}
+
 AiSuggestion AiService::explainAlert(const std::string& alertSummary) {
     return troubleshoot(AiRequest{"alert", "unknown", alertSummary, {alertSummary}});
 }
@@ -462,7 +473,7 @@ AiSuggestion AiService::summarizeLogs(const AiRequest& request) {
 }
 
 DiagnosisResult AiService::diagnose(const DiagnosisRequest& request) {
-    auto providerResult = provider_->complete(AiProviderRequest{"diagnose", request.prompt, request.context.contextItems});
+    auto providerResult = completeProvider(AiProviderRequest{"diagnose", request.prompt, request.context.contextItems});
     DiagnosisResult result;
     result.available = providerResult.available;
     result.provider = providerResult.provider;
@@ -487,7 +498,7 @@ std::vector<domain::AiInteraction> AiService::interactions(const AiInteractionQu
 }
 
 AiSuggestion AiService::unavailableSuggestion(const AiRequest& request, const std::string& operation) {
-    const auto providerResult = provider_->complete(AiProviderRequest{operation, request.prompt, request.contextItems});
+    const auto providerResult = completeProvider(AiProviderRequest{operation, request.prompt, request.contextItems});
     const auto content = config_.enabled
         ? "已记录" + operation + "请求；" + providerResult.content + "，核心流程可继续执行"
         : "AI 未启用，已记录" + operation + "请求，核心流程可继续执行";

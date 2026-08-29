@@ -594,6 +594,8 @@ try {
     Assert-True ($metricsText -like "*induspilot_http_requests_total*") "Metrics output did not include total HTTP requests."
     Assert-True ($metricsText -like "*induspilot_http_errors_total*") "Metrics output did not include HTTP errors."
     Assert-True ($metricsText -like "*induspilot_ai_requests_total*") "Metrics output did not include AI request counter."
+    Assert-True ($metricsText -like "*induspilot_ai_provider_calls_total*") "Metrics output did not include AI provider call counter."
+    Assert-True ($metricsText -like "*induspilot_ai_provider_available_total*") "Metrics output did not include AI provider availability counter."
     Assert-True ($metricsText -like "*induspilot_readiness *") "Metrics output did not include readiness gauge."
     Assert-True ($metricsText -like "*induspilot_readiness_probes_total*") "Metrics output did not include readiness probe counter."
     Assert-True ($metricsText -like '*path="/api/v1/ai/diagnose"*') "Metrics output did not include normalized AI diagnosis route."

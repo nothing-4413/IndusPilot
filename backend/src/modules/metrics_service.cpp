@@ -71,6 +71,21 @@ void appendCounter(std::ostringstream& out, const std::string& name, std::uint64
     out << name << ' ' << value << '\n';
 }
 
+std::string aiMetricKey(const std::string& provider, const std::string& operation) {
+    return provider + '\n' + operation;
+}
+
+std::string boundedProvider(const std::string& provider) {
+    return provider == "disabled" || provider == "http" ? provider : "unknown";
+}
+
+std::string boundedOperation(const std::string& operation) {
+    if (operation == "diagnose" || operation == "故障排查" || operation == "日志摘要") {
+        return operation;
+    }
+    return "unknown";
+}
+
 }  // namespace
 
 std::string normalizeMetricPath(const std::string& path) {
@@ -115,6 +130,18 @@ void MetricsRegistry::recordReadiness(const ReadinessMetricSnapshot& snapshot) {
     readiness_ = snapshot;
 }
 
+void MetricsRegistry::recordAiProviderCall(const std::string& provider, const std::string& operation, bool available, double durationMs) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto& metric = aiProviderCalls_[aiMetricKey(boundedProvider(provider), boundedOperation(operation))];
+    metric.count += 1;
+    if (available) {
+        metric.availableCount += 1;
+    } else {
+        metric.unavailableCount += 1;
+    }
+    metric.durationMsSum += std::max(0.0, durationMs);
+}
+
 std::string MetricsRegistry::renderPrometheus() const {
     std::lock_guard<std::mutex> lock(mutex_);
     std::ostringstream out;
@@ -157,6 +184,27 @@ std::string MetricsRegistry::renderPrometheus() const {
     out << "# HELP induspilot_readiness_last_probe_at_unix_ms Unix timestamp of the latest readiness probe.\n";
     out << "# TYPE induspilot_readiness_last_probe_at_unix_ms gauge\n";
     out << "induspilot_readiness_last_probe_at_unix_ms " << readiness_.lastProbeAtUnixMs << '\n';
+
+    out << "# HELP induspilot_ai_provider_calls_total Total AI provider completion calls.\n";
+    out << "# TYPE induspilot_ai_provider_calls_total counter\n";
+    out << "# HELP induspilot_ai_provider_available_total Total AI provider calls returning available output.\n";
+    out << "# TYPE induspilot_ai_provider_available_total counter\n";
+    out << "# HELP induspilot_ai_provider_unavailable_total Total AI provider calls returning unavailable output.\n";
+    out << "# TYPE induspilot_ai_provider_unavailable_total counter\n";
+    out << "# HELP induspilot_ai_provider_duration_ms_sum Total AI provider completion duration in milliseconds.\n";
+    out << "# TYPE induspilot_ai_provider_duration_ms_sum counter\n";
+    for (const auto& item : aiProviderCalls_) {
+        std::istringstream keyStream(item.first);
+        std::string provider;
+        std::string operation;
+        std::getline(keyStream, provider, '\n');
+        std::getline(keyStream, operation, '\n');
+        const auto labels = std::string("provider=\"") + escapeLabel(provider) + "\",operation=\"" + escapeLabel(operation) + "\"";
+        out << "induspilot_ai_provider_calls_total{" << labels << "} " << item.second.count << '\n';
+        out << "induspilot_ai_provider_available_total{" << labels << "} " << item.second.availableCount << '\n';
+        out << "induspilot_ai_provider_unavailable_total{" << labels << "} " << item.second.unavailableCount << '\n';
+        out << "induspilot_ai_provider_duration_ms_sum{" << labels << "} " << item.second.durationMsSum << '\n';
+    }
 
     out << "# HELP induspilot_http_route_requests_total HTTP requests grouped by method, normalized path and status.\n";
     out << "# TYPE induspilot_http_route_requests_total counter\n";

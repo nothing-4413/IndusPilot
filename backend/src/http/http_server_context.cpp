@@ -143,6 +143,7 @@ HttpServerContext buildHttpServerContext(const app::AppConfig& config) {
     auto context = HttpServerContext{};
     context.application = std::make_shared<app::Application>(config);
     context.requestLifecycle = std::make_shared<HttpRequestLifecycle>();
+    context.metrics = std::make_shared<modules::MetricsRegistry>();
 
 #ifdef INDUSPILOT_WITH_DROGON
     drogon::orm::DbClientPtr mysqlClient;
@@ -155,18 +156,16 @@ HttpServerContext buildHttpServerContext(const app::AppConfig& config) {
     context.monitoring = std::make_shared<modules::MonitoringService>(createRuntimeStateRepository(config, mysqlClient));
     context.alerts = std::make_shared<modules::AlertService>(createAlertRepository(config, mysqlClient));
     context.maintenance = std::make_shared<modules::MaintenanceService>(createWorkOrderRepository(config, mysqlClient));
-    context.ai = std::make_shared<modules::AiService>(config.ai, createAiInteractionRepository(config, mysqlClient));
+    context.ai = std::make_shared<modules::AiService>(config.ai, createAiInteractionRepository(config, mysqlClient), nullptr, context.metrics);
     context.audit = std::make_shared<modules::AuditService>(createOperationAuditRepository(config, mysqlClient));
-    context.metrics = std::make_shared<modules::MetricsRegistry>();
 #else
     context.identity = std::make_shared<modules::IdentityService>();
     context.assets = std::make_shared<modules::AssetService>();
     context.monitoring = std::make_shared<modules::MonitoringService>();
     context.alerts = std::make_shared<modules::AlertService>();
     context.maintenance = std::make_shared<modules::MaintenanceService>();
-    context.ai = std::make_shared<modules::AiService>();
+    context.ai = std::make_shared<modules::AiService>(app::AiConfig{}, nullptr, nullptr, context.metrics);
     context.audit = std::make_shared<modules::AuditService>();
-    context.metrics = std::make_shared<modules::MetricsRegistry>();
 #endif
 
     return context;

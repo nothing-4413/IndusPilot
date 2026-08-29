@@ -13,6 +13,10 @@ GET /metrics
 - `induspilot_http_requests_total`：后端已处理 HTTP 请求总数。
 - `induspilot_http_errors_total`：HTTP 状态码大于等于 400 的响应总数。
 - `induspilot_ai_requests_total`：AI 辅助请求总数，不包含 AI 状态查询和交互审计查询。
+- `induspilot_ai_provider_calls_total{provider,operation}`：按有限 provider 和操作名称聚合的 provider 调用次数。
+- `induspilot_ai_provider_available_total{provider,operation}`：返回可用 provider 输出的调用次数。
+- `induspilot_ai_provider_unavailable_total{provider,operation}`：返回不可用结果并触发本地降级的调用次数。
+- `induspilot_ai_provider_duration_ms_sum{provider,operation}`：provider 调用耗时毫秒总和。
 - `induspilot_alert_closures_total`：成功关闭告警的次数。
 - `induspilot_work_order_closures_total`：成功关闭维护工单的次数。
 - `induspilot_readiness`：最新 readiness 状态，`1` 表示就绪，`0` 表示未就绪。
@@ -35,6 +39,8 @@ GET /metrics
 ```
 
 这样可以避免资产编号、告警编号和工单编号进入 label，降低 Prometheus 高基数风险。
+
+AI provider 指标只使用 `provider` 和 `operation` 两个有限标签；prompt、响应、凭据、endpoint 和用户编号不会进入指标标签。
 
 ## 验证
 

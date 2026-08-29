@@ -4,6 +4,7 @@
 #include "induspilot/data/repositories.hpp"
 #include "induspilot/domain/domain_types.hpp"
 #include "induspilot/modules/service_status.hpp"
+#include "induspilot/modules/metrics_service.hpp"
 
 #include <memory>
 #include <optional>
@@ -86,7 +87,8 @@ public:
     explicit AiService(
         app::AiConfig config = app::AiConfig{},
         std::shared_ptr<data::AiInteractionRepository> repository = nullptr,
-        std::shared_ptr<AiProvider> provider = nullptr);
+        std::shared_ptr<AiProvider> provider = nullptr,
+        std::shared_ptr<MetricsRegistry> metrics = nullptr);
 
     ServiceStatus status() const;
     std::string providerName() const;
@@ -101,10 +103,12 @@ private:
     AiSuggestion unavailableSuggestion(const AiRequest& request, const std::string& operation);
     void recordInteraction(const AiRequest& request, const AiSuggestion& suggestion);
     void recordDiagnosis(const DiagnosisRequest& request, const DiagnosisResult& result);
+    AiProviderResult completeProvider(const AiProviderRequest& request);
 
     app::AiConfig config_;
     std::shared_ptr<data::AiInteractionRepository> repository_;
     std::shared_ptr<AiProvider> provider_;
+    std::shared_ptr<MetricsRegistry> metrics_;
 };
 
 }  // namespace induspilot::modules

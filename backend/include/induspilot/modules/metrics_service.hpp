@@ -22,12 +22,20 @@ struct ReadinessMetricSnapshot {
     std::int64_t lastProbeAtUnixMs{0};
 };
 
+struct AiProviderMetricSnapshot {
+    std::uint64_t count{0};
+    std::uint64_t availableCount{0};
+    std::uint64_t unavailableCount{0};
+    double durationMsSum{0.0};
+};
+
 std::string normalizeMetricPath(const std::string& path);
 
 class MetricsRegistry {
 public:
     void recordHttpRequest(const std::string& method, const std::string& path, int statusCode, double durationMs);
     void recordReadiness(const ReadinessMetricSnapshot& snapshot);
+    void recordAiProviderCall(const std::string& provider, const std::string& operation, bool available, double durationMs);
     std::string renderPrometheus() const;
 
     std::uint64_t totalRequests() const;
@@ -41,6 +49,7 @@ private:
 
     mutable std::mutex mutex_;
     std::map<std::string, HttpMetricSnapshot> httpRoutes_;
+    std::map<std::string, AiProviderMetricSnapshot> aiProviderCalls_;
     std::uint64_t totalRequests_{0};
     std::uint64_t totalErrors_{0};
     std::uint64_t aiRequests_{0};

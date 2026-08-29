@@ -17,7 +17,7 @@
 - 依赖健康：`/health` 保持旧客户端的 200 兼容语义；`/health/ready` 按 `repository_store`、`session_store` 和 AI required 配置判断核心依赖，使用 single-flight、并发依赖探测、统一 DNS/connect deadline 和缓存重新评估恢复状态，并暴露探测次数、耗时、失败/恢复计数；部署前预检会检查离线 schema 版本基线，CI dependency smoke 会验证真实 MySQL/Redis/MongoDB 启动、认证、迁移幂等、MySQL 核心业务 CRUD、Redis 数据结构读写和 MongoDB 文档 CRUD。
 - 配置边界：配置文件读取失败、未知字段、错误层级和非法整数/布尔值会在 listener 启动前阻止进程启动，并以退出码 `78` 报告；外部依赖暂时不可用仍由 readiness `503` 表达。
 - 停机边界：收到 SIGTERM/SIGINT 后新业务请求返回 `503/SERVER_DRAINING`，readiness 立即为 `503`、liveness 在最终停止前保持 `200`，coordinator 在 `shutdown.drain_timeout_ms` deadline 内等待已接受请求完成，超时记录剩余请求并退出；listener 绑定预检失败返回退出码 `69`。
-- AI 传输：Drogon 构建下的 `provider=http` 已通过配置 endpoint 发起受控 JSON POST，并支持鉴权头、超时、响应文本提取和失败降级；当前结构化诊断字段仍由本地编排器生成。`backend/tests/ai_provider_http_smoke.ps1` 覆盖成功、非 2xx、非 JSON 和超时场景。
+- AI 传输：Drogon 构建下的 `provider=http` 已通过配置 endpoint 发起受控 JSON POST，并支持鉴权头、超时、响应文本提取和失败降级；当前结构化诊断字段仍由本地编排器生成。`/metrics` 额外暴露 provider 调用、可用/降级结果和耗时指标，标签不包含 prompt、响应、凭据或业务编号。`backend/tests/ai_provider_http_smoke.ps1` 覆盖成功、非 2xx、非 JSON 和超时场景。
 - MongoDB：当前尚未接入后端业务仓储；CI 已验证初始化集合、索引和文档 CRUD，非结构化日志、知识片段和长上下文仍待正式落库。
 - 客户端：Qt 客户端已接入 HTTP 登录、资产列表与状态更新、运行监控列表与状态写入、告警创建/规则/通知投递/列表与处置、维护工单列表、新建/编辑/附件/从告警生成/分派/基础流转、AI 结构化诊断入口和 AI 交互审计查询、分页与 CSV 导出，并接入告警规则/通知联动。
 - 集成测试：默认 HTTP 冒烟测试覆盖内存仓储；CI dependency smoke 已覆盖 MySQL、Redis、MongoDB 的真实依赖启动、MySQL 核心业务 CRUD、Redis 数据结构读写和 MongoDB 文档 CRUD。
