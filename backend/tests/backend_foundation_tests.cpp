@@ -485,7 +485,24 @@ int main() {
     assert(!induspilot::modules::isSupportedRuntimeState("invalid"));
 
     induspilot::modules::AlertService alerts;
+    auto notificationRepository = std::make_shared<induspilot::data::InMemoryAlertRepository>();
+    notificationRepository->saveNotification({
+        "notice-lease", "alert-lease", "rule-lease", "console", "shift-lead", "queued", "lease test", 0, "", "", 0, 100, "lease-one", 3});
+    assert(notificationRepository->claimDueNotifications(100, 200, 1, "lease-one").size() == 1);
+    assert(notificationRepository->claimDueNotifications(150, 250, 1, "lease-two").empty());
+    assert(notificationRepository->claimDueNotifications(201, 301, 1, "lease-two").size() == 1);
+    alerts.createRule({"rule-invalid", "invalid delivery", "asset-001", "warning", "carrier-pigeon", "shift-lead", true});
     alerts.create({"alert-001", "asset-001", induspilot::domain::AlertSeverity::Critical, induspilot::domain::AlertState::Open, "温度异常", "", ""});
+    const auto firstDispatch = alerts.dispatchQueuedNotifications();
+    assert(firstDispatch.failed == 1);
+    assert(firstDispatch.skipped == 0);
+    const auto firstRetry = alerts.retryNotification("notice-alert-001-rule-invalid");
+    assert(firstRetry.has_value());
+    assert(firstRetry->status == "retrying");
+    const auto secondRetry = alerts.retryNotification("notice-alert-001-rule-invalid");
+    assert(secondRetry.has_value());
+    assert(secondRetry->status == "dead_letter");
+    assert(alerts.dispatchQueuedNotifications().sent == 0);
     assert(alerts.acknowledge("alert-001", "admin").has_value());
     assert(alerts.assign("alert-001", "maintainer").has_value());
 

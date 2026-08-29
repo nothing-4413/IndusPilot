@@ -52,6 +52,11 @@ public:
     virtual std::vector<domain::AlertRule> listRules() const = 0;
     virtual domain::AlertNotification saveNotification(domain::AlertNotification notification) = 0;
     virtual std::vector<domain::AlertNotification> listNotifications() const = 0;
+    virtual std::vector<domain::AlertNotification> claimDueNotifications(
+        std::int64_t nowUnixMs,
+        std::int64_t leaseUntilUnixMs,
+        int limit,
+        const std::string& leaseToken) = 0;
 };
 
 class WorkOrderRepository {

@@ -59,6 +59,11 @@ public:
     std::vector<domain::AlertRule> listRules() const override;
     domain::AlertNotification saveNotification(domain::AlertNotification notification) override;
     std::vector<domain::AlertNotification> listNotifications() const override;
+    std::vector<domain::AlertNotification> claimDueNotifications(
+        std::int64_t nowUnixMs,
+        std::int64_t leaseUntilUnixMs,
+        int limit,
+        const std::string& leaseToken) override;
 
 private:
     drogon::orm::DbClientPtr client_;

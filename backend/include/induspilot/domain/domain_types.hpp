@@ -58,6 +58,10 @@ struct AlertNotification {
     int attemptCount{0};
     std::string lastError;
     std::string deliveredAt;
+    std::int64_t nextAttemptAtUnixMs{0};
+    std::int64_t leaseUntilUnixMs{0};
+    std::string leaseToken;
+    int maxAttempts{3};
 };
 
 struct WorkOrderAttachment {

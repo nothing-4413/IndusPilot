@@ -53,11 +53,17 @@ public:
     std::vector<domain::AlertRule> listRules() const override;
     domain::AlertNotification saveNotification(domain::AlertNotification notification) override;
     std::vector<domain::AlertNotification> listNotifications() const override;
+    std::vector<domain::AlertNotification> claimDueNotifications(
+        std::int64_t nowUnixMs,
+        std::int64_t leaseUntilUnixMs,
+        int limit,
+        const std::string& leaseToken) override;
 
 private:
     std::map<std::string, domain::Alert> alerts_;
     std::map<std::string, domain::AlertRule> rules_;
     std::map<std::string, domain::AlertNotification> notifications_;
+    mutable std::mutex notificationsMutex_;
 };
 
 class InMemoryWorkOrderRepository final : public WorkOrderRepository {

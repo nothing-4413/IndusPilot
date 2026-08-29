@@ -66,6 +66,7 @@ $requiredFiles = @(
     "database/mysql/010_redact_legacy_login_audit_tokens.sql",
     "database/mysql/011_credential_version.sql",
     "database/mysql/012_seed_account_governance.sql",
+    "database/mysql/013_notification_delivery_queue.sql",
     "database/mongodb/init_collections.js",
     "database/mongodb/integration/real_crud_smoke.js",
     "backend/tests/http_runtime_profile_smoke.ps1",
@@ -151,7 +152,8 @@ $schemaScripts = @(
     "database/mysql/009_operation_audit_integrity_schema.sql",
     "database/mysql/010_redact_legacy_login_audit_tokens.sql",
     "database/mysql/011_credential_version.sql",
-    "database/mysql/012_seed_account_governance.sql"
+    "database/mysql/012_seed_account_governance.sql",
+    "database/mysql/013_notification_delivery_queue.sql"
 )
 $expectedMigrations = @(
     "001_foundation_schema",
@@ -165,7 +167,8 @@ $expectedMigrations = @(
     "009_operation_audit_integrity_schema",
     "010_redact_legacy_login_audit_tokens",
     "011_credential_version",
-    "012_seed_account_governance"
+    "012_seed_account_governance",
+    "013_notification_delivery_queue"
 )
 foreach ($migration in $expectedMigrations) {
     $found = $false

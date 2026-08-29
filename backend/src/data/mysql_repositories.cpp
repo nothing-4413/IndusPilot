@@ -210,7 +210,11 @@ domain::AlertNotification alertNotificationFromRow(const drogon::orm::Row& row) 
         row["message"].as<std::string>(),
         row["attempt_count"].as<int>(),
         nullableString(row, "last_error"),
-        nullableString(row, "delivered_at")};
+        nullableString(row, "delivered_at"),
+        row["next_attempt_at_unix_ms"].as<long long>(),
+        row["lease_until_unix_ms"].as<long long>(),
+        nullableString(row, "lease_token"),
+        row["max_attempts"].as<int>()};
 }
 domain::WorkOrder workOrderFromRow(const drogon::orm::Row& row) {
     return domain::WorkOrder{
@@ -477,9 +481,9 @@ std::vector<domain::AlertRule> MySqlAlertRepository::listRules() const {
 
 domain::AlertNotification MySqlAlertRepository::saveNotification(domain::AlertNotification notification) {
     client_->execSqlSync(
-        "INSERT INTO alert_notifications(notification_code, alert_id, rule_id, channel, target, status, message, attempt_count, last_error, delivered_at) "
-        "VALUES(?, (SELECT id FROM alerts WHERE alert_code = ?), (SELECT id FROM alert_rules WHERE rule_code = ?), ?, ?, ?, ?, ?, ?, ?) "
-        "ON DUPLICATE KEY UPDATE status = VALUES(status), message = VALUES(message), attempt_count = VALUES(attempt_count), last_error = VALUES(last_error), delivered_at = VALUES(delivered_at)",
+        "INSERT INTO alert_notifications(notification_code, alert_id, rule_id, channel, target, status, message, attempt_count, last_error, delivered_at, next_attempt_at_unix_ms, lease_until_unix_ms, lease_token, max_attempts) "
+        "VALUES(?, (SELECT id FROM alerts WHERE alert_code = ?), (SELECT id FROM alert_rules WHERE rule_code = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+        "ON DUPLICATE KEY UPDATE status = VALUES(status), message = VALUES(message), attempt_count = VALUES(attempt_count), last_error = VALUES(last_error), delivered_at = VALUES(delivered_at), next_attempt_at_unix_ms = VALUES(next_attempt_at_unix_ms), lease_until_unix_ms = VALUES(lease_until_unix_ms), lease_token = VALUES(lease_token), max_attempts = VALUES(max_attempts)",
         notification.id,
         notification.alertId,
         notification.ruleId,
@@ -489,17 +493,47 @@ domain::AlertNotification MySqlAlertRepository::saveNotification(domain::AlertNo
         notification.message,
         notification.attemptCount,
         notification.lastError,
-        notification.deliveredAt);
+        notification.deliveredAt,
+        notification.nextAttemptAtUnixMs,
+        notification.leaseUntilUnixMs,
+        notification.leaseToken,
+        notification.maxAttempts);
     return notification;
 }
 
 std::vector<domain::AlertNotification> MySqlAlertRepository::listNotifications() const {
     const auto result = client_->execSqlSync(
-        "SELECT n.notification_code, a.alert_code, r.rule_code, n.channel, n.target, n.status, n.message, n.attempt_count, n.last_error, n.delivered_at "
+        "SELECT n.notification_code, a.alert_code, r.rule_code, n.channel, n.target, n.status, n.message, n.attempt_count, n.last_error, n.delivered_at, n.next_attempt_at_unix_ms, n.lease_until_unix_ms, n.lease_token, n.max_attempts "
         "FROM alert_notifications n "
         "JOIN alerts a ON a.id = n.alert_id "
         "JOIN alert_rules r ON r.id = n.rule_id "
         "ORDER BY n.created_at DESC, n.notification_code");
+    std::vector<domain::AlertNotification> notifications;
+    for (const auto& row : result) {
+        notifications.push_back(alertNotificationFromRow(row));
+    }
+    return notifications;
+}
+
+std::vector<domain::AlertNotification> MySqlAlertRepository::claimDueNotifications(
+    std::int64_t nowUnixMs,
+    std::int64_t leaseUntilUnixMs,
+    int limit,
+    const std::string& leaseToken) {
+    if (limit <= 0 || leaseToken.empty()) {
+        return {};
+    }
+    client_->execSqlSync(
+        "UPDATE alert_notifications SET status = 'delivering', lease_until_unix_ms = ?, lease_token = ? "
+        "WHERE ((status IN ('queued', 'retrying')) OR (status = 'delivering' AND lease_until_unix_ms <= ?)) "
+        "AND next_attempt_at_unix_ms <= ? "
+        "AND (lease_until_unix_ms <= ? OR lease_token = '') ORDER BY created_at, id LIMIT ?",
+        leaseUntilUnixMs, leaseToken, nowUnixMs, nowUnixMs, nowUnixMs, limit);
+    const auto result = client_->execSqlSync(
+        "SELECT n.notification_code, a.alert_code, r.rule_code, n.channel, n.target, n.status, n.message, n.attempt_count, n.last_error, n.delivered_at, n.next_attempt_at_unix_ms, n.lease_until_unix_ms, n.lease_token, n.max_attempts "
+        "FROM alert_notifications n JOIN alerts a ON a.id = n.alert_id JOIN alert_rules r ON r.id = n.rule_id "
+        "WHERE n.lease_token = ? AND n.lease_until_unix_ms = ? ORDER BY n.created_at, n.id",
+        leaseToken, leaseUntilUnixMs);
     std::vector<domain::AlertNotification> notifications;
     for (const auto& row : result) {
         notifications.push_back(alertNotificationFromRow(row));

@@ -69,6 +69,9 @@ Json::Value alertNotificationToJson(const domain::AlertNotification& notificatio
     value["attemptCount"] = notification.attemptCount;
     value["lastError"] = notification.lastError;
     value["deliveredAt"] = notification.deliveredAt;
+    value["nextAttemptAtUnixMs"] = Json::Int64(notification.nextAttemptAtUnixMs);
+    value["leaseUntilUnixMs"] = Json::Int64(notification.leaseUntilUnixMs);
+    value["maxAttempts"] = notification.maxAttempts;
     return value;
 }
 

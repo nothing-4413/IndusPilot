@@ -122,16 +122,42 @@ std::vector<domain::AlertRule> InMemoryAlertRepository::listRules() const {
 }
 
 domain::AlertNotification InMemoryAlertRepository::saveNotification(domain::AlertNotification notification) {
+    std::lock_guard<std::mutex> lock(notificationsMutex_);
     notifications_[notification.id] = notification;
     return notification;
 }
 
 std::vector<domain::AlertNotification> InMemoryAlertRepository::listNotifications() const {
+    std::lock_guard<std::mutex> lock(notificationsMutex_);
     std::vector<domain::AlertNotification> notifications;
     for (const auto& item : notifications_) {
         notifications.push_back(item.second);
     }
     return notifications;
+}
+
+std::vector<domain::AlertNotification> InMemoryAlertRepository::claimDueNotifications(
+    std::int64_t nowUnixMs,
+    std::int64_t leaseUntilUnixMs,
+    int limit,
+    const std::string& leaseToken) {
+    std::lock_guard<std::mutex> lock(notificationsMutex_);
+    std::vector<domain::AlertNotification> claimed;
+    for (auto& item : notifications_) {
+        auto& notification = item.second;
+        const bool statusEligible = notification.status == "queued" || notification.status == "retrying" ||
+                                    (notification.status == "delivering" && notification.leaseUntilUnixMs <= nowUnixMs);
+        if (static_cast<int>(claimed.size()) >= limit || !statusEligible ||
+            notification.nextAttemptAtUnixMs > nowUnixMs ||
+            (notification.leaseUntilUnixMs > nowUnixMs && !notification.leaseToken.empty())) {
+            continue;
+        }
+        notification.status = "delivering";
+        notification.leaseUntilUnixMs = leaseUntilUnixMs;
+        notification.leaseToken = leaseToken;
+        claimed.push_back(notification);
+    }
+    return claimed;
 }
 domain::WorkOrder InMemoryWorkOrderRepository::save(domain::WorkOrder order) {
     orders_[order.id] = order;

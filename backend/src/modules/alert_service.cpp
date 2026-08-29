@@ -2,9 +2,11 @@
 
 #include "induspilot/data/in_memory_repositories.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <ctime>
 #include <iomanip>
+#include <random>
 #include <sstream>
 #include <utility>
 
@@ -23,6 +25,17 @@ std::string currentTimestamp() {
     std::ostringstream out;
     out << std::put_time(&localTime, "%Y-%m-%dT%H:%M:%S");
     return out.str();
+}
+
+std::int64_t nowUnixMs() {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+               std::chrono::system_clock::now().time_since_epoch())
+        .count();
+}
+
+std::string workerToken() {
+    static thread_local std::mt19937_64 generator(std::random_device{}());
+    return std::to_string(generator()) + std::to_string(generator());
 }
 
 bool isSupportedNotificationChannel(const std::string& channel) {
@@ -172,20 +185,22 @@ std::vector<domain::AlertNotification> AlertService::notifications() const {
 
 NotificationDispatchSummary AlertService::dispatchQueuedNotifications() {
     NotificationDispatchSummary summary;
-    for (auto notification : repository_->listNotifications()) {
-        if (notification.status != "queued" && notification.status != "retrying") {
-            ++summary.skipped;
-            continue;
-        }
+    const auto now = nowUnixMs();
+    const auto token = workerToken();
+    const auto claimed = repository_->claimDueNotifications(now, now + 30000, 100, token);
+    for (auto notification : claimed) {
         notification = deliverNotification(std::move(notification));
         if (notification.status == "sent") {
             ++summary.sent;
-        } else if (notification.status == "failed") {
+        } else if (notification.status == "failed" || notification.status == "retrying" ||
+                   notification.status == "dead_letter") {
             ++summary.failed;
         } else {
             ++summary.skipped;
         }
     }
+    summary.skipped = (std::max)(0, static_cast<int>(repository_->listNotifications().size()) -
+                                     static_cast<int>(claimed.size()));
     return summary;
 }
 
@@ -199,6 +214,9 @@ std::optional<domain::AlertNotification> AlertService::retryNotification(const s
         }
         notification.status = "retrying";
         notification.lastError.clear();
+        notification.nextAttemptAtUnixMs = nowUnixMs();
+        notification.leaseUntilUnixMs = 0;
+        notification.leaseToken.clear();
         notification = repository_->saveNotification(std::move(notification));
         return deliverNotification(std::move(notification));
     }
@@ -227,22 +245,39 @@ void AlertService::createNotificationsFor(const domain::Alert& alert) {
 
 domain::AlertNotification AlertService::deliverNotification(domain::AlertNotification notification) {
     notification.attemptCount += 1;
+    notification.leaseUntilUnixMs = 0;
+    notification.leaseToken.clear();
     if (notification.channel.empty() || notification.target.empty()) {
         notification.status = "failed";
         notification.lastError = "通知通道和目标不能为空";
         notification.deliveredAt.clear();
+        notification.nextAttemptAtUnixMs = 0;
+        if (notification.attemptCount < notification.maxAttempts) {
+            notification.status = "retrying";
+            notification.nextAttemptAtUnixMs = nowUnixMs() + (1LL << (std::min)(notification.attemptCount - 1, 10)) * 1000;
+        } else {
+            notification.status = "dead_letter";
+        }
         return repository_->saveNotification(std::move(notification));
     }
     if (!isSupportedNotificationChannel(notification.channel)) {
         notification.status = "failed";
         notification.lastError = "不支持的通知通道：" + notification.channel;
         notification.deliveredAt.clear();
+        notification.nextAttemptAtUnixMs = 0;
+        if (notification.attemptCount < notification.maxAttempts) {
+            notification.status = "retrying";
+            notification.nextAttemptAtUnixMs = nowUnixMs() + (1LL << (std::min)(notification.attemptCount - 1, 10)) * 1000;
+        } else {
+            notification.status = "dead_letter";
+        }
         return repository_->saveNotification(std::move(notification));
     }
 
     notification.status = "sent";
     notification.lastError.clear();
     notification.deliveredAt = currentTimestamp();
+    notification.nextAttemptAtUnixMs = 0;
     return repository_->saveNotification(std::move(notification));
 }
 
