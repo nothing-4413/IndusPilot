@@ -93,6 +93,9 @@ if ($workflowPath) {
     foreach ($required in @('quality-gates:', 'security-scan:', 'backend-foundation:', 'backend-runtime-profile:', 'configuration-preflight:', 'dependency-services:', 'openspec:')) {
         Assert-Contains '.github/workflows/ci.yml' $workflow $required
     }
+    Assert-Contains '.github/workflows/ci.yml' $workflow 'actions/upload-artifact@v4'
+    Assert-Contains '.github/workflows/ci.yml' $workflow 'retention-days: 14'
+    Assert-Contains '.github/workflows/ci.yml' $workflow 'if-no-files-found: warn'
     Assert-Contains '.github/workflows/ci.yml' $workflow 'tools/quality/quality_gate.ps1 -RequireClangTools'
     Assert-Contains '.github/workflows/ci.yml' $workflow 'tools/security/secret_scan.ps1 -FailOnMissingGit'
     Assert-Contains '.github/workflows/ci.yml' $workflow 'openspec validate --specs --strict'

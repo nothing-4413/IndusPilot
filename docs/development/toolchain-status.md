@@ -27,6 +27,8 @@
 
 GitHub Actions 使用仓库根目录的 `vcpkg.json` 声明 Redis++ 和 Drogon 依赖，并在 Windows `backend-runtime-matrix` 中分别执行 `dev-redis`、`dev-http` 的 configure、build 和 CTest。Linux `backend-foundation` 继续提供无外部依赖的快速反馈；真实 MySQL、Redis、MongoDB 数据操作由独立的 `dependency-services` job 覆盖，`backend-runtime-profile` 进一步在同一类真实依赖上启动后端并执行 MySQL 仓储 + Redis session HTTP smoke。
 
+foundation、runtime matrix 和真实 runtime profile job 都会在结束时上传后端二进制与 CTest 临时日志，artifact 默认保留 14 天；上传步骤使用 `if: always()`，构建失败时仍尽量保留已有证据。不会上传 `.env`、Docker volume、凭据或源码归档。
+
 ## 验证命令
 
 Redis session 构建：

@@ -55,6 +55,18 @@ jobs:
       - name: Run backend tests
         run: ctest --test-dir build/ci-backend --output-on-failure
 
+      - name: Upload foundation build evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-foundation-evidence
+          path: |
+            build/ci-backend/backend/induspilot-backend-tests*
+            build/ci-backend/Testing/Temporary/LastTest.log
+            build/ci-backend/backend/Testing/Temporary/LastTest.log
+          if-no-files-found: warn
+          retention-days: 14
+
   backend-runtime-matrix:
     name: backend runtime (${{ matrix.name }})
     runs-on: windows-latest
@@ -87,6 +99,18 @@ jobs:
       - name: Test ${{ matrix.name }} runtime
         shell: pwsh
         run: ctest --preset ${{ matrix.preset }} --output-on-failure
+
+      - name: Upload ${{ matrix.name }} build evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-runtime-${{ matrix.name }}-evidence
+          path: |
+            build/${{ matrix.preset }}/backend/induspilot-backend*
+            build/${{ matrix.preset }}/Testing/Temporary/LastTest.log
+            build/${{ matrix.preset }}/backend/Testing/Temporary/LastTest.log
+          if-no-files-found: warn
+          retention-days: 14
 
   backend-runtime-profile:
     name: real backend runtime profile
@@ -124,6 +148,18 @@ jobs:
           -StartDependencies
           -RunDependencySmoke
           -StopDependencies
+
+      - name: Upload runtime profile build evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-runtime-profile-evidence
+          path: |
+            build/dev-http/backend/induspilot-backend
+            build/dev-http/Testing/Temporary/LastTest.log
+            build/dev-http/backend/Testing/Temporary/LastTest.log
+          if-no-files-found: warn
+          retention-days: 14
 
   configuration-preflight:
     name: configuration preflight
