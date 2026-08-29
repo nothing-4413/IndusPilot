@@ -195,6 +195,19 @@ if ($migrationRunner -match "schema_migrations" -and $migrationRunner -match "OR
     Write-CheckFail "MySQL 迁移入口缺少版本治理检查"
 }
 
+$hardCodedDatabaseSelection = $false
+foreach ($scriptPath in $schemaScripts + @("database/mysql/integration/real_crud_smoke.sql")) {
+    if ((Get-FileText $scriptPath) -match "(?im)^\s*USE\s+induspilot\s*;") {
+        $hardCodedDatabaseSelection = $true
+        break
+    }
+}
+if ($hardCodedDatabaseSelection) {
+    Write-CheckFail "MySQL SQL 脚本仍硬编码 USE induspilot"
+} else {
+    Write-CheckOk "MySQL SQL 脚本使用迁移入口选择的数据库"
+}
+
 foreach ($scriptPath in $schemaScripts) {
     $scriptText = Get-FileText $scriptPath
     $usesColumnAlter = $scriptText -match "(?is)ALTER\s+TABLE.*ADD\s+COLUMN"

@@ -1,5 +1,3 @@
-USE induspilot;
-
 SET @has_previous_hash = (
   SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
   WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'operation_audit_events' AND COLUMN_NAME = 'previous_hash'

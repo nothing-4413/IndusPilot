@@ -1,5 +1,3 @@
-﻿USE induspilot;
-
 CREATE TABLE IF NOT EXISTS operation_audit_events (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   event_code VARCHAR(96) NOT NULL UNIQUE,

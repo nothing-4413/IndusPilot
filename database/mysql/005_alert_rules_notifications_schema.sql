@@ -1,5 +1,3 @@
-﻿USE induspilot;
-
 CREATE TABLE IF NOT EXISTS alert_rules (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   rule_code VARCHAR(64) NOT NULL UNIQUE,

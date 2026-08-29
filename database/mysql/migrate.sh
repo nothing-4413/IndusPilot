@@ -9,6 +9,11 @@ mysql_user="${MYSQL_USER:-root}"
 mysql_database="${MYSQL_DATABASE:-induspilot}"
 mysql_args=(--protocol=TCP --host="${mysql_host}" --port="${mysql_port}" --user="${mysql_user}")
 
+if [[ ! "${mysql_database}" =~ ^[A-Za-z0-9_$]+$ ]]; then
+  echo "MYSQL_DATABASE contains an unsafe identifier: ${mysql_database}" >&2
+  exit 1
+fi
+
 if [[ ! -d "${migration_dir}" ]]; then
   echo "migration directory does not exist: ${migration_dir}" >&2
   exit 1
@@ -32,11 +37,7 @@ mysql_query() {
 apply_migration() {
   local filename="$1"
   echo "[mysql-migrate] applying ${filename}"
-  if [[ "${filename}" == "${migration_files[0]}" ]]; then
-    "${mysql_bin}" "${mysql_args[@]}" < "${migration_dir}/${filename}"
-  else
-    "${mysql_bin}" "${mysql_args[@]}" "${mysql_database}" < "${migration_dir}/${filename}"
-  fi
+  "${mysql_bin}" "${mysql_args[@]}" "${mysql_database}" < "${migration_dir}/${filename}"
 }
 
 declare -A known_versions=()
@@ -44,12 +45,18 @@ for filename in "${migration_files[@]}"; do
   known_versions["${filename%.sql}"]=1
 done
 
+create_database() {
+  "${mysql_bin}" "${mysql_args[@]}" --batch --skip-column-names --raw -e \
+    "CREATE DATABASE IF NOT EXISTS \`${mysql_database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+}
+
 schema_table_exists() {
   "${mysql_bin}" "${mysql_args[@]}" --batch --skip-column-names --raw -e \
     "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '${mysql_database}' AND table_name = 'schema_migrations';" |
     grep -q '^1$'
 }
 
+create_database
 if ! schema_table_exists; then
   apply_migration "${migration_files[0]}"
 fi

@@ -167,7 +167,7 @@ MYSQL_HOST=127.0.0.1 MYSQL_PORT=3306 MYSQL_USER=root MYSQL_PWD='your-root-passwo
   MYSQL_DATABASE=induspilot bash database/mysql/migrate.sh
 ```
 
-迁移脚本通过 `MYSQL_PWD` 接收密码，避免将密码放入 mysql 命令行参数；不支持自动回滚，失败后应先修复数据库状态再重新执行。
+`MYSQL_DATABASE` 可替换为部署使用的合法数据库标识符；迁移脚本通过 `MYSQL_PWD` 接收密码，避免将密码放入 mysql 命令行参数。不支持自动回滚，失败后应先修复数据库状态再重新执行。
 ## HTTP 冒烟测试
 
 CTest 已注册 `induspilot-http-integration-smoke`，覆盖：

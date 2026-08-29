@@ -1,5 +1,3 @@
-USE induspilot;
-
 CREATE TABLE IF NOT EXISTS work_order_attachments (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   attachment_code VARCHAR(64) NOT NULL UNIQUE,

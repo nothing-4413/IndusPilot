@@ -1,5 +1,3 @@
-USE induspilot;
-
 SET @has_column = (
   SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
   WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'alert_notifications'

@@ -1,5 +1,3 @@
-USE induspilot;
-
 UPDATE operation_audit_events
 SET resource_type = 'user', resource_id = actor
 WHERE action = 'auth.login' AND resource_type = 'session';

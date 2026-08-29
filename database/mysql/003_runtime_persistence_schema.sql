@@ -1,5 +1,3 @@
-USE induspilot;
-
 CREATE TABLE IF NOT EXISTS runtime_states (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   asset_code VARCHAR(64) NOT NULL UNIQUE,

@@ -1,5 +1,3 @@
-﻿USE induspilot;
-
 INSERT INTO roles(code, name, description) VALUES
   ('admin', '系统管理员', '拥有平台全部管理权限'),
   ('operator', '运行操作员', '处理监控、告警和日常运行事务'),

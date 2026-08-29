@@ -1,5 +1,3 @@
-USE induspilot;
-
 INSERT INTO permissions(code, name) VALUES
   ('audit:export', '导出操作审计')
 ON DUPLICATE KEY UPDATE name = VALUES(name);

@@ -1,5 +1,3 @@
-USE induspilot;
-
 DROP PROCEDURE IF EXISTS induspilot_assert;
 DELIMITER //
 CREATE PROCEDURE induspilot_assert(IN condition_value BOOLEAN, IN message_text VARCHAR(255))

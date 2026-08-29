@@ -46,7 +46,7 @@ chmod +x "${temp_root}/bin/mysql" "${temp_root}/migrations/migrate.sh"
 
 run_runner() {
   MYSQL_BIN="${temp_root}/bin/mysql" MYSQL_FAKE_STATE="${temp_root}/state" \
-    MYSQL_MIGRATION_DIR="${temp_root}/migrations" MYSQL_DATABASE=induspilot \
+    MYSQL_MIGRATION_DIR="${temp_root}/migrations" MYSQL_DATABASE=custom_schema \
     bash "${temp_root}/migrations/migrate.sh"
 }
 
@@ -62,6 +62,12 @@ printf '%s\n' 001_foundation 003_third > "${temp_root}/state"
 if MYSQL_BIN="${temp_root}/bin/mysql" MYSQL_FAKE_STATE="${temp_root}/state" \
   MYSQL_MIGRATION_DIR="${temp_root}/migrations" bash "${temp_root}/migrations/migrate.sh"; then
   echo "migration order gap was not rejected" >&2
+  exit 1
+fi
+if MYSQL_BIN="${temp_root}/bin/mysql" MYSQL_FAKE_STATE="${temp_root}/state" \
+  MYSQL_MIGRATION_DIR="${temp_root}/migrations" MYSQL_DATABASE='unsafe-name' \
+  bash "${temp_root}/migrations/migrate.sh"; then
+  echo "unsafe database identifier was not rejected" >&2
   exit 1
 fi
 
