@@ -4,6 +4,16 @@
 定义后端运行时、配置加载、依赖健康检查、统一 API 响应、模块化边界和生产化构建基础，支撑各业务模块独立演进。
 ## Requirements
 
+### Requirement: MongoDB AI interaction idempotency key is unique
+
+The system SHALL enforce `interactionCode` as a unique identity key in the MongoDB `ai_interactions` collection.
+
+#### Scenario: Concurrent or repeated interaction write
+- **GIVEN** an AI interaction document already exists with an `interactionCode`
+- **WHEN** a writer retries the same interaction or another writer attempts a conflicting insert
+- **THEN** the repository upsert SHALL update the existing document
+- **AND** MongoDB SHALL reject a distinct duplicate document with the same `interactionCode`
+
 ### Requirement: AI 交互记录可选择 MongoDB 持久化
 
 系统 SHALL 支持独立选择 AI 交互记录的 `memory`、`mysql` 或 `mongodb` 仓储，默认行为保持不变。

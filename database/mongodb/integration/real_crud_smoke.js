@@ -55,6 +55,22 @@ assertSmoke(
   'AI interaction document upsert failed'
 );
 
+let duplicateInteractionRejected = false;
+try {
+  database.ai_interactions.insertOne({
+    interactionCode: 'db-smoke-mongodb-ai-001',
+    relatedType: 'operation_log',
+    relatedId: 'duplicate-write',
+    prompt: 'duplicate write',
+    response: 'must fail',
+    createdAt: new Date(),
+    updatedAt: new Date()
+  });
+} catch (error) {
+  duplicateInteractionRejected = error.code === 11000;
+}
+assertSmoke(duplicateInteractionRejected, 'AI interaction unique identity constraint missing');
+
 database.diagnostic_documents.updateOne(
   { documentCode: 'db-smoke-mongodb-doc-001' },
   {
@@ -79,6 +95,8 @@ const aiIndexes = database.ai_interactions.getIndexes().map((index) => index.nam
 const documentIndexes = database.diagnostic_documents.getIndexes().map((index) => index.name);
 assertSmoke(operationIndexes.includes('relatedType_1_relatedId_1_createdAt_-1'), 'operation_logs index missing');
 assertSmoke(aiIndexes.includes('relatedType_1_relatedId_1_createdAt_-1'), 'ai_interactions index missing');
+const aiIdentityIndex = database.ai_interactions.getIndexes().find((index) => index.name === 'interactionCode_1');
+assertSmoke(aiIdentityIndex && aiIdentityIndex.unique === true, 'ai_interactions unique identity index missing');
 assertSmoke(documentIndexes.includes('title_text_content_text'), 'diagnostic_documents text index missing');
 
 print('mongodb_real_crud_smoke_passed');
