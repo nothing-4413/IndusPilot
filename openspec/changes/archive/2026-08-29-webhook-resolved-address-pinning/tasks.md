@@ -13,4 +13,4 @@
 ## 3. Verification and delivery
 
 - [x] 3.1 Run build, CTest, webhook smoke, quality, and diff checks.
-- [ ] 3.2 Commit, push, and archive this change.
+- [x] 3.2 Commit, push, and archive this change.
