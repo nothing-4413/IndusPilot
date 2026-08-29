@@ -53,6 +53,11 @@ void registerAuthRoutes(drogon::HttpAppFramework& server, const HttpServerContex
                 callback(jsonResponse(responseEnvelope(false, code, "login security policy unavailable"), drogon::k503ServiceUnavailable));
                 return;
             }
+            if (code == "SEED_CREDENTIAL_ROTATION_REQUIRED") {
+                recordAuditEvent(audit, username, "auth.login.seed_rotation_required", "user", username, "blocked", traceIdFor(request));
+                callback(jsonResponse(responseEnvelope(false, code, "seed credential rotation required"), drogon::k403Forbidden));
+                return;
+            }
             recordAuditEvent(audit, username, "auth.login.failed", "user", username, "failed", traceIdFor(request));
             callback(jsonResponse(responseEnvelope(false, code, "invalid username or password"), drogon::k401Unauthorized));
             return;

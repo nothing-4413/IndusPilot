@@ -27,6 +27,7 @@ std::shared_ptr<modules::SessionStore> createSessionStore(const app::AppConfig& 
 modules::LoginSecurityPolicy loginSecurityPolicyFrom(const app::AppConfig& config) {
     modules::LoginSecurityPolicy policy;
     policy.enabled = config.security.loginLockoutEnabled;
+    policy.allowSeedCredentials = config.security.allowSeedCredentials;
     policy.maxFailures = config.security.loginMaxFailures;
     policy.failureWindow = std::chrono::seconds(config.security.loginFailureWindowSeconds > 0 ? config.security.loginFailureWindowSeconds : 60);
     policy.lockDuration = std::chrono::seconds(config.security.loginLockoutSeconds > 0 ? config.security.loginLockoutSeconds : 900);

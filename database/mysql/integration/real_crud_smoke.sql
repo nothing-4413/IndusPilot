@@ -74,7 +74,7 @@ ON DUPLICATE KEY UPDATE actor = VALUES(actor), action = VALUES(action), resource
 CALL induspilot_assert((SELECT COUNT(*) FROM operation_audit_events WHERE event_code = 'db-smoke-audit-001' AND previous_hash = 'genesis' AND event_hash IS NOT NULL) = 1, 'operation audit event upsert failed');
 
 CALL induspilot_assert((SELECT COUNT(*) FROM equipment_assets ea JOIN alerts a ON a.asset_id = ea.id JOIN work_orders wo ON wo.alert_id = a.id WHERE ea.asset_code = 'db-smoke-asset-001' AND a.alert_code = 'db-smoke-alert-001' AND wo.work_order_code = 'db-smoke-wo-001') = 1, 'asset-alert-work-order relation failed');
-  CALL induspilot_assert((SELECT COUNT(*) FROM schema_migrations WHERE version IN ('001_foundation_schema', '002_seed_identity', '003_runtime_persistence_schema', '004_work_order_attachments_schema', '005_alert_rules_notifications_schema', '006_alert_notification_delivery_schema', '007_operation_audit_events_schema', '008_operation_audit_export_permission', '009_operation_audit_integrity_schema', '010_redact_legacy_login_audit_tokens', '011_credential_version')) = 11, 'schema migration baseline incomplete');
+  CALL induspilot_assert((SELECT COUNT(*) FROM schema_migrations WHERE version IN ('001_foundation_schema', '002_seed_identity', '003_runtime_persistence_schema', '004_work_order_attachments_schema', '005_alert_rules_notifications_schema', '006_alert_notification_delivery_schema', '007_operation_audit_events_schema', '008_operation_audit_export_permission', '009_operation_audit_integrity_schema', '010_redact_legacy_login_audit_tokens', '011_credential_version', '012_seed_account_governance')) = 12, 'schema migration baseline incomplete');
 
 DROP PROCEDURE IF EXISTS induspilot_assert;
 SELECT 'mysql_real_crud_smoke_passed' AS result;

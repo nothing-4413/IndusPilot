@@ -21,6 +21,7 @@ struct LoginRequest {
 
 struct LoginSecurityPolicy {
     bool enabled{true};
+    bool allowSeedCredentials{true};
     int maxFailures{5};
     std::chrono::seconds failureWindow{std::chrono::seconds(60)};
     std::chrono::seconds lockDuration{std::chrono::minutes(15)};

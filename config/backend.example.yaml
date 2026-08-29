@@ -38,6 +38,8 @@ security:
   # 登录失败锁定用于抑制暴力尝试；超过阈值后登录接口返回 429 和 Retry-After。
   login_lockout_enabled: true
   login_rate_limit_store: "memory"
+  # 仅供本地内存仓储演示；生产环境必须保持 false。
+  allow_seed_credentials: true
   login_max_failures: 5
   login_failure_window_seconds: 60
   login_lockout_seconds: 900

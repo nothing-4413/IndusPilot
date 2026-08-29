@@ -7,9 +7,9 @@ namespace induspilot::data {
 
 InMemoryUserRepository::InMemoryUserRepository() {
     std::lock_guard<std::mutex> lock(mutex_);
-    users_["admin"] = UserCredential{domain::User{"user-admin", "admin", {"admin"}}, "plain:admin123"};
-    users_["operator"] = UserCredential{domain::User{"user-operator", "operator", {"operator"}}, "plain:operator123"};
-    users_["maintainer"] = UserCredential{domain::User{"user-maintainer", "maintainer", {"maintainer"}}, "plain:maintainer123"};
+    users_["admin"] = UserCredential{domain::User{"user-admin", "admin", {"admin"}}, "plain:admin123", 1, true};
+    users_["operator"] = UserCredential{domain::User{"user-operator", "operator", {"operator"}}, "plain:operator123", 1, true};
+    users_["maintainer"] = UserCredential{domain::User{"user-maintainer", "maintainer", {"maintainer"}}, "plain:maintainer123", 1, true};
 }
 
 std::optional<UserCredential> InMemoryUserRepository::findByUsername(const std::string& username) const {
@@ -38,6 +38,7 @@ bool InMemoryUserRepository::updatePasswordHash(const std::string& username, con
     }
     it->second.passwordHash = passwordHash;
     ++it->second.credentialVersion;
+    it->second.requiresPasswordRotation = false;
     return true;
 }
 

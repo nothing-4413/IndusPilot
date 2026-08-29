@@ -186,6 +186,8 @@ void applyConfigValue(
         parseBoolean(config.security.loginLockoutEnabled);
     } else if (section == "security" && key == "login_rate_limit_store") {
         config.security.loginRateLimitStore = value;
+    } else if (section == "security" && key == "allow_seed_credentials") {
+        parseBoolean(config.security.allowSeedCredentials);
     } else if (section == "security" && (key == "loginMaxFailures" || key == "login_max_failures")) {
         parseInteger(config.security.loginMaxFailures);
     } else if (section == "security" && (key == "loginFailureWindowSeconds" || key == "login_failure_window_seconds")) {
@@ -249,6 +251,7 @@ void applyEnvironmentOverrides(AppConfig& config) {
 
     applyBoolEnv(config, "INDUSPILOT_SECURITY_LOGIN_LOCKOUT_ENABLED", "security.login_lockout_enabled", config.security.loginLockoutEnabled);
     applyStringEnv("INDUSPILOT_SECURITY_LOGIN_RATE_LIMIT_STORE", config.security.loginRateLimitStore);
+    applyBoolEnv(config, "INDUSPILOT_SECURITY_ALLOW_SEED_CREDENTIALS", "security.allow_seed_credentials", config.security.allowSeedCredentials);
     applyIntEnv(config, "INDUSPILOT_SECURITY_LOGIN_MAX_FAILURES", "security.login_max_failures", config.security.loginMaxFailures);
     applyIntEnv(config, "INDUSPILOT_SECURITY_LOGIN_FAILURE_WINDOW_SECONDS", "security.login_failure_window_seconds", config.security.loginFailureWindowSeconds);
     applyIntEnv(config, "INDUSPILOT_SECURITY_LOGIN_LOCKOUT_SECONDS", "security.login_lockout_seconds", config.security.loginLockoutSeconds);

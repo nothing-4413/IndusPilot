@@ -13,6 +13,7 @@ struct UserCredential {
     domain::User user;
     std::string passwordHash;
     std::uint64_t credentialVersion{1};
+    bool requiresPasswordRotation{false};
 };
 
 class UserRepository {

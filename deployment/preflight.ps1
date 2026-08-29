@@ -65,9 +65,11 @@ $requiredFiles = @(
     "database/mysql/009_operation_audit_integrity_schema.sql",
     "database/mysql/010_redact_legacy_login_audit_tokens.sql",
     "database/mysql/011_credential_version.sql",
+    "database/mysql/012_seed_account_governance.sql",
     "database/mongodb/init_collections.js",
     "database/mongodb/integration/real_crud_smoke.js",
-    "backend/tests/http_runtime_profile_smoke.ps1"
+    "backend/tests/http_runtime_profile_smoke.ps1",
+    "deployment/rotate_seed_credentials.ps1"
 )
 
 foreach ($file in $requiredFiles) {
@@ -148,7 +150,8 @@ $schemaScripts = @(
     "database/mysql/008_operation_audit_export_permission.sql",
     "database/mysql/009_operation_audit_integrity_schema.sql",
     "database/mysql/010_redact_legacy_login_audit_tokens.sql",
-    "database/mysql/011_credential_version.sql"
+    "database/mysql/011_credential_version.sql",
+    "database/mysql/012_seed_account_governance.sql"
 )
 $expectedMigrations = @(
     "001_foundation_schema",
@@ -161,7 +164,8 @@ $expectedMigrations = @(
     "008_operation_audit_export_permission",
     "009_operation_audit_integrity_schema",
     "010_redact_legacy_login_audit_tokens",
-    "011_credential_version"
+    "011_credential_version",
+    "012_seed_account_governance"
 )
 foreach ($migration in $expectedMigrations) {
     $found = $false
@@ -215,6 +219,17 @@ if ($seed -match "ON DUPLICATE KEY UPDATE password_hash = IF") {
     Write-CheckOk "MySQL 种子脚本不会无条件覆盖已有密码哈希"
 } else {
     Write-CheckFail "MySQL 种子脚本可能覆盖已有密码哈希"
+}
+$governanceMigration = Get-FileText "database/mysql/012_seed_account_governance.sql"
+if ($governanceMigration -match "requires_password_rotation" -and $governanceMigration -match "induspilot-admin-demo-salt") {
+    Write-CheckOk "种子账号治理迁移会标记已发布演示凭据"
+} else {
+    Write-CheckFail "种子账号治理迁移缺少演示凭据标记逻辑"
+}
+if ($config -match "(?m)^\s+allow_seed_credentials:\s+true\s*$") {
+    Write-CheckWarn "示例配置显式启用演示凭据，仅适用于本地内存演示"
+} else {
+    Write-CheckFail "示例配置未显式声明演示凭据兼容开关"
 }
 
 if (Get-Command docker -ErrorAction SilentlyContinue) {

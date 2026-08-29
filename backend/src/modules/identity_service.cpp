@@ -88,6 +88,10 @@ AuthResult IdentityService::login(const LoginRequest& request) {
         return AuthResult{false, "用户名或密码错误", std::nullopt, "AUTHENTICATION_FAILED"};
     }
 
+    if (credential->requiresPasswordRotation && !securityPolicy_.allowSeedCredentials) {
+        return AuthResult{false, "该账号必须先完成密码轮换", std::nullopt, "SEED_CREDENTIAL_ROTATION_REQUIRED"};
+    }
+
     if (securityPolicy_.enabled && !loginRateLimiter_->clear(request.username)) {
         return AuthResult{false, "登录安全策略暂不可用", std::nullopt, "AUTHENTICATION_RATE_LIMITER_UNAVAILABLE"};
     }

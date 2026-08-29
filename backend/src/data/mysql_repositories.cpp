@@ -274,12 +274,12 @@ MySqlUserRepository::MySqlUserRepository(drogon::orm::DbClientPtr client) : clie
 
 std::optional<UserCredential> MySqlUserRepository::findByUsername(const std::string& username) const {
     const auto result = client_->execSqlSync(
-        "SELECT u.id, u.username, u.password_hash, u.credential_version, GROUP_CONCAT(r.code ORDER BY r.code) AS roles "
+        "SELECT u.id, u.username, u.password_hash, u.credential_version, u.requires_password_rotation, GROUP_CONCAT(r.code ORDER BY r.code) AS roles "
         "FROM users u "
         "LEFT JOIN user_roles ur ON ur.user_id = u.id "
         "LEFT JOIN roles r ON r.id = ur.role_id "
         "WHERE u.username = ? AND u.enabled = TRUE "
-        "GROUP BY u.id, u.username, u.password_hash, u.credential_version",
+        "GROUP BY u.id, u.username, u.password_hash, u.credential_version, u.requires_password_rotation",
         username);
     if (result.empty()) {
         return std::nullopt;
@@ -291,6 +291,7 @@ std::optional<UserCredential> MySqlUserRepository::findByUsername(const std::str
     credential.user.username = row["username"].as<std::string>();
     credential.passwordHash = row["password_hash"].as<std::string>();
     credential.credentialVersion = row["credential_version"].as<unsigned long long>();
+    credential.requiresPasswordRotation = row["requires_password_rotation"].as<int>() != 0;
     if (!row["roles"].isNull()) {
         credential.user.roles = splitRoles(row["roles"].as<std::string>());
     }
@@ -321,7 +322,7 @@ std::vector<domain::User> MySqlUserRepository::listUsers() const {
 
 bool MySqlUserRepository::updatePasswordHash(const std::string& username, const std::string& passwordHash) {
     const auto result = client_->execSqlSync(
-        "UPDATE users SET password_hash = ?, credential_version = credential_version + 1 "
+        "UPDATE users SET password_hash = ?, credential_version = credential_version + 1, requires_password_rotation = FALSE "
         "WHERE username = ? AND enabled = TRUE",
         passwordHash,
         username);

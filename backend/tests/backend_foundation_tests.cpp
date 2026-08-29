@@ -153,6 +153,7 @@ int main() {
     assert(loadedConfig.mysql.uri == "host=127.0.0.1 port=3306 dbname=induspilot user=induspilot");
     assert(loadedConfig.security.loginMaxFailures == 3);
     assert(loadedConfig.security.loginRateLimitStore == "memory");
+    assert(loadedConfig.security.allowSeedCredentials);
     assert(loadedConfig.security.loginLockoutSeconds == 120);
     assert(loadedConfig.security.passwordMinLength == 12);
     assert(loadedConfig.security.passwordIterations == 120000);
@@ -427,6 +428,18 @@ int main() {
     assert(!lockedSuccessAttempt.success);
     assert(lockedSuccessAttempt.code == "AUTHENTICATION_LOCKED");
 
+    auto productionPolicy = lockoutPolicy;
+    productionPolicy.allowSeedCredentials = false;
+    induspilot::modules::IdentityService productionIdentity(
+        std::make_shared<induspilot::modules::InMemorySessionStore>(),
+        std::chrono::hours(8),
+        std::make_shared<induspilot::data::InMemoryUserRepository>(),
+        std::make_shared<induspilot::data::InMemoryPermissionRepository>(),
+        productionPolicy);
+    const auto blockedSeedLogin = productionIdentity.login({"admin", "admin123"});
+    assert(!blockedSeedLogin.success);
+    assert(blockedSeedLogin.code == "SEED_CREDENTIAL_ROTATION_REQUIRED");
+
     assert(induspilot::modules::verifyPassword("admin123", "plain:admin123"));
     const auto generatedPasswordHash = induspilot::modules::generatePbkdf2Sha256PasswordHash("rotated-password", 100000);
     assert(generatedPasswordHash.rfind("pbkdf2_sha256$100000$", 0) == 0);
@@ -446,9 +459,11 @@ int main() {
     induspilot::data::InMemoryUserRepository users;
     assert(users.findByUsername("admin").has_value());
     const auto originalAdminHash = users.findByUsername("admin")->passwordHash;
+    assert(users.findByUsername("admin")->requiresPasswordRotation);
     assert(users.updatePasswordHash("admin", generatedPasswordHash));
     assert(users.findByUsername("admin")->passwordHash == generatedPasswordHash);
     assert(users.findByUsername("admin")->credentialVersion == 2);
+    assert(!users.findByUsername("admin")->requiresPasswordRotation);
     assert(originalAdminHash != generatedPasswordHash);
     assert(!users.updatePasswordHash("not-found", generatedPasswordHash));
     induspilot::data::InMemoryPermissionRepository permissionStore;
