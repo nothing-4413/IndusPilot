@@ -88,6 +88,43 @@ jobs:
         shell: pwsh
         run: ctest --preset ${{ matrix.preset }} --output-on-failure
 
+  backend-runtime-profile:
+    name: real backend runtime profile
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgJsonGlob: vcpkg.json
+
+      - name: Configure HTTP runtime
+        run: cmake --preset dev-http
+
+      - name: Build HTTP runtime
+        run: cmake --build --preset dev-http --parallel
+
+      - name: Create CI dependency env
+        shell: bash
+        run: |
+          cp deployment/.env.example deployment/.env
+          sed -i 's/change-me-root-password/ci-root-password/g' deployment/.env
+          sed -i 's/change-me-app-password/ci-app-password/g' deployment/.env
+          sed -i 's/change-me-redis-password/ci-redis-password/g' deployment/.env
+          sed -i 's/change-me-mongodb-password/ci-mongodb-password/g' deployment/.env
+
+      - name: Run real dependency and HTTP profile smoke
+        shell: pwsh
+        run: >-
+          ./backend/tests/http_runtime_profile_smoke.ps1
+          -BackendExe build/dev-http/backend/induspilot-backend
+          -StartDependencies
+          -RunDependencySmoke
+          -StopDependencies
+
   configuration-preflight:
     name: configuration preflight
     runs-on: windows-latest

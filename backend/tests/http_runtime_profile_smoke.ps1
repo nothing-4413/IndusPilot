@@ -83,6 +83,18 @@ function Invoke-Compose {
     }
 }
 
+function Resolve-PowerShellCommand {
+    $pwsh = Get-Command pwsh -ErrorAction SilentlyContinue
+    if ($null -ne $pwsh) {
+        return $pwsh.Source
+    }
+    $powershell = Get-Command powershell.exe -ErrorAction SilentlyContinue
+    if ($null -ne $powershell) {
+        return $powershell.Source
+    }
+    throw "未找到 pwsh 或 powershell.exe，无法运行 HTTP smoke。"
+}
+
 $backendExePath = Resolve-RepoPath $BackendExe
 $configPathValue = Resolve-RepoPath $ConfigPath
 if (-not (Test-Path -LiteralPath $backendExePath)) {
@@ -93,6 +105,7 @@ if (-not (Test-Path -LiteralPath $configPathValue)) {
 }
 
 $envValues = Read-DotEnv $EnvPath
+$powerShellCommand = Resolve-PowerShellCommand
 $mysqlPassword = Require-EnvValue $envValues 'INDUSPILOT_MYSQL_PASSWORD'
 $redisPassword = Require-EnvValue $envValues 'INDUSPILOT_REDIS_PASSWORD'
 $mongoUser = Require-EnvValue $envValues 'INDUSPILOT_MONGODB_ROOT_USER' 'induspilot'
@@ -138,7 +151,7 @@ try {
     }
 
     Write-Host "[runtime-smoke] 运行 HTTP smoke：repository_store=mysql session_store=redis"
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Resolve-RepoPath 'backend/tests/http_integration_smoke.ps1') `
+    & $powerShellCommand -NoProfile -ExecutionPolicy Bypass -File (Resolve-RepoPath 'backend/tests/http_integration_smoke.ps1') `
         -BackendExe $backendExePath `
         -ConfigPath $configPathValue `
         -BaseUrl $BaseUrl `

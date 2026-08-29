@@ -90,7 +90,7 @@ if ($presetsPath) {
 
 if ($workflowPath) {
     $workflow = Read-Text '.github/workflows/ci.yml'
-    foreach ($required in @('quality-gates:', 'security-scan:', 'backend-foundation:', 'configuration-preflight:', 'dependency-services:', 'openspec:')) {
+    foreach ($required in @('quality-gates:', 'security-scan:', 'backend-foundation:', 'backend-runtime-profile:', 'configuration-preflight:', 'dependency-services:', 'openspec:')) {
         Assert-Contains '.github/workflows/ci.yml' $workflow $required
     }
     Assert-Contains '.github/workflows/ci.yml' $workflow 'tools/quality/quality_gate.ps1 -RequireClangTools'
