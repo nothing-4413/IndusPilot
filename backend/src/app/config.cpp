@@ -180,6 +180,8 @@ void applyConfigValue(
         parseBoolean(config.notifications.webhookEnabled);
     } else if (section == "notifications" && (key == "webhookTimeoutMs" || key == "webhook_timeout_ms")) {
         parseInteger(config.notifications.webhookTimeoutMs);
+    } else if (section == "notifications" && (key == "webhookAllowedHosts" || key == "webhook_allowed_hosts")) {
+        config.notifications.webhookAllowedHosts = value;
     } else if (section == "readiness" && (key == "probeTimeoutMs" || key == "probe_timeout_ms")) {
         parseInteger(config.readiness.probeTimeoutMs);
     } else if (section == "readiness" && (key == "probeCacheMs" || key == "probe_cache_ms")) {
@@ -251,6 +253,7 @@ void applyEnvironmentOverrides(AppConfig& config) {
 
     applyBoolEnv(config, "INDUSPILOT_NOTIFICATIONS_WEBHOOK_ENABLED", "notifications.webhook_enabled", config.notifications.webhookEnabled);
     applyIntEnv(config, "INDUSPILOT_NOTIFICATIONS_WEBHOOK_TIMEOUT_MS", "notifications.webhook_timeout_ms", config.notifications.webhookTimeoutMs);
+    applyStringEnv("INDUSPILOT_NOTIFICATIONS_WEBHOOK_ALLOWED_HOSTS", config.notifications.webhookAllowedHosts);
 
     applyIntEnv(config, "INDUSPILOT_READINESS_PROBE_TIMEOUT_MS", "readiness.probe_timeout_ms", config.readiness.probeTimeoutMs);
     applyIntEnv(config, "INDUSPILOT_READINESS_PROBE_CACHE_MS", "readiness.probe_cache_ms", config.readiness.probeCacheMs);
@@ -372,6 +375,9 @@ ConfigValidation validateConfig(const AppConfig& config) {
     }
     if (config.notifications.webhookTimeoutMs < 1) {
         addError("notifications.webhook_timeout_ms must be greater than zero");
+    }
+    if (config.notifications.webhookEnabled && config.notifications.webhookAllowedHosts.find_first_not_of(" \t,") == std::string::npos) {
+        addError("notifications.webhook_allowed_hosts must not be empty when webhook delivery is enabled");
     }
     if (config.readiness.probeTimeoutMs < 1) {
         addError("readiness.probe_timeout_ms must be greater than zero");

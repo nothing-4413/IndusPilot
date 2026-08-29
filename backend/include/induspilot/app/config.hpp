@@ -44,6 +44,7 @@ struct AiConfig {
 struct NotificationConfig {
     bool webhookEnabled{false};
     int webhookTimeoutMs{5000};
+    std::string webhookAllowedHosts;
 };
 
 struct ReadinessConfig {

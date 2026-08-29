@@ -12,6 +12,7 @@
 #include <iomanip>
 #include <random>
 #include <sstream>
+#include <cctype>
 #include <utility>
 
 namespace induspilot::modules {
@@ -89,6 +90,7 @@ std::string boundedError(std::string error) {
 struct WebhookEndpoint {
     std::string baseUrl;
     std::string path{"/"};
+    std::string host;
     bool valid{false};
 };
 
@@ -102,8 +104,15 @@ WebhookEndpoint parseWebhookEndpoint(const std::string& target) {
         return {};
     }
     const auto pathPosition = target.find('/', schemePosition + 3);
+    const auto authorityEnd = pathPosition == std::string::npos ? target.size() : pathPosition;
+    const auto authority = target.substr(schemePosition + 3, authorityEnd - schemePosition - 3);
+    const auto portPosition = authority.find(':');
     WebhookEndpoint endpoint;
     endpoint.valid = true;
+    endpoint.host = authority.substr(0, portPosition == std::string::npos ? authority.size() : portPosition);
+    if (endpoint.host.empty()) {
+        return {};
+    }
     if (pathPosition == std::string::npos) {
         endpoint.baseUrl = target;
     } else {
@@ -111,6 +120,38 @@ WebhookEndpoint parseWebhookEndpoint(const std::string& target) {
         endpoint.path = target.substr(pathPosition);
     }
     return endpoint;
+}
+
+bool webhookHostAllowed(const std::string& host, const std::string& configuredHosts) {
+    std::size_t start = 0;
+    while (start <= configuredHosts.size()) {
+        const auto end = configuredHosts.find(',', start);
+        const auto length = end == std::string::npos ? configuredHosts.size() - start : end - start;
+        auto candidate = configuredHosts.substr(start, length);
+        const auto first = candidate.find_first_not_of(" \t");
+        const auto last = candidate.find_last_not_of(" \t");
+        if (first != std::string::npos) {
+            candidate = candidate.substr(first, last - first + 1);
+            if (candidate.size() == host.size()) {
+                bool equal = true;
+                for (std::size_t index = 0; index < host.size(); ++index) {
+                    if (std::tolower(static_cast<unsigned char>(candidate[index])) !=
+                        std::tolower(static_cast<unsigned char>(host[index]))) {
+                        equal = false;
+                        break;
+                    }
+                }
+                if (equal) {
+                    return true;
+                }
+            }
+        }
+        if (end == std::string::npos) {
+            break;
+        }
+        start = end + 1;
+    }
+    return false;
 }
 #endif
 
@@ -138,6 +179,9 @@ public:
         const auto endpoint = parseWebhookEndpoint(notification.target);
         if (!endpoint.valid) {
             return {false, "webhook target 必须是 HTTP(S) URL"};
+        }
+        if (!webhookHostAllowed(endpoint.host, config_.webhookAllowedHosts)) {
+            return {false, "webhook target host 不在允许列表中"};
         }
         try {
             Json::Value payload;

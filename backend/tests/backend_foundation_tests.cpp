@@ -157,6 +157,10 @@ int main() {
     assert(loadedConfig.security.loginLockoutSeconds == 120);
     assert(!loadedConfig.notifications.webhookEnabled);
     assert(loadedConfig.notifications.webhookTimeoutMs == 5000);
+    assert(loadedConfig.notifications.webhookAllowedHosts.empty());
+    auto invalidWebhookConfig = induspilot::app::AppConfig{};
+    invalidWebhookConfig.notifications.webhookEnabled = true;
+    assert(!induspilot::app::validateConfig(invalidWebhookConfig).valid);
     assert(loadedConfig.security.passwordMinLength == 12);
     assert(loadedConfig.security.passwordIterations == 120000);
     assert(induspilot::app::validateConfig(induspilot::app::AppConfig{}).valid);
@@ -511,6 +515,14 @@ int main() {
     const auto webhookDispatch = externalAlerts.dispatchQueuedNotifications();
     assert(webhookDispatch.sent == 0);
     assert(externalAlerts.notifications().front().status == "retrying");
+    auto blockedWebhookSender = induspilot::modules::makeAlertNotificationSender(
+        induspilot::app::NotificationConfig{true, 1000, "example.com"});
+    induspilot::modules::AlertService blockedWebhookAlerts(
+        std::make_shared<induspilot::data::InMemoryAlertRepository>(), blockedWebhookSender);
+    blockedWebhookAlerts.createRule({"rule-blocked-webhook", "blocked webhook", "asset-001", "warning", "webhook", "http://127.0.0.1:1/notify", true});
+    blockedWebhookAlerts.create({"alert-blocked-webhook", "asset-001", induspilot::domain::AlertSeverity::Critical, induspilot::domain::AlertState::Open, "blocked webhook test", "", ""});
+    blockedWebhookAlerts.dispatchQueuedNotifications();
+    assert(blockedWebhookAlerts.notifications().front().lastError.find("不在允许列表") != std::string::npos);
     assert(alerts.acknowledge("alert-001", "admin").has_value());
     assert(alerts.assign("alert-001", "maintainer").has_value());
 

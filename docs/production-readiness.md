@@ -19,6 +19,7 @@
 - 停机边界：收到 SIGTERM/SIGINT 后新业务请求返回 `503/SERVER_DRAINING`，readiness 立即为 `503`、liveness 在最终停止前保持 `200`，coordinator 在 `shutdown.drain_timeout_ms` deadline 内等待已接受请求完成，超时记录剩余请求并退出；listener 绑定预检失败返回退出码 `69`。
 - AI 传输：Drogon 构建下的 `provider=http` 已通过配置 endpoint 发起受控 JSON POST，并支持鉴权头、超时、响应文本提取和失败降级；当前结构化诊断字段仍由本地编排器生成。`/metrics` 额外暴露 provider 调用、可用/降级结果和耗时指标，标签不包含 prompt、响应、凭据或业务编号。`backend/tests/ai_provider_http_smoke.ps1` 覆盖成功、非 2xx、非 JSON 和超时场景。
 - 通知通道：`console` 具备本地投递；`email` 明确保持未实现；`webhook` 为显式开关控制且受请求超时约束，失败不会伪造 sent 状态，而是进入通知队列的重试/死信流程。
+- Webhook 出站安全：启用 webhook 必须提供精确 host allowlist；目标 host 不匹配时在建立 HTTP 连接前拒绝，避免规则配置直接形成任意出站探测。
 - MongoDB：当前尚未接入后端业务仓储；CI 已验证初始化集合、索引和文档 CRUD，非结构化日志、知识片段和长上下文仍待正式落库。
 - 客户端：Qt 客户端已接入 HTTP 登录、资产列表与状态更新、运行监控列表与状态写入、告警创建/规则/通知投递/列表与处置、维护工单列表、新建/编辑/附件/从告警生成/分派/基础流转、AI 结构化诊断入口和 AI 交互审计查询、分页与 CSV 导出，并接入告警规则/通知联动。
 - 集成测试：默认 HTTP 冒烟测试覆盖内存仓储；CI dependency smoke 已覆盖 MySQL、Redis、MongoDB 的真实依赖启动、MySQL 核心业务 CRUD、Redis 数据结构读写和 MongoDB 文档 CRUD。
