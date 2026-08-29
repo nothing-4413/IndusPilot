@@ -10,4 +10,4 @@
 
 ## 3. Verification and delivery
 - [x] 3.1 Run quality, build, test, and OpenSpec artifact checks
-- [ ] 3.2 Commit, push, and archive this change
+- [x] 3.2 Commit, push, and archive this change
