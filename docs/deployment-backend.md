@@ -158,7 +158,16 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File deployment/preflight.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File deployment/preflight.ps1 -RequireDocker
 ```
 
-MySQL 初始化脚本会登记以下版本到 `schema_migrations`：`001_foundation_schema`、`002_seed_identity`、`003_runtime_persistence_schema`、`004_work_order_attachments_schema`、`005_alert_rules_notifications_schema`、`006_alert_notification_delivery_schema`、`007_operation_audit_events_schema`、`008_operation_audit_export_permission`、`009_operation_audit_integrity_schema`、`010_redact_legacy_login_audit_tokens`、`011_credential_version`、`012_seed_account_governance`、`013_notification_delivery_queue`。该版本表用于部署核对，不代表后端会在启动时自动迁移数据库。
+MySQL 初始化脚本会登记以下版本到 `schema_migrations`：`001_foundation_schema`、`002_seed_identity`、`003_runtime_persistence_schema`、`004_work_order_attachments_schema`、`005_alert_rules_notifications_schema`、`006_alert_notification_delivery_schema`、`007_operation_audit_events_schema`、`008_operation_audit_export_permission`、`009_operation_audit_integrity_schema`、`010_redact_legacy_login_audit_tokens`、`011_credential_version`、`012_seed_account_governance`、`013_notification_delivery_queue`。该版本表用于部署核对；后端不会在启动时自动迁移数据库。
+
+生产或升级环境应使用统一迁移入口。它会按编号应用待执行脚本，拒绝未知版本和版本跳跃，并在每个脚本完成后校验版本登记：
+
+```bash
+MYSQL_HOST=127.0.0.1 MYSQL_PORT=3306 MYSQL_USER=root MYSQL_PWD='your-root-password' \
+  MYSQL_DATABASE=induspilot bash database/mysql/migrate.sh
+```
+
+迁移脚本通过 `MYSQL_PWD` 接收密码，避免将密码放入 mysql 命令行参数；不支持自动回滚，失败后应先修复数据库状态再重新执行。
 ## HTTP 冒烟测试
 
 CTest 已注册 `induspilot-http-integration-smoke`，覆盖：
@@ -194,13 +203,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File backend/tests/http_integ
 ## 生产注意事项
 
 - 开发口令和 MySQL 演示哈希仍是骨架数据，生产必须替换为唯一盐哈希，并通过密码轮换接口完成首轮治理；登录失败锁定和审计策略已有基础实现，但仍需结合部署规模验证保留周期和告警策略。
-- MySQL 仓储已经覆盖 identity、asset、alert、work-order、runtime-state、AI interaction 和 operation audit；生产部署前需执行 `database/mysql/001_foundation_schema.sql` 到 `009_operation_audit_integrity_schema.sql`，并确认 `schema_migrations` 已登记对应版本。
+- MySQL 仓储已经覆盖 identity、asset、alert、work-order、runtime-state、AI interaction 和 operation audit；生产部署前需通过 `database/mysql/migrate.sh` 执行受控迁移，并确认 `schema_migrations` 已登记对应版本。
 - Redis session 已支持配置化接入，后续需要补充连接失败降级策略和监控指标。
 - 当前 MongoDB 仅做依赖探测，后续可用于长日志、知识片段或非结构化诊断上下文。
 - 当前 HTTP 冒烟测试默认使用内存仓储；`deployment/preflight.ps1` 覆盖离线部署基线，CI dependency smoke 已覆盖 MySQL/Redis/MongoDB 真实启动、认证、MySQL 核心业务 CRUD、Redis 数据结构读写和 MongoDB 文档 CRUD。
 ## 真实依赖冒烟测试
 
-CI 会使用 `deployment/docker-compose.yml` 启动 MySQL、Redis 和 MongoDB，并运行 `backend/tests/dependency_services_smoke.sh`。该测试会重复执行 MySQL 迁移脚本以验证幂等性，检查 `schema_migrations`，执行 `database/mysql/integration/real_crud_smoke.sql` 覆盖真实 MySQL 核心业务 CRUD，验证 Redis 鉴权 `PING`、key/value、TTL、counter 和 hash 读写，并加载 MongoDB 初始化脚本后执行 `ping` 与 `database/mongodb/integration/real_crud_smoke.js` 文档 CRUD。
+CI 会使用 `deployment/docker-compose.yml` 启动 MySQL、Redis 和 MongoDB，并运行 `backend/tests/dependency_services_smoke.sh`。该测试会先运行迁移入口的 fake-client 回归测试，再使用同一迁移入口重复执行 MySQL 迁移，验证幂等性、顺序和 `schema_migrations`，执行 `database/mysql/integration/real_crud_smoke.sql` 覆盖真实 MySQL 核心业务 CRUD，验证 Redis 鉴权 `PING`、key/value、TTL、counter 和 hash 读写，并加载 MongoDB 初始化脚本后执行 `ping` 与 `database/mongodb/integration/real_crud_smoke.js` 文档 CRUD。
 
 本地已安装 Docker 且已经构建 `dev-http` 后，可运行真实运行时 profile 验收脚本。脚本会读取 `deployment/.env`，拒绝 `change-me-*` 示例密钥，并可选启动依赖、运行 dependency smoke、执行 MySQL 仓储 + Redis session HTTP smoke：
 

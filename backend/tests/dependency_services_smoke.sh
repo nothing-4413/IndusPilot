@@ -4,6 +4,9 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$repo_root"
 
+echo "[integration] check MySQL migration runner"
+bash backend/tests/mysql_migration_runner_smoke.sh
+
 compose=(docker compose --env-file deployment/.env -f deployment/docker-compose.yml)
 
 echo "[integration] check compose services"
@@ -12,10 +15,8 @@ echo "[integration] check compose services"
 echo "[integration] re-run MySQL migrations"
 "${compose[@]}" exec -T mysql sh -c '
   set -eu
-  for script in /docker-entrypoint-initdb.d/*.sql; do
-    echo "apply ${script}"
-    mysql --protocol=TCP -h 127.0.0.1 -uroot -p"${MYSQL_ROOT_PASSWORD}" < "${script}"
-  done
+  MYSQL_HOST=127.0.0.1 MYSQL_PORT=3306 MYSQL_USER=root MYSQL_PWD="${MYSQL_ROOT_PASSWORD}" MYSQL_DATABASE=induspilot \
+    bash /docker-entrypoint-initdb.d/migrate.sh
   mysql --protocol=TCP -h 127.0.0.1 -uroot -p"${MYSQL_ROOT_PASSWORD}" induspilot -e "SELECT version FROM schema_migrations ORDER BY version;"
   mysql --protocol=TCP -h 127.0.0.1 -uroot -p"${MYSQL_ROOT_PASSWORD}" induspilot -e "SELECT COUNT(*) AS audit_columns FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = '\''operation_audit_events'\'' AND column_name IN ('\''previous_hash'\'', '\''event_hash'\'');"
 '
