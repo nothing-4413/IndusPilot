@@ -67,6 +67,7 @@ $requiredFiles = @(
     "database/mysql/011_credential_version.sql",
     "database/mysql/012_seed_account_governance.sql",
     "database/mysql/013_notification_delivery_queue.sql",
+    "database/mysql/014_migration_integrity.sql",
     "database/mysql/migrate.sh",
     "database/mongodb/init_collections.js",
     "database/mongodb/integration/real_crud_smoke.js",
@@ -156,6 +157,7 @@ $schemaScripts = @(
     "database/mysql/011_credential_version.sql",
     "database/mysql/012_seed_account_governance.sql",
     "database/mysql/013_notification_delivery_queue.sql"
+    ,"database/mysql/014_migration_integrity.sql"
 )
 $expectedMigrations = @(
     "001_foundation_schema",
@@ -171,6 +173,7 @@ $expectedMigrations = @(
     "011_credential_version",
     "012_seed_account_governance",
     "013_notification_delivery_queue"
+    ,"014_migration_integrity"
 )
 foreach ($migration in $expectedMigrations) {
     $found = $false
@@ -189,10 +192,11 @@ foreach ($migration in $expectedMigrations) {
 
 $migrationRunner = Get-FileText "database/mysql/migrate.sh"
 if ($migrationRunner -match "schema_migrations" -and $migrationRunner -match "ORDER BY version" -and
-    $migrationRunner -match "unknown recorded migration version" -and $migrationRunner -match "migration order gap") {
-    Write-CheckOk "MySQL 迁移入口包含版本顺序和未知版本阻止"
+    $migrationRunner -match "unknown recorded migration version" -and $migrationRunner -match "migration order gap" -and
+    $migrationRunner -match "GET_LOCK" -and $migrationRunner -match "migration checksum mismatch") {
+    Write-CheckOk "MySQL 迁移入口包含版本、锁和完整性阻止"
 } else {
-    Write-CheckFail "MySQL 迁移入口缺少版本治理检查"
+    Write-CheckFail "MySQL 迁移入口缺少版本、锁或完整性治理检查"
 }
 
 $hardCodedDatabaseSelection = $false

@@ -158,7 +158,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File deployment/preflight.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File deployment/preflight.ps1 -RequireDocker
 ```
 
-MySQL 初始化脚本会登记以下版本到 `schema_migrations`：`001_foundation_schema`、`002_seed_identity`、`003_runtime_persistence_schema`、`004_work_order_attachments_schema`、`005_alert_rules_notifications_schema`、`006_alert_notification_delivery_schema`、`007_operation_audit_events_schema`、`008_operation_audit_export_permission`、`009_operation_audit_integrity_schema`、`010_redact_legacy_login_audit_tokens`、`011_credential_version`、`012_seed_account_governance`、`013_notification_delivery_queue`。该版本表用于部署核对；后端不会在启动时自动迁移数据库。
+MySQL 初始化脚本会登记以下版本到 `schema_migrations`：`001_foundation_schema`、`002_seed_identity`、`003_runtime_persistence_schema`、`004_work_order_attachments_schema`、`005_alert_rules_notifications_schema`、`006_alert_notification_delivery_schema`、`007_operation_audit_events_schema`、`008_operation_audit_export_permission`、`009_operation_audit_integrity_schema`、`010_redact_legacy_login_audit_tokens`、`011_credential_version`、`012_seed_account_governance`、`013_notification_delivery_queue`、`014_migration_integrity`。该版本表用于部署核对；后端不会在启动时自动迁移数据库。
 
 生产或升级环境应使用统一迁移入口。它会按编号应用待执行脚本，拒绝未知版本和版本跳跃，并在每个脚本完成后校验版本登记：
 
@@ -167,7 +167,7 @@ MYSQL_HOST=127.0.0.1 MYSQL_PORT=3306 MYSQL_USER=root MYSQL_PWD='your-root-passwo
   MYSQL_DATABASE=induspilot bash database/mysql/migrate.sh
 ```
 
-`MYSQL_DATABASE` 可替换为部署使用的合法数据库标识符；迁移脚本通过 `MYSQL_PWD` 接收密码，避免将密码放入 mysql 命令行参数。不支持自动回滚，失败后应先修复数据库状态再重新执行。
+`MYSQL_DATABASE` 可替换为部署使用的合法数据库标识符；迁移脚本通过 `MYSQL_PWD` 接收密码，避免将密码放入 mysql 命令行参数。Runner 在同一个 MySQL 会话中持有 advisory lock，并为每个已登记迁移验证 SHA-256 checksum；checksum 不匹配或锁已被占用时必须停止排查，不能绕过后继续执行。不支持自动回滚，失败后应先修复数据库状态再重新执行。
 ## HTTP 冒烟测试
 
 CTest 已注册 `induspilot-http-integration-smoke`，覆盖：
