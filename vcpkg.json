@@ -1,0 +1,11 @@
+{
+  "name": "induspilot",
+  "version-string": "0.1.0",
+  "dependencies": [
+    "redis-plus-plus",
+    {
+      "name": "drogon",
+      "features": ["mysql", "orm", "redis", "yaml"]
+    }
+  ]
+}
