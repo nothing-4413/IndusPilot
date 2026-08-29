@@ -557,6 +557,9 @@ int main() {
     auditQuery.actor = "admin";
     auditQuery.action = "test.record";
     assert(audit.events(auditQuery).size() == 1);
+    auditQuery.occurredFrom = auditEvent.occurredAt;
+    auditQuery.occurredTo = auditEvent.occurredAt;
+    assert(audit.events(auditQuery).size() == 1);
     induspilot::modules::MetricsRegistry metrics;
     metrics.recordHttpRequest("GET", "/health", 200, 2.5);
     metrics.recordHttpRequest("POST", "/api/v1/ai/diagnose", 200, 7.0);

@@ -2,17 +2,43 @@
 
 #include "induspilot/http/http_common.hpp"
 
+#include <cctype>
 #include <sstream>
 
 namespace induspilot::http {
 namespace {
 
-modules::OperationAuditQuery auditQueryFromRequest(const drogon::HttpRequestPtr& request) {
-    modules::OperationAuditQuery query;
+bool validAuditTimestamp(const std::string& value) {
+    if (value.size() != 19 || value[4] != '-' || value[7] != '-' || value[10] != 'T' ||
+        value[13] != ':' || value[16] != ':') {
+        return false;
+    }
+    for (std::size_t index = 0; index < value.size(); ++index) {
+        if (index == 4 || index == 7 || index == 10 || index == 13 || index == 16) {
+            continue;
+        }
+        if (!std::isdigit(static_cast<unsigned char>(value[index]))) {
+            return false;
+        }
+    }
+    const auto number = [&value](std::size_t offset, std::size_t length) {
+        return std::stoi(value.substr(offset, length));
+    };
+    const auto month = number(5, 2);
+    const auto day = number(8, 2);
+    const auto hour = number(11, 2);
+    const auto minute = number(14, 2);
+    const auto second = number(17, 2);
+    return month >= 1 && month <= 12 && day >= 1 && day <= 31 && hour <= 23 && minute <= 59 && second <= 59;
+}
+
+bool auditQueryFromRequest(const drogon::HttpRequestPtr& request, modules::OperationAuditQuery& query, std::string& error) {
     const auto actor = request->getParameter("actor");
     const auto action = request->getParameter("action");
     const auto resourceType = request->getParameter("resourceType");
     const auto result = request->getParameter("result");
+    const auto occurredFrom = request->getParameter("occurredFrom");
+    const auto occurredTo = request->getParameter("occurredTo");
     if (!actor.empty()) {
         query.actor = actor;
     }
@@ -25,7 +51,25 @@ modules::OperationAuditQuery auditQueryFromRequest(const drogon::HttpRequestPtr&
     if (!result.empty()) {
         query.result = result;
     }
-    return query;
+    if (!occurredFrom.empty() && !validAuditTimestamp(occurredFrom)) {
+        error = "occurredFrom must use YYYY-MM-DDTHH:MM:SS";
+        return false;
+    }
+    if (!occurredTo.empty() && !validAuditTimestamp(occurredTo)) {
+        error = "occurredTo must use YYYY-MM-DDTHH:MM:SS";
+        return false;
+    }
+    if (!occurredFrom.empty()) {
+        query.occurredFrom = occurredFrom;
+    }
+    if (!occurredTo.empty()) {
+        query.occurredTo = occurredTo;
+    }
+    if (query.occurredFrom && query.occurredTo && *query.occurredFrom > *query.occurredTo) {
+        error = "occurredFrom must not be later than occurredTo";
+        return false;
+    }
+    return true;
 }
 
 std::string csvCell(std::string value) {
@@ -100,7 +144,12 @@ void registerAuditRoutes(drogon::HttpAppFramework& server, const HttpServerConte
             return;
         }
         writeRequestLog(request, session);
-        const auto query = auditQueryFromRequest(request);
+        modules::OperationAuditQuery query;
+        std::string queryError;
+        if (!auditQueryFromRequest(request, query, queryError)) {
+            callback(invalidRequest(queryError));
+            return;
+        }
 
         std::optional<int> limit;
         std::optional<int> offset;
@@ -153,7 +202,12 @@ void registerAuditRoutes(drogon::HttpAppFramework& server, const HttpServerConte
             return;
         }
         writeRequestLog(request, session);
-        const auto query = auditQueryFromRequest(request);
+        modules::OperationAuditQuery query;
+        std::string queryError;
+        if (!auditQueryFromRequest(request, query, queryError)) {
+            callback(invalidRequest(queryError));
+            return;
+        }
         const auto events = audit->events(query);
         recordAuditEvent(audit, session->user.username, "operation-audit.export", "operation-audit", "count=" + std::to_string(events.size()), "success", traceIdFor(request));
         auto response = drogon::HttpResponse::newHttpResponse();

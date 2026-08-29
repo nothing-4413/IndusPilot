@@ -361,6 +361,11 @@ try {
     Assert-True ($pagedLoginAudit.data.limit -eq 1) "Operation audit filtered page limit did not match."
     Assert-True ($pagedLoginAudit.data.offset -eq 0) "Operation audit filtered page offset did not match."
     Assert-True (@($pagedLoginAudit.data.items).Count -eq 1) "Operation audit filtered page size did not match."
+    $auditTimeRange = Invoke-RestMethod -Uri "$BaseUrl/api/v1/audit/events?actor=admin&action=auth.login&occurredFrom=2000-01-01T00:00:00&occurredTo=9999-12-31T23:59:59" -Method Get -Headers $adminHeaders -TimeoutSec 10
+    Assert-True $auditTimeRange.success "Operation audit time range query failed."
+    Assert-True (@($auditTimeRange.data).Count -ge 1) "Operation audit time range query returned no matching event."
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/audit/events?occurredFrom=2030-01-01T00:00:00&occurredTo=2029-01-01T00:00:00" -Method Get -Status 400 -Headers $adminHeaders
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/audit/events?occurredFrom=not-a-timestamp" -Method Get -Status 400 -Headers $adminHeaders
     $loginAuditCsv = Invoke-RestMethod -Uri "$BaseUrl/api/v1/audit/events/export?actor=admin&action=auth.login" -Method Get -Headers $adminHeaders -TimeoutSec 10
     Assert-True ($loginAuditCsv -like "id,actor,action,resourceType,resourceId,result,traceId,occurredAt,previousHash,eventHash*") "Operation audit CSV header was not returned."
     Assert-True ($loginAuditCsv -like "*auth.login*") "Operation audit CSV content did not include login event."

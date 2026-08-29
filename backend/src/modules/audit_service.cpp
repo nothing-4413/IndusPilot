@@ -57,7 +57,9 @@ bool matches(const domain::OperationAuditEvent& event, const OperationAuditQuery
     return (!query.actor || event.actor == *query.actor) &&
         (!query.action || event.action == *query.action) &&
         (!query.resourceType || event.resourceType == *query.resourceType) &&
-        (!query.result || event.result == *query.result);
+        (!query.result || event.result == *query.result) &&
+        (!query.occurredFrom || event.occurredAt >= *query.occurredFrom) &&
+        (!query.occurredTo || event.occurredAt <= *query.occurredTo);
 }
 
 }  // namespace

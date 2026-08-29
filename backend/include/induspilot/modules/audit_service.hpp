@@ -25,6 +25,8 @@ struct OperationAuditQuery {
     std::optional<std::string> action;
     std::optional<std::string> resourceType;
     std::optional<std::string> result;
+    std::optional<std::string> occurredFrom;
+    std::optional<std::string> occurredTo;
 };
 
 class AuditService {

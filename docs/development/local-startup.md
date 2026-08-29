@@ -88,7 +88,7 @@ $env:INDUSPILOT_REPOSITORY_STORE="mysql"
 
 ## 操作审计筛选调试
 
-管理员登录后可直接调试分页筛选：`GET /api/v1/audit/events?actor=operator&action=alert-notification.dispatch&limit=20&offset=0`。Qt 客户端在“操作审计”页提供用户、动作、资源类型和结果筛选输入，并展示当前页范围与总数。
+管理员登录后可直接调试分页筛选：`GET /api/v1/audit/events?actor=operator&action=alert-notification.dispatch&occurredFrom=2026-01-01T00:00:00&occurredTo=2026-12-31T23:59:59&limit=20&offset=0`。`occurredFrom` 和 `occurredTo` 是包含边界的 `YYYY-MM-DDTHH:MM:SS` 时间范围；Qt 客户端在“操作审计”页提供用户、动作、资源类型和结果筛选输入，并展示当前页范围与总数。
 
 ## 操作审计导出调试
 

@@ -64,7 +64,7 @@ $env:INDUSPILOT_REPOSITORY_STORE="mysql"
 
 ## 操作审计筛选分页
 
-操作审计接口支持 `actor`、`action`、`resourceType`、`result` 精确筛选。`GET /api/v1/audit/events` 未传分页参数时保持数组响应；传入 `limit` 或 `offset` 时返回 `{ items, total, limit, offset }`，Qt 客户端“操作审计”页面已接入筛选输入框和上一页/下一页控件。
+操作审计接口支持 `actor`、`action`、`resourceType`、`result` 精确筛选，以及 `occurredFrom`、`occurredTo` 包含边界的 `YYYY-MM-DDTHH:MM:SS` 时间范围筛选。`GET /api/v1/audit/events` 未传分页参数时保持数组响应；传入 `limit` 或 `offset` 时返回 `{ items, total, limit, offset }`，Qt 客户端“操作审计”页面已接入筛选输入框和上一页/下一页控件。
 
 ## 操作审计 CSV 导出
 
