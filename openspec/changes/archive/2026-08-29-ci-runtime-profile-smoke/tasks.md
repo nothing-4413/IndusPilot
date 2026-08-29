@@ -10,4 +10,4 @@
 
 ## 3. Verification and delivery
 - [x] 3.1 Run script/configuration checks and the available local build/test gates
-- [ ] 3.2 Validate OpenSpec, commit, push, and archive this change
+- [x] 3.2 Validate OpenSpec, commit, push, and archive this change
