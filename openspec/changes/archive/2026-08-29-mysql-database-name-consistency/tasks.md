@@ -13,4 +13,4 @@
 ## 3. Verification and delivery
 
 - [x] 3.1 Run migration runner, shell syntax, preflight, quality, and available backend checks.
-- [ ] 3.2 Commit, push, and archive this change.
+- [x] 3.2 Commit, push, and archive this change.
