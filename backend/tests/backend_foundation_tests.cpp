@@ -18,6 +18,7 @@
 #include "induspilot/http/http_request_lifecycle.hpp"
 
 #include <cassert>
+#include <atomic>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -25,6 +26,16 @@
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <thread>
+
+class RecordingAuditDeliverySink final : public induspilot::modules::AuditDeliverySink {
+public:
+    void deliver(const induspilot::domain::OperationAuditEvent&) const override {
+        deliveryCount.fetch_add(1);
+    }
+
+    mutable std::atomic<int> deliveryCount{0};
+};
 
 static_assert(std::has_virtual_destructor_v<induspilot::data::UserRepository>);
 static_assert(std::has_virtual_destructor_v<induspilot::data::AssetRepository>);
@@ -161,6 +172,15 @@ int main() {
     auto invalidWebhookConfig = induspilot::app::AppConfig{};
     invalidWebhookConfig.notifications.webhookEnabled = true;
     assert(!induspilot::app::validateConfig(invalidWebhookConfig).valid);
+    auto invalidSiemConfig = induspilot::app::AppConfig{};
+    invalidSiemConfig.audit.siemWebhookEnabled = true;
+    assert(!induspilot::app::validateConfig(invalidSiemConfig).valid);
+    invalidSiemConfig.audit.siemWebhookUrl = "ftp://siem.example.test/events";
+    invalidSiemConfig.audit.siemWebhookAllowedHosts = "siem.example.test";
+    assert(!induspilot::app::validateConfig(invalidSiemConfig).valid);
+    invalidSiemConfig.audit.siemWebhookUrl = "https://siem.example.test/events";
+    invalidSiemConfig.audit.siemWebhookAllowedHosts = "siem.example.test";
+    assert(induspilot::app::validateConfig(invalidSiemConfig).valid);
     assert(loadedConfig.security.passwordMinLength == 12);
     assert(loadedConfig.security.passwordIterations == 120000);
     assert(induspilot::app::validateConfig(induspilot::app::AppConfig{}).valid);
@@ -567,6 +587,24 @@ int main() {
     auditQuery.actor = "admin";
     auditQuery.action = "test.record";
     assert(audit.events(auditQuery).size() == 1);
+    auto retentionConfig = induspilot::app::AuditConfig{};
+    retentionConfig.retentionDays = 1;
+    auto retentionRepository = std::make_shared<induspilot::data::InMemoryOperationAuditRepository>();
+    induspilot::modules::AuditService retainedAudit(retentionRepository, nullptr, retentionConfig);
+    retainedAudit.record(induspilot::domain::OperationAuditEvent{"audit-retained-old", "admin", "test.old", "test", "old", "success", "trace-old", "2000-01-01T00:00:00"});
+    retainedAudit.record(induspilot::domain::OperationAuditEvent{"audit-retained-new", "admin", "test.new", "test", "new", "success", "trace-new", ""});
+    assert(retainedAudit.events().size() == 1);
+    assert(retainedAudit.archiveEvents().size() == 2);
+    assert(retainedAudit.integrityReport().verified);
+    assert(retainedAudit.integrityReport().total == 2);
+    const auto recordingSink = std::make_shared<RecordingAuditDeliverySink>();
+    induspilot::modules::AuditService deliveredAudit(
+        std::make_shared<induspilot::data::InMemoryOperationAuditRepository>(), recordingSink);
+    deliveredAudit.record(induspilot::domain::OperationAuditEvent{"audit-delivery", "admin", "test.delivery", "test", "delivery", "success", "trace-delivery", ""});
+    for (int attempt = 0; attempt < 50 && recordingSink->deliveryCount.load() == 0; ++attempt) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    assert(recordingSink->deliveryCount.load() == 1);
     auditQuery.occurredFrom = auditEvent.occurredAt;
     auditQuery.occurredTo = auditEvent.occurredAt;
     assert(audit.events(auditQuery).size() == 1);

@@ -346,6 +346,7 @@ try {
 
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/audit/events" -Method Get -Status 403 -Headers $operatorHeaders
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/audit/events/export" -Method Get -Status 403 -Headers $operatorHeaders
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/audit/events/archive" -Method Get -Status 403 -Headers $operatorHeaders
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/audit/integrity" -Method Get -Status 403 -Headers $operatorHeaders
     $loginAudit = Invoke-RestMethod -Uri "$BaseUrl/api/v1/audit/events" -Method Get -Headers $adminHeaders -TimeoutSec 10
     Assert-True $loginAudit.success "Operation audit query failed."
@@ -370,6 +371,9 @@ try {
     Assert-True ($loginAuditCsv -like "id,actor,action,resourceType,resourceId,result,traceId,occurredAt,previousHash,eventHash*") "Operation audit CSV header was not returned."
     Assert-True ($loginAuditCsv -like "*auth.login*") "Operation audit CSV content did not include login event."
     Assert-True (-not $loginAuditCsv.Contains($adminToken)) "Operation audit CSV must not contain the session token."
+    $loginAuditArchive = Invoke-RestMethod -Uri "$BaseUrl/api/v1/audit/events/archive?actor=admin&action=auth.login" -Method Get -Headers $adminHeaders -TimeoutSec 10
+    Assert-True ($loginAuditArchive -like "id,actor,action,resourceType,resourceId,result,traceId,occurredAt,previousHash,eventHash*") "Operation audit archive CSV header was not returned."
+    Assert-True ($loginAuditArchive -like "*auth.login*") "Operation audit archive content did not include login event."
     $auditIntegrity = Invoke-RestMethod -Uri "$BaseUrl/api/v1/audit/integrity" -Method Get -Headers $adminHeaders -TimeoutSec 10
     Assert-True $auditIntegrity.success "Operation audit integrity query failed."
     Assert-True $auditIntegrity.data.verified "Operation audit hash chain was not verified."

@@ -47,6 +47,14 @@ struct NotificationConfig {
     std::string webhookAllowedHosts;
 };
 
+struct AuditConfig {
+    int retentionDays{0};
+    bool siemWebhookEnabled{false};
+    std::string siemWebhookUrl;
+    int siemWebhookTimeoutMs{5000};
+    std::string siemWebhookAllowedHosts;
+};
+
 struct ReadinessConfig {
     int probeTimeoutMs{1000};
     int probeCacheMs{1000};
@@ -80,6 +88,7 @@ struct AppConfig {
     DatabaseConfig mongodb{"127.0.0.1", 27017, "induspilot", "", "", "mongodb://127.0.0.1:27017"};
     AiConfig ai{};
     NotificationConfig notifications{};
+    AuditConfig audit{};
     ReadinessConfig readiness{};
     ShutdownConfig shutdown{};
     SecurityConfig security{};

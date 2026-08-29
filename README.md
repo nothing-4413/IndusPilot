@@ -70,6 +70,7 @@ $env:INDUSPILOT_REPOSITORY_STORE="mysql"
 
 操作审计新增 `audit:export` 独立权限和 `GET /api/v1/audit/events/export` CSV 导出接口，支持复用 `actor`、`action`、`resourceType`、`result` 筛选条件。Qt 客户端“操作审计”页面提供导出按钮，导出成功会在后端记录 `operation-audit.export` 审计事件。
 操作审计仓储使用 append-only 语义；重复 event code 不会覆盖既有事件，MySQL 使用唯一约束保证并发重复写入也保持原记录。
+`audit.retention_days` 可以限制日常查询的可见窗口，但不会删除哈希链历史；管理员可使用 `GET /api/v1/audit/events/archive` 生成完整 CSV 归档。可选 SIEM webhook 默认关闭，启用时必须配置精确主机允许名单，且投递失败不会阻断审计写入。
 Webhook 除精确 host allowlist 外还会校验 DNS 解析地址，拒绝非公网地址并拒绝将 3xx 重定向视为投递成功。
 ## 质量门禁
 

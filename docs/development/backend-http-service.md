@@ -65,6 +65,7 @@ ctest --preset dev-http
 - `GET /api/v1/ai/interactions`：需要 `ai:use` 权限，查询 AI 交互审计记录；支持 `relatedType`、`relatedId`、`limit` 和 `offset` 查询参数；未传分页参数时返回数组，传入分页参数时返回 `{ items, total, limit, offset }`。
 - `GET /api/v1/audit/events`：需要 `audit:read` 权限，查询操作审计事件；支持 `actor`、`action`、`resourceType`、`result`、`limit` 和 `offset` 查询参数。
 - `GET /api/v1/audit/events/export`：需要 `audit:export` 权限，按当前筛选条件导出操作审计 CSV。
+- `GET /api/v1/audit/events/archive`：需要 `audit:export` 权限，按筛选条件导出完整操作审计链 CSV，不受常规保留窗口限制。
 - `GET /api/v1/audit/integrity`：需要 `audit:read` 权限，复算操作审计哈希链并返回完整性状态。
 
 接口响应统一使用：`success`、`code`、`message`、`data`。
@@ -175,6 +176,12 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File backend/tests/http_runti
 ## 操作审计 CSV 导出
 
 `GET /api/v1/audit/events/export` 需要 `audit:export` 权限，返回 `text/csv; charset=utf-8` 内容，并支持与审计查询一致的 `actor`、`action`、`resourceType`、`result` 筛选参数。默认管理员拥有该权限，operator 和 maintainer 不具备。导出成功后系统会写入 `operation-audit.export` 审计事件，资源编号包含导出数量摘要。
+
+## 操作审计保留、归档与 SIEM
+
+`audit.retention_days` 为正数时，`GET /api/v1/audit/events` 的常规可见范围从当前时间向前计算对应天数；不会删除任何事件，也不会影响完整性检查。`GET /api/v1/audit/events/archive` 使用完整链记录生成 CSV 并写入 `operation-audit.archive` 事件。
+
+SIEM 仅在 `audit.siem_webhook_enabled=true` 时启用。配置还必须提供 `audit.siem_webhook_url`、`audit.siem_webhook_allowed_hosts` 和可选超时。投递 URL 只允许 HTTP(S)，主机必须精确匹配允许名单，所有 DNS 地址均须是公网地址；投递在落库后异步尽力执行，失败不会影响原审计事件。
 
 ## 操作审计完整性校验
 

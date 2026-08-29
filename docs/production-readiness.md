@@ -66,4 +66,4 @@ openspec validate agent-diagnosis-orchestration --strict
 
 ## 操作审计导出边界
 
-操作审计导出已使用独立 `audit:export` 权限保护，并会记录导出行为自身。生产环境继续建议补充导出审批、文件水印、敏感字段脱敏、下载频率限制、异步大文件导出和导出文件保留策略。
+操作审计导出已使用独立 `audit:export` 权限保护，并会记录导出行为自身。`audit.retention_days` 只限制日常查询窗口，不得用于删除哈希链记录；需要完整历史时使用受同一权限保护的 `GET /api/v1/audit/events/archive`。SIEM webhook 默认关闭，启用时必须同时配置 URL 与精确 `audit.siem_webhook_allowed_hosts`；系统校验 HTTP(S) URL、全部 DNS 结果均为公网地址，并连接已验证地址。SIEM 投递是尽力而为的后台操作，失败不影响审计写入。生产环境继续建议补充导出审批、文件水印、敏感字段脱敏、下载频率限制、异步大文件导出和归档文件保留策略。

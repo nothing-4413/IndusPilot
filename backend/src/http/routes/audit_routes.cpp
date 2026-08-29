@@ -218,6 +218,29 @@ void registerAuditRoutes(drogon::HttpAppFramework& server, const HttpServerConte
         response->setBody(operationAuditEventsToCsv(events));
         callback(response);
     }, {drogon::Get});
+
+    server.registerHandler("/api/v1/audit/events/archive", [identity, audit](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+        const auto session = requireSession(identity, request, callback);
+        if (!session || !requirePermission(identity, *session, "audit:export", callback)) {
+            return;
+        }
+        writeRequestLog(request, session);
+        modules::OperationAuditQuery query;
+        std::string queryError;
+        if (!auditQueryFromRequest(request, query, queryError)) {
+            callback(invalidRequest(queryError));
+            return;
+        }
+        const auto events = audit->archiveEvents(query);
+        recordAuditEvent(audit, session->user.username, "operation-audit.archive", "operation-audit", "count=" + std::to_string(events.size()), "success", traceIdFor(request));
+        auto response = drogon::HttpResponse::newHttpResponse();
+        response->setStatusCode(drogon::k200OK);
+        response->setContentTypeCode(drogon::CT_TEXT_PLAIN);
+        response->addHeader("Content-Type", "text/csv; charset=utf-8");
+        response->addHeader("Content-Disposition", "attachment; filename=operation-audit-archive.csv");
+        response->setBody(operationAuditEventsToCsv(events));
+        callback(response);
+    }, {drogon::Get});
 }
 
 }  // namespace induspilot::http

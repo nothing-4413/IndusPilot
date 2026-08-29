@@ -40,6 +40,17 @@ bool parseBool(const std::string& value, bool& parsed) {
     return false;
 }
 
+bool isHttpUrl(const std::string& value) {
+    const auto schemeEnd = value.find("://");
+    if (schemeEnd == std::string::npos || (value.substr(0, schemeEnd) != "http" && value.substr(0, schemeEnd) != "https")) {
+        return false;
+    }
+    const auto authorityStart = schemeEnd + 3;
+    const auto authorityEnd = value.find_first_of("/?#", authorityStart);
+    const auto authority = value.substr(authorityStart, authorityEnd == std::string::npos ? std::string::npos : authorityEnd - authorityStart);
+    return !authority.empty() && authority.find('@') == std::string::npos && authority.find_first_of(" \t\r\n") == std::string::npos;
+}
+
 void addLoadError(AppConfig& config, const std::string& message) {
     config.loadErrors.push_back(message);
 }
@@ -182,6 +193,16 @@ void applyConfigValue(
         parseInteger(config.notifications.webhookTimeoutMs);
     } else if (section == "notifications" && (key == "webhookAllowedHosts" || key == "webhook_allowed_hosts")) {
         config.notifications.webhookAllowedHosts = value;
+    } else if (section == "audit" && (key == "retentionDays" || key == "retention_days")) {
+        parseInteger(config.audit.retentionDays);
+    } else if (section == "audit" && (key == "siemWebhookEnabled" || key == "siem_webhook_enabled")) {
+        parseBoolean(config.audit.siemWebhookEnabled);
+    } else if (section == "audit" && (key == "siemWebhookUrl" || key == "siem_webhook_url")) {
+        config.audit.siemWebhookUrl = value;
+    } else if (section == "audit" && (key == "siemWebhookTimeoutMs" || key == "siem_webhook_timeout_ms")) {
+        parseInteger(config.audit.siemWebhookTimeoutMs);
+    } else if (section == "audit" && (key == "siemWebhookAllowedHosts" || key == "siem_webhook_allowed_hosts")) {
+        config.audit.siemWebhookAllowedHosts = value;
     } else if (section == "readiness" && (key == "probeTimeoutMs" || key == "probe_timeout_ms")) {
         parseInteger(config.readiness.probeTimeoutMs);
     } else if (section == "readiness" && (key == "probeCacheMs" || key == "probe_cache_ms")) {
@@ -255,6 +276,12 @@ void applyEnvironmentOverrides(AppConfig& config) {
     applyIntEnv(config, "INDUSPILOT_NOTIFICATIONS_WEBHOOK_TIMEOUT_MS", "notifications.webhook_timeout_ms", config.notifications.webhookTimeoutMs);
     applyStringEnv("INDUSPILOT_NOTIFICATIONS_WEBHOOK_ALLOWED_HOSTS", config.notifications.webhookAllowedHosts);
 
+    applyIntEnv(config, "INDUSPILOT_AUDIT_RETENTION_DAYS", "audit.retention_days", config.audit.retentionDays);
+    applyBoolEnv(config, "INDUSPILOT_AUDIT_SIEM_WEBHOOK_ENABLED", "audit.siem_webhook_enabled", config.audit.siemWebhookEnabled);
+    applyStringEnv("INDUSPILOT_AUDIT_SIEM_WEBHOOK_URL", config.audit.siemWebhookUrl);
+    applyIntEnv(config, "INDUSPILOT_AUDIT_SIEM_WEBHOOK_TIMEOUT_MS", "audit.siem_webhook_timeout_ms", config.audit.siemWebhookTimeoutMs);
+    applyStringEnv("INDUSPILOT_AUDIT_SIEM_WEBHOOK_ALLOWED_HOSTS", config.audit.siemWebhookAllowedHosts);
+
     applyIntEnv(config, "INDUSPILOT_READINESS_PROBE_TIMEOUT_MS", "readiness.probe_timeout_ms", config.readiness.probeTimeoutMs);
     applyIntEnv(config, "INDUSPILOT_READINESS_PROBE_CACHE_MS", "readiness.probe_cache_ms", config.readiness.probeCacheMs);
     applyIntEnv(config, "INDUSPILOT_SHUTDOWN_DRAIN_TIMEOUT_MS", "shutdown.drain_timeout_ms", config.shutdown.drainTimeoutMs);
@@ -301,7 +328,7 @@ AppConfig loadConfig(const std::string& path) {
                 section = trim(line.substr(0, pos));
                 if (section != "server" && section != "log" && section != "mysql" && section != "redis" &&
                     section != "storage" && section != "mongodb" && section != "security" && section != "ai" && section != "notifications" &&
-                    section != "readiness" && section != "shutdown") {
+                    section != "readiness" && section != "shutdown" && section != "audit") {
                     addLoadError(config, "line " + std::to_string(lineNumber) + ": unknown configuration section " + section);
                 }
                 continue;
@@ -378,6 +405,21 @@ ConfigValidation validateConfig(const AppConfig& config) {
     }
     if (config.notifications.webhookEnabled && config.notifications.webhookAllowedHosts.find_first_not_of(" \t,") == std::string::npos) {
         addError("notifications.webhook_allowed_hosts must not be empty when webhook delivery is enabled");
+    }
+    if (config.audit.retentionDays < 0) {
+        addError("audit.retention_days must not be negative");
+    }
+    if (config.audit.siemWebhookTimeoutMs < 1) {
+        addError("audit.siem_webhook_timeout_ms must be greater than zero");
+    }
+    if (config.audit.siemWebhookEnabled && config.audit.siemWebhookUrl.empty()) {
+        addError("audit.siem_webhook_url must not be empty when SIEM webhook delivery is enabled");
+    }
+    if (config.audit.siemWebhookEnabled && !config.audit.siemWebhookUrl.empty() && !isHttpUrl(config.audit.siemWebhookUrl)) {
+        addError("audit.siem_webhook_url must be an HTTP(S) URL without user information");
+    }
+    if (config.audit.siemWebhookEnabled && config.audit.siemWebhookAllowedHosts.find_first_not_of(" \t,") == std::string::npos) {
+        addError("audit.siem_webhook_allowed_hosts must not be empty when SIEM webhook delivery is enabled");
     }
     if (config.readiness.probeTimeoutMs < 1) {
         addError("readiness.probe_timeout_ms must be greater than zero");
