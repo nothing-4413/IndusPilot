@@ -17,6 +17,7 @@ GET /metrics
 - `induspilot_ai_provider_available_total{provider,operation}`：返回可用 provider 输出的调用次数。
 - `induspilot_ai_provider_unavailable_total{provider,operation}`：返回不可用结果并触发本地降级的调用次数。
 - `induspilot_ai_provider_duration_ms_sum{provider,operation}`：provider 调用耗时毫秒总和。
+- `induspilot_notification_deliveries_total{channel,outcome}`：按有限通知通道与队列结果聚合的投递尝试次数。
 - `induspilot_alert_closures_total`：成功关闭告警的次数。
 - `induspilot_work_order_closures_total`：成功关闭维护工单的次数。
 - `induspilot_readiness`：最新 readiness 状态，`1` 表示就绪，`0` 表示未就绪。

@@ -4,6 +4,7 @@
 #include "induspilot/data/repositories.hpp"
 #include "induspilot/domain/domain_types.hpp"
 #include "induspilot/modules/service_status.hpp"
+#include "induspilot/modules/metrics_service.hpp"
 
 #include <memory>
 #include <optional>
@@ -42,7 +43,8 @@ public:
     AlertService();
     explicit AlertService(
         std::shared_ptr<data::AlertRepository> repository,
-        std::shared_ptr<AlertNotificationSender> sender = nullptr);
+        std::shared_ptr<AlertNotificationSender> sender = nullptr,
+        std::shared_ptr<MetricsRegistry> metrics = nullptr);
 
     ServiceStatus status() const;
     domain::Alert create(domain::Alert alert);
@@ -64,6 +66,7 @@ private:
 
     std::shared_ptr<data::AlertRepository> repository_;
     std::shared_ptr<AlertNotificationSender> sender_;
+    std::shared_ptr<MetricsRegistry> metrics_;
 };
 
 std::optional<domain::AlertSeverity> alertSeverityFromString(const std::string& value);

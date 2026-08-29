@@ -565,6 +565,8 @@ int main() {
     metrics.recordHttpRequest("GET", "/api/v1/assets/not-exist", 404, 1.0);
     metrics.recordAiProviderCall("http", "diagnose", true, 12.5);
     metrics.recordAiProviderCall("provider-with-user-data", "prompt-secret", false, 2.0);
+    metrics.recordNotificationDelivery("webhook", "retrying");
+    metrics.recordNotificationDelivery("channel-with-user-data", "message-secret");
     metrics.recordReadiness({true, 4, 1, 2, 18, 1700000000000});
     assert(metrics.totalRequests() == 5);
     assert(metrics.totalErrors() == 1);
@@ -579,6 +581,8 @@ int main() {
     assert(metricsText.find("induspilot_ai_provider_calls_total{provider=\"http\",operation=\"diagnose\"} 1") != std::string::npos);
     assert(metricsText.find("prompt-secret") == std::string::npos);
     assert(metricsText.find("provider=\"unknown\"") != std::string::npos);
+    assert(metricsText.find("induspilot_notification_deliveries_total{channel=\"webhook\",outcome=\"retrying\"} 1") != std::string::npos);
+    assert(metricsText.find("message-secret") == std::string::npos);
     assert(metricsText.find("induspilot_readiness 1") != std::string::npos);
     assert(metricsText.find("induspilot_readiness_probes_total 4") != std::string::npos);
     assert(metricsText.find("induspilot_readiness_failures_total 1") != std::string::npos);

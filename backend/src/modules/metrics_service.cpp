@@ -86,6 +86,18 @@ std::string boundedOperation(const std::string& operation) {
     return "unknown";
 }
 
+std::string notificationMetricKey(const std::string& channel, const std::string& outcome) {
+    return channel + '\n' + outcome;
+}
+
+std::string boundedChannel(const std::string& channel) {
+    return channel == "console" || channel == "email" || channel == "webhook" ? channel : "unknown";
+}
+
+std::string boundedOutcome(const std::string& outcome) {
+    return outcome == "sent" || outcome == "retrying" || outcome == "dead_letter" ? outcome : "unknown";
+}
+
 }  // namespace
 
 std::string normalizeMetricPath(const std::string& path) {
@@ -140,6 +152,11 @@ void MetricsRegistry::recordAiProviderCall(const std::string& provider, const st
         metric.unavailableCount += 1;
     }
     metric.durationMsSum += std::max(0.0, durationMs);
+}
+
+void MetricsRegistry::recordNotificationDelivery(const std::string& channel, const std::string& outcome) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    ++notificationDeliveries_[notificationMetricKey(boundedChannel(channel), boundedOutcome(outcome))].count;
 }
 
 std::string MetricsRegistry::renderPrometheus() const {
@@ -204,6 +221,18 @@ std::string MetricsRegistry::renderPrometheus() const {
         out << "induspilot_ai_provider_available_total{" << labels << "} " << item.second.availableCount << '\n';
         out << "induspilot_ai_provider_unavailable_total{" << labels << "} " << item.second.unavailableCount << '\n';
         out << "induspilot_ai_provider_duration_ms_sum{" << labels << "} " << item.second.durationMsSum << '\n';
+    }
+
+    out << "# HELP induspilot_notification_deliveries_total Total notification delivery attempts by channel and outcome.\n";
+    out << "# TYPE induspilot_notification_deliveries_total counter\n";
+    for (const auto& item : notificationDeliveries_) {
+        std::istringstream keyStream(item.first);
+        std::string channel;
+        std::string outcome;
+        std::getline(keyStream, channel, '\n');
+        std::getline(keyStream, outcome, '\n');
+        const auto labels = std::string("channel=\"") + escapeLabel(channel) + "\",outcome=\"" + escapeLabel(outcome) + "\"";
+        out << "induspilot_notification_deliveries_total{" << labels << "} " << item.second.count << '\n';
     }
 
     out << "# HELP induspilot_http_route_requests_total HTTP requests grouped by method, normalized path and status.\n";

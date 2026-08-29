@@ -282,8 +282,8 @@ std::shared_ptr<AlertNotificationSender> makeAlertNotificationSender(const app::
     return std::make_shared<DefaultAlertNotificationSender>(config);
 }
 
-AlertService::AlertService(std::shared_ptr<data::AlertRepository> repository, std::shared_ptr<AlertNotificationSender> sender)
-    : repository_(std::move(repository)), sender_(std::move(sender)) {
+AlertService::AlertService(std::shared_ptr<data::AlertRepository> repository, std::shared_ptr<AlertNotificationSender> sender, std::shared_ptr<MetricsRegistry> metrics)
+    : repository_(std::move(repository)), sender_(std::move(sender)), metrics_(std::move(metrics)) {
     if (!repository_) {
         repository_ = std::make_shared<data::InMemoryAlertRepository>();
     }
@@ -403,6 +403,9 @@ domain::AlertNotification AlertService::deliverNotification(domain::AlertNotific
         } else {
             notification.status = "dead_letter";
         }
+        if (metrics_) {
+            metrics_->recordNotificationDelivery(notification.channel, notification.status);
+        }
         return repository_->saveNotification(std::move(notification));
     }
     const auto delivery = sender_->send(notification);
@@ -417,6 +420,9 @@ domain::AlertNotification AlertService::deliverNotification(domain::AlertNotific
         } else {
             notification.status = "dead_letter";
         }
+        if (metrics_) {
+            metrics_->recordNotificationDelivery(notification.channel, notification.status);
+        }
         return repository_->saveNotification(std::move(notification));
     }
 
@@ -424,6 +430,9 @@ domain::AlertNotification AlertService::deliverNotification(domain::AlertNotific
     notification.lastError.clear();
     notification.deliveredAt = currentTimestamp();
     notification.nextAttemptAtUnixMs = 0;
+    if (metrics_) {
+        metrics_->recordNotificationDelivery(notification.channel, notification.status);
+    }
     return repository_->saveNotification(std::move(notification));
 }
 
