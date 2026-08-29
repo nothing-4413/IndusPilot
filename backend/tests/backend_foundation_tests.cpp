@@ -560,6 +560,12 @@ int main() {
     auditQuery.occurredFrom = auditEvent.occurredAt;
     auditQuery.occurredTo = auditEvent.occurredAt;
     assert(audit.events(auditQuery).size() == 1);
+    const auto duplicateAuditEvent = audit.record(induspilot::domain::OperationAuditEvent{
+        "audit-record-001", "tampered-actor", "tampered.action", "tampered", "tampered-resource", "failed", "tampered-trace", ""});
+    assert(duplicateAuditEvent.actor == auditEvent.actor);
+    assert(duplicateAuditEvent.action == auditEvent.action);
+    assert(duplicateAuditEvent.eventHash == auditEvent.eventHash);
+    assert(audit.integrityReport().verified);
     induspilot::modules::MetricsRegistry metrics;
     metrics.recordHttpRequest("GET", "/health", 200, 2.5);
     metrics.recordHttpRequest("POST", "/api/v1/ai/diagnose", 200, 7.0);

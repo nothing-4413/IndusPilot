@@ -228,7 +228,7 @@ domain::OperationAuditEvent InMemoryOperationAuditRepository::save(domain::Opera
     std::lock_guard<std::mutex> lock(mutex_);
     auto existing = std::find_if(events_.begin(), events_.end(), [&event](const auto& item) { return item.id == event.id; });
     if (existing != events_.end()) {
-        *existing = event;
+        return *existing;
     } else {
         events_.push_back(event);
     }

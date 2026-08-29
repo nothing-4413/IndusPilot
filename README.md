@@ -69,6 +69,7 @@ $env:INDUSPILOT_REPOSITORY_STORE="mysql"
 ## 操作审计 CSV 导出
 
 操作审计新增 `audit:export` 独立权限和 `GET /api/v1/audit/events/export` CSV 导出接口，支持复用 `actor`、`action`、`resourceType`、`result` 筛选条件。Qt 客户端“操作审计”页面提供导出按钮，导出成功会在后端记录 `operation-audit.export` 审计事件。
+操作审计仓储使用 append-only 语义；重复 event code 不会覆盖既有事件，MySQL 使用唯一约束保证并发重复写入也保持原记录。
 ## 质量门禁
 
 项目提供 `tools/quality/quality_gate.ps1`，用于检查 clang 配置、CMake presets、CI 工作流和 OpenSpec 基础约束。CI 中的 `quality gates` job 会强制要求 `clang-format` 与 `clang-tidy` 可用；`security scan` job 会运行 `tools/security/secret_scan.ps1`，阻断明显密钥误提交。更多说明见 `docs/development/quality-gates.md` 和 `docs/development/security-gates.md`。

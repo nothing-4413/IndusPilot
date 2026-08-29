@@ -688,11 +688,8 @@ MySqlOperationAuditRepository::MySqlOperationAuditRepository(drogon::orm::DbClie
 
 domain::OperationAuditEvent MySqlOperationAuditRepository::save(domain::OperationAuditEvent event) {
     client_->execSqlSync(
-        "INSERT INTO operation_audit_events(event_code, actor, action, resource_type, resource_id, result, trace_id, occurred_at, previous_hash, event_hash) "
-        "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
-        "ON DUPLICATE KEY UPDATE actor = VALUES(actor), action = VALUES(action), resource_type = VALUES(resource_type), "
-        "resource_id = VALUES(resource_id), result = VALUES(result), trace_id = VALUES(trace_id), occurred_at = VALUES(occurred_at), "
-        "previous_hash = VALUES(previous_hash), event_hash = VALUES(event_hash)",
+        "INSERT IGNORE INTO operation_audit_events(event_code, actor, action, resource_type, resource_id, result, trace_id, occurred_at, previous_hash, event_hash) "
+        "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         event.id,
         event.actor,
         event.action,
@@ -703,7 +700,14 @@ domain::OperationAuditEvent MySqlOperationAuditRepository::save(domain::Operatio
         event.occurredAt,
         event.previousHash,
         event.eventHash);
-    return event;
+    const auto result = client_->execSqlSync(
+        "SELECT event_code, actor, action, resource_type, resource_id, result, DATE_FORMAT(occurred_at, '%Y-%m-%dT%H:%i:%s') AS occurred_at, previous_hash, event_hash, trace_id "
+        "FROM operation_audit_events WHERE event_code = ? LIMIT 1",
+        event.id);
+    if (result.empty()) {
+        return event;
+    }
+    return operationAuditEventFromRow(result[0]);
 }
 
 std::vector<domain::OperationAuditEvent> MySqlOperationAuditRepository::list() const {
