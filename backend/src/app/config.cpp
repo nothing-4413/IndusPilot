@@ -1,6 +1,8 @@
 #include "induspilot/app/config.hpp"
 
+#include <algorithm>
 #include <charconv>
+#include <cctype>
 #include <cstdlib>
 #include <fstream>
 #include <system_error>
@@ -49,6 +51,15 @@ bool isHttpUrl(const std::string& value) {
     const auto authorityEnd = value.find_first_of("/?#", authorityStart);
     const auto authority = value.substr(authorityStart, authorityEnd == std::string::npos ? std::string::npos : authorityEnd - authorityStart);
     return !authority.empty() && authority.find('@') == std::string::npos && authority.find_first_of(" \t\r\n") == std::string::npos;
+}
+
+bool isUnsafeSecret(std::string value) {
+    value = trim(value);
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char character) {
+        return static_cast<char>(std::tolower(character));
+    });
+    return value.empty() || value.rfind("change-me", 0) == 0 ||
+        value == "admin123" || value == "operator123" || value == "maintainer123";
 }
 
 void addLoadError(AppConfig& config, const std::string& message) {
@@ -209,6 +220,8 @@ void applyConfigValue(
         parseInteger(config.readiness.probeCacheMs);
     } else if (section == "shutdown" && (key == "drainTimeoutMs" || key == "drain_timeout_ms")) {
         parseInteger(config.shutdown.drainTimeoutMs);
+    } else if (section == "security" && (key == "productionMode" || key == "production_mode")) {
+        parseBoolean(config.security.productionMode);
     } else if (section == "security" && (key == "loginLockoutEnabled" || key == "login_lockout_enabled")) {
         parseBoolean(config.security.loginLockoutEnabled);
     } else if (section == "security" && key == "login_rate_limit_store") {
@@ -286,6 +299,7 @@ void applyEnvironmentOverrides(AppConfig& config) {
     applyIntEnv(config, "INDUSPILOT_READINESS_PROBE_CACHE_MS", "readiness.probe_cache_ms", config.readiness.probeCacheMs);
     applyIntEnv(config, "INDUSPILOT_SHUTDOWN_DRAIN_TIMEOUT_MS", "shutdown.drain_timeout_ms", config.shutdown.drainTimeoutMs);
 
+    applyBoolEnv(config, "INDUSPILOT_SECURITY_PRODUCTION_MODE", "security.production_mode", config.security.productionMode);
     applyBoolEnv(config, "INDUSPILOT_SECURITY_LOGIN_LOCKOUT_ENABLED", "security.login_lockout_enabled", config.security.loginLockoutEnabled);
     applyStringEnv("INDUSPILOT_SECURITY_LOGIN_RATE_LIMIT_STORE", config.security.loginRateLimitStore);
     applyBoolEnv(config, "INDUSPILOT_SECURITY_ALLOW_SEED_CREDENTIALS", "security.allow_seed_credentials", config.security.allowSeedCredentials);
@@ -441,6 +455,12 @@ ConfigValidation validateConfig(const AppConfig& config) {
     }
     if (config.security.loginRateLimitStore == "redis" && config.redis.uri.empty()) {
         addError("redis.uri must not be empty when security.login_rate_limit_store=redis");
+    }
+    if (config.security.productionMode && config.security.allowSeedCredentials) {
+        addError("security.allow_seed_credentials must be false when security.production_mode=true");
+    }
+    if (config.security.productionMode && config.storage.repositoryStore == "mysql" && isUnsafeSecret(config.mysql.password)) {
+        addError("mysql.password must be a non-example secret when security.production_mode=true and repository_store=mysql");
     }
     return result;
 }

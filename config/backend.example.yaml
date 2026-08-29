@@ -35,6 +35,8 @@ mongodb:
   database: "induspilot"
 
 security:
+  # Set to true only for an operator-managed production configuration. It rejects seed-login compatibility and example MySQL passwords at startup.
+  production_mode: false
   # 登录失败锁定用于抑制暴力尝试；超过阈值后登录接口返回 429 和 Retry-After。
   login_lockout_enabled: true
   login_rate_limit_store: "memory"

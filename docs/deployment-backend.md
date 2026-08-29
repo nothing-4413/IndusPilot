@@ -70,6 +70,8 @@ docker compose up -d
 - `INDUSPILOT_READINESS_PROBE_CACHE_MS`
 - `INDUSPILOT_SECURITY_PASSWORD_MIN_LENGTH`
 - `INDUSPILOT_SECURITY_PASSWORD_ITERATIONS`
+- `INDUSPILOT_SECURITY_PRODUCTION_MODE`
+- `INDUSPILOT_SECURITY_ALLOW_SEED_CREDENTIALS`
 
 ## 启动与健康检查
 
@@ -113,13 +115,15 @@ HTTP runtime 已将 `SIGTERM` 和 `SIGINT` 绑定到同一个 shutdown coordinat
 
 ## 身份口令边界
 
-内存仓储保留 `admin/admin123`、`operator/operator123`、`maintainer/maintainer123` 作为开发演示口令，并通过显式 `plain:` 兼容格式标识。MySQL 初始化脚本写入 PBKDF2-SHA256 演示哈希并由 `012_seed_account_governance` 标记为待轮换；生产配置默认拒绝这类凭据，登录不会签发 session。只有本地示例配置显式启用 `security.allow_seed_credentials`，生产部署必须保持关闭。
+内存仓储保留 `admin/admin123`、`operator/operator123`、`maintainer/maintainer123` 作为开发演示口令，并通过显式 `plain:` 兼容格式标识。MySQL 初始化脚本写入 PBKDF2-SHA256 演示哈希并由 `012_seed_account_governance` 标记为待轮换；生产模式拒绝这类凭据，登录不会签发 session。只有本地示例配置显式启用 `security.allow_seed_credentials`，生产部署必须保持关闭。
 
 密码策略由 `security.password_min_length` 和 `security.password_iterations` 控制，也可通过环境变量覆盖。最小长度允许范围为 `8..1024`，PBKDF2 迭代次数允许范围为 `100000..1000000`；配置不满足范围时，后端在 listener 启动前以退出码 `78` 失败。新密码始终写入随机盐 PBKDF2-SHA256 哈希，旧的 `plain:` 格式只用于开发兼容读取。
 
 认证用户可调用 `POST /api/v1/auth/password` 轮换自己的密码，请求体为 `{"currentPassword":"...","newPassword":"..."}`，需要当前 Bearer session。当前密码错误返回 `401`，新密码策略不合规返回 `400`，存储失败返回 `503`；响应、请求日志和审计事件不包含明文密码或密码哈希。密码轮换后当前 session 保持有效。
 
 生产部署流程应在实例投入流量前使用 `deployment/rotate_seed_credentials.ps1` 为每个种子账号生成唯一盐 PBKDF2 哈希、清除待轮换标记并递增凭据版本，再确认 `security.allow_seed_credentials` 关闭和 `auth.login.seed_rotation_required` 不再产生。轮换工具不提供 HTTP bootstrap 接口，避免公开演示口令成为首个管理员写入者；新凭据和哈希不会写入日志。
+
+生产环境应通过 `INDUSPILOT_SECURITY_PRODUCTION_MODE=true` 显式启用启动期治理，并保持 `INDUSPILOT_SECURITY_ALLOW_SEED_CREDENTIALS=false`。启用后，MySQL 仓储拒绝空值或 `change-me*` 示例应用密码，且会在 HTTP listener 启动前失败。
 
 ## 当前配置边界
 
@@ -156,6 +160,12 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File deployment/preflight.ps1
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File deployment/preflight.ps1 -RequireDocker
+```
+
+真实 `deployment/.env` 已配置后，生产发布前还应运行下列检查。它只报告变量名，不输出秘密值：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File deployment/preflight.ps1 -RequireDocker -RequireProductionSecrets
 ```
 
 MySQL 初始化脚本会登记以下版本到 `schema_migrations`：`001_foundation_schema`、`002_seed_identity`、`003_runtime_persistence_schema`、`004_work_order_attachments_schema`、`005_alert_rules_notifications_schema`、`006_alert_notification_delivery_schema`、`007_operation_audit_events_schema`、`008_operation_audit_export_permission`、`009_operation_audit_integrity_schema`、`010_redact_legacy_login_audit_tokens`、`011_credential_version`、`012_seed_account_governance`、`013_notification_delivery_queue`、`014_migration_integrity`。该版本表用于部署核对；后端不会在启动时自动迁移数据库。

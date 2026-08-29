@@ -13,7 +13,7 @@
 
 ## 当前边界
 
-- 身份安全：当前已支持版本化 PBKDF2-SHA256 密码校验、登录失败锁定、可配置密码策略、认证后密码轮换、密码轮换审计、按用户撤销全部 session 和密钥扫描门禁，并保留显式开发兼容格式；生产前仍必须替换演示口令、执行首登/种子账号治理、验证分布式限流、最小权限账户和审计保留策略。
+- 身份安全：当前已支持版本化 PBKDF2-SHA256 密码校验、登录失败锁定、可配置密码策略、认证后密码轮换、密码轮换审计、按用户撤销全部 session 和密钥扫描门禁，并保留显式开发兼容格式；启用 `security.production_mode` 后会拒绝种子账号兼容和示例 MySQL 密钥。生产前仍必须替换演示口令、执行首登/种子账号治理、验证分布式限流、最小权限账户和审计保留策略。
 - 依赖健康：`/health` 保持旧客户端的 200 兼容语义；`/health/ready` 按 `repository_store`、`session_store` 和 AI required 配置判断核心依赖，使用 single-flight、并发依赖探测、统一 DNS/connect deadline 和缓存重新评估恢复状态，并暴露探测次数、耗时、失败/恢复计数；部署前预检会检查离线 schema 版本基线，CI dependency smoke 会验证真实 MySQL/Redis/MongoDB 启动、认证、迁移幂等、MySQL 核心业务 CRUD、Redis 数据结构读写和 MongoDB 文档 CRUD。
 - 配置边界：配置文件读取失败、未知字段、错误层级和非法整数/布尔值会在 listener 启动前阻止进程启动，并以退出码 `78` 报告；外部依赖暂时不可用仍由 readiness `503` 表达。
 - 停机边界：收到 SIGTERM/SIGINT 后新业务请求返回 `503/SERVER_DRAINING`，readiness 立即为 `503`、liveness 在最终停止前保持 `200`，coordinator 在 `shutdown.drain_timeout_ms` deadline 内等待已接受请求完成，超时记录剩余请求并退出；listener 绑定预检失败返回退出码 `69`。

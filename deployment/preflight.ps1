@@ -1,5 +1,6 @@
 ﻿param(
-    [switch]$RequireDocker
+    [switch]$RequireDocker,
+    [switch]$RequireProductionSecrets
 )
 
 $ErrorActionPreference = "Stop"
@@ -45,6 +46,39 @@ function Get-FileText {
         return ""
     }
     return Get-Content -Encoding UTF8 -LiteralPath $path -Raw
+}
+
+function Get-DotEnvValues {
+    param([string]$RelativePath)
+    $path = Get-RepoPath $RelativePath
+    if (-not (Test-Path -LiteralPath $path)) {
+        return $null
+    }
+    $values = @{}
+    foreach ($line in Get-Content -LiteralPath $path -Encoding UTF8) {
+        $trimmed = $line.Trim()
+        if ([string]::IsNullOrWhiteSpace($trimmed) -or $trimmed.StartsWith('#')) {
+            continue
+        }
+        $separator = $trimmed.IndexOf('=')
+        if ($separator -gt 0) {
+            $values[$trimmed.Substring(0, $separator).Trim()] = $trimmed.Substring($separator + 1).Trim().Trim('"')
+        }
+    }
+    return $values
+}
+
+function Test-ProductionSecretValue {
+    param([hashtable]$Values, [string]$Name)
+    if (-not $Values.ContainsKey($Name) -or [string]::IsNullOrWhiteSpace($Values[$Name])) {
+        Write-CheckFail "生产环境缺少非空密钥：$Name"
+        return
+    }
+    if ($Values[$Name].Trim().ToLowerInvariant().StartsWith('change-me')) {
+        Write-CheckFail "生产环境仍使用示例密钥：$Name"
+        return
+    }
+    Write-CheckOk "生产环境密钥已配置：$Name"
 }
 
 Write-Host "IndusPilot 部署前预检" -ForegroundColor Cyan
@@ -271,6 +305,29 @@ if ($config -match "(?m)^\s+allow_seed_credentials:\s+true\s*$") {
     Write-CheckWarn "示例配置显式启用演示凭据，仅适用于本地内存演示"
 } else {
     Write-CheckFail "示例配置未显式声明演示凭据兼容开关"
+}
+
+if ($RequireProductionSecrets) {
+    $productionValues = Get-DotEnvValues "deployment/.env"
+    if ($null -eq $productionValues) {
+        Write-CheckFail "启用了 -RequireProductionSecrets，但缺少 deployment/.env"
+    } else {
+        foreach ($secret in @("INDUSPILOT_MYSQL_ROOT_PASSWORD", "INDUSPILOT_MYSQL_PASSWORD", "INDUSPILOT_REDIS_PASSWORD", "INDUSPILOT_MONGODB_ROOT_PASSWORD")) {
+            Test-ProductionSecretValue $productionValues $secret
+        }
+        if (-not $productionValues.ContainsKey("INDUSPILOT_SECURITY_PRODUCTION_MODE") -or
+            $productionValues["INDUSPILOT_SECURITY_PRODUCTION_MODE"].Trim().ToLowerInvariant() -ne "true") {
+            Write-CheckFail "生产环境必须设置 INDUSPILOT_SECURITY_PRODUCTION_MODE=true"
+        } else {
+            Write-CheckOk "生产环境已启用启动期密钥与种子账号治理"
+        }
+        if (-not $productionValues.ContainsKey("INDUSPILOT_SECURITY_ALLOW_SEED_CREDENTIALS") -or
+            $productionValues["INDUSPILOT_SECURITY_ALLOW_SEED_CREDENTIALS"].Trim().ToLowerInvariant() -ne "false") {
+            Write-CheckFail "生产环境必须设置 INDUSPILOT_SECURITY_ALLOW_SEED_CREDENTIALS=false"
+        } else {
+            Write-CheckOk "生产环境已禁用种子账号兼容登录"
+        }
+    }
 }
 
 if (Get-Command docker -ErrorAction SilentlyContinue) {

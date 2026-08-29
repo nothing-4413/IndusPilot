@@ -65,6 +65,7 @@ struct ShutdownConfig {
 };
 
 struct SecurityConfig {
+    bool productionMode{false};
     bool loginLockoutEnabled{true};
     std::string loginRateLimitStore{"memory"};
     bool allowSeedCredentials{false};

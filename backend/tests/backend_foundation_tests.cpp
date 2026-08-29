@@ -164,6 +164,7 @@ int main() {
     assert(loadedConfig.mysql.uri == "host=127.0.0.1 port=3306 dbname=induspilot user=induspilot");
     assert(loadedConfig.security.loginMaxFailures == 3);
     assert(loadedConfig.security.loginRateLimitStore == "memory");
+    assert(!loadedConfig.security.productionMode);
     assert(loadedConfig.security.allowSeedCredentials);
     assert(loadedConfig.security.loginLockoutSeconds == 120);
     assert(!loadedConfig.notifications.webhookEnabled);
@@ -251,6 +252,16 @@ int main() {
     invalidConfig = induspilot::app::AppConfig{};
     invalidConfig.security.loginRateLimitStore = "unknown";
     assert(!induspilot::app::validateConfig(invalidConfig).valid);
+    invalidConfig = induspilot::app::AppConfig{};
+    invalidConfig.security.productionMode = true;
+    invalidConfig.security.allowSeedCredentials = true;
+    assert(!induspilot::app::validateConfig(invalidConfig).valid);
+    invalidConfig.security.allowSeedCredentials = false;
+    invalidConfig.storage.repositoryStore = "mysql";
+    invalidConfig.mysql.password = "change-me-app-password";
+    assert(!induspilot::app::validateConfig(invalidConfig).valid);
+    invalidConfig.mysql.password = "production-test-secret";
+    assert(induspilot::app::validateConfig(invalidConfig).valid);
 
     const auto memoryRequirements = induspilot::data::DataConnectors{induspilot::app::AppConfig{}}.requirements();
     assert(!memoryRequirements.mysql);
