@@ -78,6 +78,7 @@ if(INDUSPILOT_BUILD_TESTS)
     $<$<CXX_COMPILER_ID:MSVC>:/utf-8 /EHsc>
   )
   add_test(NAME induspilot-backend-tests COMMAND induspilot-backend-tests)
+  set_tests_properties(induspilot-backend-tests PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
   if(WIN32)
     add_test(NAME induspilot-deployment-preflight

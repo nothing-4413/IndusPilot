@@ -4,15 +4,26 @@
 
 #ifdef INDUSPILOT_WITH_DROGON
 #include <drogon/drogon.h>
+#ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#else
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <sys/socket.h>
+#endif
 #endif
 
 #include <algorithm>
+#include <charconv>
 #include <chrono>
 #include <ctime>
 #include <iomanip>
 #include <random>
 #include <sstream>
 #include <cctype>
+#include <cstdint>
+#include <cstring>
 #include <utility>
 
 namespace induspilot::modules {
@@ -91,6 +102,7 @@ struct WebhookEndpoint {
     std::string baseUrl;
     std::string path{"/"};
     std::string host;
+    std::string port;
     bool valid{false};
 };
 
@@ -103,14 +115,46 @@ WebhookEndpoint parseWebhookEndpoint(const std::string& target) {
     if (scheme != "http" && scheme != "https") {
         return {};
     }
-    const auto pathPosition = target.find('/', schemePosition + 3);
+    const auto pathPosition = target.find_first_of("/?#", schemePosition + 3);
     const auto authorityEnd = pathPosition == std::string::npos ? target.size() : pathPosition;
     const auto authority = target.substr(schemePosition + 3, authorityEnd - schemePosition - 3);
-    const auto portPosition = authority.find(':');
+    if (authority.empty() || authority.find('@') != std::string::npos) {
+        return {};
+    }
     WebhookEndpoint endpoint;
     endpoint.valid = true;
-    endpoint.host = authority.substr(0, portPosition == std::string::npos ? authority.size() : portPosition);
-    if (endpoint.host.empty()) {
+    if (authority.front() == '[') {
+        const auto closingBracket = authority.find(']');
+        if (closingBracket == std::string::npos || closingBracket == 1) {
+            return {};
+        }
+        endpoint.host = authority.substr(1, closingBracket - 1);
+        if (closingBracket + 1 < authority.size()) {
+            if (authority[closingBracket + 1] != ':') {
+                return {};
+            }
+            endpoint.port = authority.substr(closingBracket + 2);
+        }
+    } else {
+        const auto firstColon = authority.find(':');
+        const auto lastColon = authority.rfind(':');
+        if (firstColon != lastColon) {
+            return {};
+        }
+        endpoint.host = authority.substr(0, firstColon == std::string::npos ? authority.size() : firstColon);
+        if (firstColon != std::string::npos) {
+            endpoint.port = authority.substr(firstColon + 1);
+        }
+    }
+    if (endpoint.host.empty() || (!endpoint.port.empty() && endpoint.port.find_first_not_of("0123456789") != std::string::npos)) {
+        return {};
+    }
+    if (endpoint.port.empty()) {
+        endpoint.port = scheme == "https" ? "443" : "80";
+    }
+    unsigned int parsedPort = 0;
+    const auto portResult = std::from_chars(endpoint.port.data(), endpoint.port.data() + endpoint.port.size(), parsedPort);
+    if (portResult.ec != std::errc{} || portResult.ptr != endpoint.port.data() + endpoint.port.size() || parsedPort > 65535 || parsedPort < 1) {
         return {};
     }
     if (pathPosition == std::string::npos) {
@@ -120,6 +164,72 @@ WebhookEndpoint parseWebhookEndpoint(const std::string& target) {
         endpoint.path = target.substr(pathPosition);
     }
     return endpoint;
+}
+
+bool forbiddenIpv4(const unsigned char* bytes) {
+    return bytes[0] == 0 || bytes[0] == 10 || bytes[0] == 127 ||
+        (bytes[0] == 100 && bytes[1] >= 64 && bytes[1] <= 127) ||
+        (bytes[0] == 169 && bytes[1] == 254) ||
+        (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) ||
+        (bytes[0] == 192 && (bytes[1] == 0 || bytes[1] == 2)) ||
+        (bytes[0] == 192 && bytes[1] == 88 && bytes[2] == 99) ||
+        (bytes[0] == 192 && bytes[1] == 168) ||
+        (bytes[0] == 198 && (bytes[1] == 18 || bytes[1] == 19 || bytes[1] == 51)) ||
+        (bytes[0] == 203 && bytes[1] == 0 && bytes[2] == 113) || bytes[0] >= 224;
+}
+
+bool forbiddenIpv6(const unsigned char* bytes) {
+    bool allZero = true;
+    for (int index = 0; index < 16; ++index) {
+        allZero = allZero && bytes[index] == 0;
+    }
+    bool loopback = true;
+    for (int index = 0; index < 15; ++index) {
+        loopback = loopback && bytes[index] == 0;
+    }
+    loopback = loopback && bytes[15] == 1;
+    if (allZero || loopback) {
+        return true;
+    }
+    if ((bytes[0] & 0xfe) == 0xfc || (bytes[0] & 0xc0) == 0x80 || bytes[0] == 0xff ||
+        (bytes[0] == 0x20 && bytes[1] == 0x01 && bytes[2] == 0x0d && bytes[3] == 0xb8)) {
+        return true;
+    }
+    if (std::memcmp(bytes, "\0\0\0\0\0\0\0\0\0\0\xff\xff", 12) == 0) {
+        return forbiddenIpv4(bytes + 12);
+    }
+    return false;
+}
+
+bool webhookResolvedToPublicAddress(const WebhookEndpoint& endpoint) {
+    addrinfo hints{};
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    addrinfo* addresses = nullptr;
+    const auto error = getaddrinfo(endpoint.host.c_str(), endpoint.port.c_str(), &hints, &addresses);
+    if (error != 0 || addresses == nullptr) {
+        if (addresses != nullptr) {
+            freeaddrinfo(addresses);
+        }
+        return false;
+    }
+    bool hasAddress = false;
+    bool publicAddresses = true;
+    for (auto* address = addresses; address != nullptr; address = address->ai_next) {
+        if (address->ai_family == AF_INET) {
+            hasAddress = true;
+            const auto* value = reinterpret_cast<const sockaddr_in*>(address->ai_addr);
+            publicAddresses = publicAddresses && !forbiddenIpv4(reinterpret_cast<const unsigned char*>(&value->sin_addr));
+        } else if (address->ai_family == AF_INET6) {
+            hasAddress = true;
+            const auto* value = reinterpret_cast<const sockaddr_in6*>(address->ai_addr);
+            publicAddresses = publicAddresses && !forbiddenIpv6(reinterpret_cast<const unsigned char*>(&value->sin6_addr));
+        } else {
+            publicAddresses = false;
+        }
+    }
+    freeaddrinfo(addresses);
+    return hasAddress && publicAddresses;
 }
 
 bool webhookHostAllowed(const std::string& host, const std::string& configuredHosts) {
@@ -182,6 +292,9 @@ public:
         }
         if (!webhookHostAllowed(endpoint.host, config_.webhookAllowedHosts)) {
             return {false, "webhook target host 不在允许列表中"};
+        }
+        if (!webhookResolvedToPublicAddress(endpoint)) {
+            return {false, "webhook target 未解析为公网地址"};
         }
         try {
             Json::Value payload;

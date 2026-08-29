@@ -177,7 +177,11 @@ function Invoke-Scenario {
             Assert-True $webhookAlert.success "${Name}: webhook alert creation failed"
             $webhookDispatch = Invoke-RestMethod -Uri "$baseUrl/api/v1/alert-notifications/dispatch" -Method Post -Headers $headers `
                 -ContentType "application/json" -Body '{}' -TimeoutSec 10
-            Assert-True ($webhookDispatch.data.sent -ge 1) "${Name}: webhook notification was not delivered"
+            Assert-True ($webhookDispatch.data.sent -eq 0) "${Name}: private webhook unexpectedly bypassed egress policy"
+            $webhookNotifications = Invoke-RestMethod -Uri "$baseUrl/api/v1/alert-notifications" -Method Get -Headers $headers -TimeoutSec 10
+            $webhookNotification = @($webhookNotifications.data) | Where-Object { $_.id -eq "notice-alert-webhook-smoke-rule-webhook-smoke" }
+            Assert-True (@($webhookNotification).Count -eq 1) "${Name}: private webhook notification was not recorded"
+            Assert-True ([string]$webhookNotification[0].lastError -like "*webhook target*") "${Name}: private webhook rejection reason did not match"
         } elseif ($Mode -eq "retry-success") {
             Assert-True ($diagnosis.data.rawProviderOutput -eq "retry provider response") "${Name}: retry response was not preserved"
         } else {

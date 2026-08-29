@@ -1,0 +1,5 @@
+# Design: Resolved webhook egress boundary
+
+The webhook endpoint parser accepts normal hostnames, IPv4 literals, and bracketed IPv6 literals, while rejecting user-info and malformed ports. Before transport, `getaddrinfo` resolves all stream addresses for the target host and port. Every result must be a globally routable address: loopback, unspecified, private, link-local, shared, multicast, documentation, benchmark, and reserved ranges are rejected for both address families. If resolution fails or returns no usable address, delivery fails before an HTTP client is created.
+
+The hostname remains the HTTP client authority so HTTPS certificate validation and Host/SNI behavior are preserved. Resolution is performed immediately before client construction and all returned addresses are checked; this closes the common DNS-to-private-address SSRF path. A future lower-level connector can pin the selected address if strict protection against an address changing during the subsequent client resolution is required.

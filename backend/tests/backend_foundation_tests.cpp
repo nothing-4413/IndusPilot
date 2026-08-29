@@ -523,6 +523,16 @@ int main() {
     blockedWebhookAlerts.create({"alert-blocked-webhook", "asset-001", induspilot::domain::AlertSeverity::Critical, induspilot::domain::AlertState::Open, "blocked webhook test", "", ""});
     blockedWebhookAlerts.dispatchQueuedNotifications();
     assert(blockedWebhookAlerts.notifications().front().lastError.find("不在允许列表") != std::string::npos);
+#ifdef INDUSPILOT_WITH_DROGON
+    auto privateWebhookSender = induspilot::modules::makeAlertNotificationSender(
+        induspilot::app::NotificationConfig{true, 1000, "127.0.0.1"});
+    induspilot::modules::AlertService privateWebhookAlerts(
+        std::make_shared<induspilot::data::InMemoryAlertRepository>(), privateWebhookSender);
+    privateWebhookAlerts.createRule({"rule-private-webhook", "private webhook", "asset-001", "warning", "webhook", "http://127.0.0.1:1/notify", true});
+    privateWebhookAlerts.create({"alert-private-webhook", "asset-001", induspilot::domain::AlertSeverity::Critical, induspilot::domain::AlertState::Open, "private webhook test", "", ""});
+    privateWebhookAlerts.dispatchQueuedNotifications();
+    assert(privateWebhookAlerts.notifications().front().lastError.find("公网地址") != std::string::npos);
+#endif
     assert(alerts.acknowledge("alert-001", "admin").has_value());
     assert(alerts.assign("alert-001", "maintainer").has_value());
 
