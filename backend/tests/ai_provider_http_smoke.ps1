@@ -111,6 +111,8 @@ function Invoke-Scenario {
         $env:INDUSPILOT_AI_MAX_CONTEXT_ITEMS = "2"
         $env:INDUSPILOT_AI_REQUIRE_STRUCTURED_RESPONSE = "true"
         $env:INDUSPILOT_AI_STORE_INTERACTION_RECORDS = "true"
+        $env:INDUSPILOT_NOTIFICATIONS_WEBHOOK_ENABLED = if ($Mode -eq "success") { "true" } else { "false" }
+        $env:INDUSPILOT_NOTIFICATIONS_WEBHOOK_TIMEOUT_MS = "1000"
 
         $resolvedBackend = Resolve-RepoPath $BackendExe
         $resolvedConfig = Resolve-RepoPath $ConfigPath
@@ -165,6 +167,16 @@ function Invoke-Scenario {
 
         if ($Mode -eq "success") {
             Assert-True ($diagnosis.data.rawProviderOutput -eq "fake provider response") "${Name}: provider content was not preserved"
+
+            $webhookRule = Invoke-RestMethod -Uri "$baseUrl/api/v1/alert-rules" -Method Post -Headers $headers `
+                -ContentType "application/json" -Body (('{"id":"rule-webhook-smoke","name":"webhook smoke","minSeverity":"warning","channel":"webhook","target":"http://127.0.0.1:' + $providerPort + '/v1/complete","enabled":true}')) -TimeoutSec 10
+            Assert-True $webhookRule.success "${Name}: webhook rule creation failed"
+            $webhookAlert = Invoke-RestMethod -Uri "$baseUrl/api/v1/alerts" -Method Post -Headers $headers `
+                -ContentType "application/json" -Body '{"id":"alert-webhook-smoke","assetId":"asset-smoke","severity":"critical","state":"open","title":"webhook smoke alert"}' -TimeoutSec 10
+            Assert-True $webhookAlert.success "${Name}: webhook alert creation failed"
+            $webhookDispatch = Invoke-RestMethod -Uri "$baseUrl/api/v1/alert-notifications/dispatch" -Method Post -Headers $headers `
+                -ContentType "application/json" -Body '{}' -TimeoutSec 10
+            Assert-True ($webhookDispatch.data.sent -ge 1) "${Name}: webhook notification was not delivered"
         } elseif ($Mode -eq "retry-success") {
             Assert-True ($diagnosis.data.rawProviderOutput -eq "retry provider response") "${Name}: retry response was not preserved"
         } else {
@@ -192,7 +204,8 @@ foreach ($name in @(
     "INDUSPILOT_AI_AUTH_HEADER", "INDUSPILOT_AI_AUTH_SCHEME", "INDUSPILOT_AI_TIMEOUT_MS",
     "INDUSPILOT_AI_MAX_RETRIES", "INDUSPILOT_AI_MAX_RESPONSE_BYTES",
     "INDUSPILOT_AI_MAX_CONTEXT_ITEMS", "INDUSPILOT_AI_REQUIRE_STRUCTURED_RESPONSE",
-    "INDUSPILOT_AI_STORE_INTERACTION_RECORDS"
+    "INDUSPILOT_AI_STORE_INTERACTION_RECORDS", "INDUSPILOT_NOTIFICATIONS_WEBHOOK_ENABLED",
+    "INDUSPILOT_NOTIFICATIONS_WEBHOOK_TIMEOUT_MS"
 )) {
     $oldEnvironment[$name] = [Environment]::GetEnvironmentVariable($name)
 }

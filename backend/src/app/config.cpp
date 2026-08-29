@@ -176,6 +176,10 @@ void applyConfigValue(
         parseBoolean(config.ai.storeInteractionRecords);
     } else if (section == "ai" && (key == "requireStructuredResponse" || key == "require_structured_response")) {
         parseBoolean(config.ai.requireStructuredResponse);
+    } else if (section == "notifications" && (key == "webhookEnabled" || key == "webhook_enabled")) {
+        parseBoolean(config.notifications.webhookEnabled);
+    } else if (section == "notifications" && (key == "webhookTimeoutMs" || key == "webhook_timeout_ms")) {
+        parseInteger(config.notifications.webhookTimeoutMs);
     } else if (section == "readiness" && (key == "probeTimeoutMs" || key == "probe_timeout_ms")) {
         parseInteger(config.readiness.probeTimeoutMs);
     } else if (section == "readiness" && (key == "probeCacheMs" || key == "probe_cache_ms")) {
@@ -245,6 +249,9 @@ void applyEnvironmentOverrides(AppConfig& config) {
     applyBoolEnv(config, "INDUSPILOT_AI_STORE_INTERACTION_RECORDS", "ai.store_interaction_records", config.ai.storeInteractionRecords);
     applyBoolEnv(config, "INDUSPILOT_AI_REQUIRE_STRUCTURED_RESPONSE", "ai.require_structured_response", config.ai.requireStructuredResponse);
 
+    applyBoolEnv(config, "INDUSPILOT_NOTIFICATIONS_WEBHOOK_ENABLED", "notifications.webhook_enabled", config.notifications.webhookEnabled);
+    applyIntEnv(config, "INDUSPILOT_NOTIFICATIONS_WEBHOOK_TIMEOUT_MS", "notifications.webhook_timeout_ms", config.notifications.webhookTimeoutMs);
+
     applyIntEnv(config, "INDUSPILOT_READINESS_PROBE_TIMEOUT_MS", "readiness.probe_timeout_ms", config.readiness.probeTimeoutMs);
     applyIntEnv(config, "INDUSPILOT_READINESS_PROBE_CACHE_MS", "readiness.probe_cache_ms", config.readiness.probeCacheMs);
     applyIntEnv(config, "INDUSPILOT_SHUTDOWN_DRAIN_TIMEOUT_MS", "shutdown.drain_timeout_ms", config.shutdown.drainTimeoutMs);
@@ -290,7 +297,7 @@ AppConfig loadConfig(const std::string& path) {
             if (isSection) {
                 section = trim(line.substr(0, pos));
                 if (section != "server" && section != "log" && section != "mysql" && section != "redis" &&
-                    section != "storage" && section != "mongodb" && section != "security" && section != "ai" &&
+                    section != "storage" && section != "mongodb" && section != "security" && section != "ai" && section != "notifications" &&
                     section != "readiness" && section != "shutdown") {
                     addLoadError(config, "line " + std::to_string(lineNumber) + ": unknown configuration section " + section);
                 }
@@ -362,6 +369,9 @@ ConfigValidation validateConfig(const AppConfig& config) {
     }
     if (config.ai.maxContextItems < 1) {
         addError("ai.max_context_items must be greater than zero");
+    }
+    if (config.notifications.webhookTimeoutMs < 1) {
+        addError("notifications.webhook_timeout_ms must be greater than zero");
     }
     if (config.readiness.probeTimeoutMs < 1) {
         addError("readiness.probe_timeout_ms must be greater than zero");

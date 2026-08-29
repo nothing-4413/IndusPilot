@@ -154,7 +154,8 @@ HttpServerContext buildHttpServerContext(const app::AppConfig& config) {
     context.identity = createIdentityService(config, mysqlClient);
     context.assets = std::make_shared<modules::AssetService>(createAssetRepository(config, mysqlClient));
     context.monitoring = std::make_shared<modules::MonitoringService>(createRuntimeStateRepository(config, mysqlClient));
-    context.alerts = std::make_shared<modules::AlertService>(createAlertRepository(config, mysqlClient));
+    context.alerts = std::make_shared<modules::AlertService>(
+        createAlertRepository(config, mysqlClient), modules::makeAlertNotificationSender(config.notifications));
     context.maintenance = std::make_shared<modules::MaintenanceService>(createWorkOrderRepository(config, mysqlClient));
     context.ai = std::make_shared<modules::AiService>(config.ai, createAiInteractionRepository(config, mysqlClient), nullptr, context.metrics);
     context.audit = std::make_shared<modules::AuditService>(createOperationAuditRepository(config, mysqlClient));

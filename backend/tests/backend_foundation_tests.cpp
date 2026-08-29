@@ -155,6 +155,8 @@ int main() {
     assert(loadedConfig.security.loginRateLimitStore == "memory");
     assert(loadedConfig.security.allowSeedCredentials);
     assert(loadedConfig.security.loginLockoutSeconds == 120);
+    assert(!loadedConfig.notifications.webhookEnabled);
+    assert(loadedConfig.notifications.webhookTimeoutMs == 5000);
     assert(loadedConfig.security.passwordMinLength == 12);
     assert(loadedConfig.security.passwordIterations == 120000);
     assert(induspilot::app::validateConfig(induspilot::app::AppConfig{}).valid);
@@ -503,6 +505,12 @@ int main() {
     assert(secondRetry.has_value());
     assert(secondRetry->status == "dead_letter");
     assert(alerts.dispatchQueuedNotifications().sent == 0);
+    induspilot::modules::AlertService externalAlerts;
+    externalAlerts.createRule({"rule-webhook", "webhook delivery", "asset-001", "warning", "webhook", "http://127.0.0.1:1/notify", true});
+    externalAlerts.create({"alert-webhook", "asset-001", induspilot::domain::AlertSeverity::Critical, induspilot::domain::AlertState::Open, "webhook test", "", ""});
+    const auto webhookDispatch = externalAlerts.dispatchQueuedNotifications();
+    assert(webhookDispatch.sent == 0);
+    assert(externalAlerts.notifications().front().status == "retrying");
     assert(alerts.acknowledge("alert-001", "admin").has_value());
     assert(alerts.assign("alert-001", "maintainer").has_value());
 

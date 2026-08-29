@@ -66,6 +66,11 @@ ai:
   storeInteractionRecords: true
   require_structured_response: true
 
+notifications:
+  # webhook 仅在显式开启后发送 HTTP(S) 请求；email 仍需独立邮件适配器。
+  webhook_enabled: false
+  webhook_timeout_ms: 5000
+
 readiness:
   # readiness 单次依赖探测超时和结果缓存时间，单位为毫秒。
   probe_timeout_ms: 1000

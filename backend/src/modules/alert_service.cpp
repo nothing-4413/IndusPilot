@@ -2,6 +2,10 @@
 
 #include "induspilot/data/in_memory_repositories.hpp"
 
+#ifdef INDUSPILOT_WITH_DROGON
+#include <drogon/drogon.h>
+#endif
+
 #include <algorithm>
 #include <chrono>
 #include <ctime>
@@ -38,9 +42,6 @@ std::string workerToken() {
     return std::to_string(generator()) + std::to_string(generator());
 }
 
-bool isSupportedNotificationChannel(const std::string& channel) {
-    return channel == "console" || channel == "email" || channel == "webhook";
-}
 int severityRank(const std::string& severity) {
     if (severity == "critical") {
         return 3;
@@ -76,6 +77,98 @@ bool matches(const domain::Alert& alert, const AlertQuery& query) {
     }
     return true;
 }
+
+std::string boundedError(std::string error) {
+    if (error.size() > 255) {
+        error.resize(255);
+    }
+    return error;
+}
+
+#ifdef INDUSPILOT_WITH_DROGON
+struct WebhookEndpoint {
+    std::string baseUrl;
+    std::string path{"/"};
+    bool valid{false};
+};
+
+WebhookEndpoint parseWebhookEndpoint(const std::string& target) {
+    const auto schemePosition = target.find("://");
+    if (schemePosition == std::string::npos) {
+        return {};
+    }
+    const auto scheme = target.substr(0, schemePosition);
+    if (scheme != "http" && scheme != "https") {
+        return {};
+    }
+    const auto pathPosition = target.find('/', schemePosition + 3);
+    WebhookEndpoint endpoint;
+    endpoint.valid = true;
+    if (pathPosition == std::string::npos) {
+        endpoint.baseUrl = target;
+    } else {
+        endpoint.baseUrl = target.substr(0, pathPosition);
+        endpoint.path = target.substr(pathPosition);
+    }
+    return endpoint;
+}
+#endif
+
+class DefaultAlertNotificationSender final : public AlertNotificationSender {
+public:
+    explicit DefaultAlertNotificationSender(app::NotificationConfig config)
+        : config_(std::move(config)) {}
+
+    NotificationDeliveryResult send(const domain::AlertNotification& notification) const override {
+        if (notification.channel == "console") {
+            return {true, {}};
+        }
+        if (notification.channel == "email") {
+            return {false, "email 通知通道尚未配置邮件适配器"};
+        }
+        if (notification.channel != "webhook") {
+            return {false, "不支持的通知通道：" + boundedError(notification.channel)};
+        }
+        if (!config_.webhookEnabled) {
+            return {false, "webhook 通知通道未显式启用"};
+        }
+#ifndef INDUSPILOT_WITH_DROGON
+        return {false, "webhook 通知需要启用 Drogon HTTP 传输"};
+#else
+        const auto endpoint = parseWebhookEndpoint(notification.target);
+        if (!endpoint.valid) {
+            return {false, "webhook target 必须是 HTTP(S) URL"};
+        }
+        try {
+            Json::Value payload;
+            payload["notificationId"] = notification.id;
+            payload["alertId"] = notification.alertId;
+            payload["ruleId"] = notification.ruleId;
+            payload["message"] = notification.message;
+            payload["attemptCount"] = notification.attemptCount;
+            auto request = drogon::HttpRequest::newHttpJsonRequest(payload);
+            request->setMethod(drogon::Post);
+            request->setPath(endpoint.path);
+            auto client = drogon::HttpClient::newHttpClient(endpoint.baseUrl);
+            const auto response = client->sendRequest(
+                request, static_cast<double>((std::max)(config_.webhookTimeoutMs, 1)) / 1000.0);
+            if (response.first != drogon::ReqResult::Ok || !response.second) {
+                return {false, "webhook 请求失败"};
+            }
+            const auto statusCode = static_cast<int>(response.second->statusCode());
+            if (statusCode < 200 || statusCode >= 300) {
+                return {false, "webhook 返回状态码 " + std::to_string(statusCode)};
+            }
+            return {true, {}};
+        } catch (const std::exception& ex) {
+            return {false, "webhook 异常：" + boundedError(ex.what())};
+        }
+#endif
+    }
+
+private:
+    app::NotificationConfig config_;
+};
 
 }  // namespace
 
@@ -141,9 +234,17 @@ std::string alertStateToString(domain::AlertState state) {
 
 AlertService::AlertService() : AlertService(std::make_shared<data::InMemoryAlertRepository>()) {}
 
-AlertService::AlertService(std::shared_ptr<data::AlertRepository> repository) : repository_(std::move(repository)) {
+std::shared_ptr<AlertNotificationSender> makeAlertNotificationSender(const app::NotificationConfig& config) {
+    return std::make_shared<DefaultAlertNotificationSender>(config);
+}
+
+AlertService::AlertService(std::shared_ptr<data::AlertRepository> repository, std::shared_ptr<AlertNotificationSender> sender)
+    : repository_(std::move(repository)), sender_(std::move(sender)) {
     if (!repository_) {
         repository_ = std::make_shared<data::InMemoryAlertRepository>();
+    }
+    if (!sender_) {
+        sender_ = makeAlertNotificationSender(app::NotificationConfig{});
     }
 }
 
@@ -260,9 +361,10 @@ domain::AlertNotification AlertService::deliverNotification(domain::AlertNotific
         }
         return repository_->saveNotification(std::move(notification));
     }
-    if (!isSupportedNotificationChannel(notification.channel)) {
+    const auto delivery = sender_->send(notification);
+    if (!delivery.delivered) {
         notification.status = "failed";
-        notification.lastError = "不支持的通知通道：" + notification.channel;
+        notification.lastError = boundedError(delivery.error);
         notification.deliveredAt.clear();
         notification.nextAttemptAtUnixMs = 0;
         if (notification.attemptCount < notification.maxAttempts) {

@@ -40,6 +40,7 @@ ctest --preset dev-http
 - `POST /api/v1/alert-notifications/dispatch`：需要 `alert:write` 权限，领取并投递到期的 `queued/retrying` 通知，返回成功、失败和跳过统计；失败会按退避进入 `retrying`，超过三次进入 `dead_letter`。
 - `POST /api/v1/alert-notifications/{id}/retry`：需要 `alert:write` 权限，重试单条未成功通知。
 - 通知记录包含 `queued`、`delivering`、`retrying`、`sent` 和 `dead_letter` 状态；自动投递最多尝试三次并使用指数退避，人工 retry 可立即重新排队。
+- `console` 通道为本地投递；`email` 尚未接入邮件适配器；`webhook` 仅在 `notifications.webhook_enabled=true` 后向规则目标 HTTP(S) URL 发送 JSON，超时由 `notifications.webhook_timeout_ms` 限制，失败进入队列重试。
 - `POST /api/v1/alerts/{id}/acknowledge`：需要 `alert:write` 权限，确认告警。
 - `POST /api/v1/alerts/{id}/assign`：需要 `alert:write` 权限，分派告警，字段为 `assignee`。
 - `POST /api/v1/alerts/{id}/resolve`：需要 `alert:write` 权限，解决告警。

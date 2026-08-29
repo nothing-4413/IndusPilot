@@ -41,6 +41,11 @@ struct AiConfig {
     bool required{false};
 };
 
+struct NotificationConfig {
+    bool webhookEnabled{false};
+    int webhookTimeoutMs{5000};
+};
+
 struct ReadinessConfig {
     int probeTimeoutMs{1000};
     int probeCacheMs{1000};
@@ -73,6 +78,7 @@ struct AppConfig {
     RedisConfig redis{};
     DatabaseConfig mongodb{"127.0.0.1", 27017, "induspilot", "", "", "mongodb://127.0.0.1:27017"};
     AiConfig ai{};
+    NotificationConfig notifications{};
     ReadinessConfig readiness{};
     ShutdownConfig shutdown{};
     SecurityConfig security{};
