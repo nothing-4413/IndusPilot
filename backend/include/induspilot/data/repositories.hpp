@@ -88,6 +88,27 @@ public:
     virtual std::optional<domain::OperationAuditEvent> latest() const = 0;
     virtual std::vector<domain::OperationAuditEvent> listForIntegrity() const = 0;
 };
+
+struct AuditDeliveryQueueDepths {
+    int queued{0};
+    int retrying{0};
+    int deadLetter{0};
+};
+
+class AuditDeliveryQueueRepository {
+public:
+    virtual ~AuditDeliveryQueueRepository() = default;
+
+    virtual void enqueue(const domain::OperationAuditEvent& event, int maxAttempts) = 0;
+    virtual std::vector<domain::AuditSiemDelivery> claimDue(
+        std::int64_t nowUnixMs,
+        std::int64_t leaseUntilUnixMs,
+        int limit,
+        const std::string& leaseToken) = 0;
+    virtual void save(domain::AuditSiemDelivery delivery) = 0;
+    virtual AuditDeliveryQueueDepths depths() const = 0;
+};
+
 class AiInteractionRepository {
 public:
     virtual ~AiInteractionRepository() = default;

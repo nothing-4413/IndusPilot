@@ -108,6 +108,24 @@ public:
 private:
     drogon::orm::DbClientPtr client_;
 };
+
+class MySqlAuditDeliveryQueueRepository final : public AuditDeliveryQueueRepository {
+public:
+    explicit MySqlAuditDeliveryQueueRepository(drogon::orm::DbClientPtr client);
+
+    void enqueue(const domain::OperationAuditEvent& event, int maxAttempts) override;
+    std::vector<domain::AuditSiemDelivery> claimDue(
+        std::int64_t nowUnixMs,
+        std::int64_t leaseUntilUnixMs,
+        int limit,
+        const std::string& leaseToken) override;
+    void save(domain::AuditSiemDelivery delivery) override;
+    AuditDeliveryQueueDepths depths() const override;
+
+private:
+    drogon::orm::DbClientPtr client_;
+};
+
 class MySqlAiInteractionRepository final : public AiInteractionRepository {
 public:
     explicit MySqlAiInteractionRepository(drogon::orm::DbClientPtr client);

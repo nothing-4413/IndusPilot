@@ -127,6 +127,15 @@ std::shared_ptr<data::OperationAuditRepository> createOperationAuditRepository(
     return std::make_shared<data::InMemoryOperationAuditRepository>();
 }
 
+std::shared_ptr<data::AuditDeliveryQueueRepository> createAuditDeliveryQueueRepository(
+    const app::AppConfig& config,
+    const drogon::orm::DbClientPtr& mysqlClient) {
+    if (config.storage.repositoryStore == "mysql") {
+        return std::make_shared<data::MySqlAuditDeliveryQueueRepository>(mysqlClient);
+    }
+    return std::make_shared<data::InMemoryAuditDeliveryQueueRepository>();
+}
+
 std::shared_ptr<data::AiInteractionRepository> createAiInteractionRepository(
     const app::AppConfig& config,
     const drogon::orm::DbClientPtr& mysqlClient) {
@@ -159,7 +168,11 @@ HttpServerContext buildHttpServerContext(const app::AppConfig& config) {
     context.maintenance = std::make_shared<modules::MaintenanceService>(createWorkOrderRepository(config, mysqlClient));
     context.ai = std::make_shared<modules::AiService>(config.ai, createAiInteractionRepository(config, mysqlClient), nullptr, context.metrics);
     context.audit = std::make_shared<modules::AuditService>(
-        createOperationAuditRepository(config, mysqlClient), modules::makeAuditDeliverySink(config.audit), config.audit);
+        createOperationAuditRepository(config, mysqlClient),
+        modules::makeAuditDeliverySink(config.audit),
+        config.audit,
+        createAuditDeliveryQueueRepository(config, mysqlClient),
+        context.metrics);
 #else
     context.identity = std::make_shared<modules::IdentityService>();
     context.assets = std::make_shared<modules::AssetService>();

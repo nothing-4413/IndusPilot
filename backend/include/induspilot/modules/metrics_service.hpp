@@ -33,6 +33,12 @@ struct NotificationMetricSnapshot {
     std::uint64_t count{0};
 };
 
+struct AuditSiemDeliveryQueueSnapshot {
+    int queued{0};
+    int retrying{0};
+    int deadLetter{0};
+};
+
 std::string normalizeMetricPath(const std::string& path);
 
 class MetricsRegistry {
@@ -41,6 +47,7 @@ public:
     void recordReadiness(const ReadinessMetricSnapshot& snapshot);
     void recordAiProviderCall(const std::string& provider, const std::string& operation, bool available, double durationMs);
     void recordNotificationDelivery(const std::string& channel, const std::string& outcome);
+    void recordAuditSiemDeliveryQueueDepths(const AuditSiemDeliveryQueueSnapshot& snapshot);
     std::string renderPrometheus() const;
 
     std::uint64_t totalRequests() const;
@@ -56,6 +63,7 @@ private:
     std::map<std::string, HttpMetricSnapshot> httpRoutes_;
     std::map<std::string, AiProviderMetricSnapshot> aiProviderCalls_;
     std::map<std::string, NotificationMetricSnapshot> notificationDeliveries_;
+    AuditSiemDeliveryQueueSnapshot auditSiemDeliveryQueue_;
     std::uint64_t totalRequests_{0};
     std::uint64_t totalErrors_{0};
     std::uint64_t aiRequests_{0};

@@ -30,8 +30,19 @@
 
 class RecordingAuditDeliverySink final : public induspilot::modules::AuditDeliverySink {
 public:
-    void deliver(const induspilot::domain::OperationAuditEvent&) const override {
+    induspilot::modules::AuditDeliveryResult deliver(const induspilot::domain::OperationAuditEvent&) const override {
         deliveryCount.fetch_add(1);
+        return {true, {}};
+    }
+
+    mutable std::atomic<int> deliveryCount{0};
+};
+
+class FailingAuditDeliverySink final : public induspilot::modules::AuditDeliverySink {
+public:
+    induspilot::modules::AuditDeliveryResult deliver(const induspilot::domain::OperationAuditEvent&) const override {
+        deliveryCount.fetch_add(1);
+        return {false, "simulated SIEM outage"};
     }
 
     mutable std::atomic<int> deliveryCount{0};
@@ -43,12 +54,14 @@ static_assert(std::has_virtual_destructor_v<induspilot::data::AlertRepository>);
 static_assert(std::has_virtual_destructor_v<induspilot::data::WorkOrderRepository>);
 static_assert(std::has_virtual_destructor_v<induspilot::data::AiInteractionRepository>);
 static_assert(std::has_virtual_destructor_v<induspilot::data::OperationAuditRepository>);
+static_assert(std::has_virtual_destructor_v<induspilot::data::AuditDeliveryQueueRepository>);
 #ifdef INDUSPILOT_WITH_DROGON
 static_assert(std::is_base_of_v<induspilot::data::UserRepository, induspilot::data::MySqlUserRepository>);
 static_assert(std::is_base_of_v<induspilot::data::AssetRepository, induspilot::data::MySqlAssetRepository>);
 static_assert(std::is_base_of_v<induspilot::data::AlertRepository, induspilot::data::MySqlAlertRepository>);
 static_assert(std::is_base_of_v<induspilot::data::WorkOrderRepository, induspilot::data::MySqlWorkOrderRepository>);
 static_assert(std::is_base_of_v<induspilot::data::RuntimeStateRepository, induspilot::data::MySqlRuntimeStateRepository>);
+static_assert(std::is_base_of_v<induspilot::data::AuditDeliveryQueueRepository, induspilot::data::MySqlAuditDeliveryQueueRepository>);
 static_assert(std::is_base_of_v<induspilot::data::AiInteractionRepository, induspilot::data::MySqlAiInteractionRepository>);
 #endif
 
@@ -181,6 +194,13 @@ int main() {
     assert(!induspilot::app::validateConfig(invalidSiemConfig).valid);
     invalidSiemConfig.audit.siemWebhookUrl = "https://siem.example.test/events";
     invalidSiemConfig.audit.siemWebhookAllowedHosts = "siem.example.test";
+    assert(induspilot::app::validateConfig(invalidSiemConfig).valid);
+    invalidSiemConfig.audit.siemWebhookMaxAttempts = 0;
+    assert(!induspilot::app::validateConfig(invalidSiemConfig).valid);
+    invalidSiemConfig.audit.siemWebhookMaxAttempts = 3;
+    invalidSiemConfig.audit.siemWebhookPollMs = 9;
+    assert(!induspilot::app::validateConfig(invalidSiemConfig).valid);
+    invalidSiemConfig.audit.siemWebhookPollMs = 250;
     assert(induspilot::app::validateConfig(invalidSiemConfig).valid);
     assert(loadedConfig.security.passwordMinLength == 12);
     assert(loadedConfig.security.passwordIterations == 120000);
@@ -616,6 +636,47 @@ int main() {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     assert(recordingSink->deliveryCount.load() == 1);
+    auto retryConfig = induspilot::app::AuditConfig{};
+    retryConfig.siemWebhookMaxAttempts = 2;
+    retryConfig.siemWebhookPollMs = 10;
+    const auto retryQueue = std::make_shared<induspilot::data::InMemoryAuditDeliveryQueueRepository>();
+    const auto retrySink = std::make_shared<FailingAuditDeliverySink>();
+    const auto retryMetrics = std::make_shared<induspilot::modules::MetricsRegistry>();
+    {
+        induspilot::modules::AuditService retryingAudit(
+            std::make_shared<induspilot::data::InMemoryOperationAuditRepository>(),
+            retrySink,
+            retryConfig,
+            retryQueue,
+            retryMetrics);
+        retryingAudit.record(induspilot::domain::OperationAuditEvent{
+            "audit-siem-retry", "admin", "test.siem.retry", "test", "retry", "success", "trace-siem-retry", ""});
+        for (int attempt = 0; attempt < 50 && retrySink->deliveryCount.load() == 0; ++attempt) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        assert(retrySink->deliveryCount.load() == 1);
+        assert(retryQueue->depths().retrying == 1);
+        assert(retryMetrics->renderPrometheus().find("induspilot_notification_deliveries_total{channel=\"siem\",outcome=\"retrying\"} 1") != std::string::npos);
+        assert(retryMetrics->renderPrometheus().find("induspilot_audit_siem_delivery_queue{state=\"retrying\"} 1") != std::string::npos);
+    }
+    auto deadLetterConfig = retryConfig;
+    deadLetterConfig.siemWebhookMaxAttempts = 1;
+    const auto deadLetterQueue = std::make_shared<induspilot::data::InMemoryAuditDeliveryQueueRepository>();
+    const auto deadLetterSink = std::make_shared<FailingAuditDeliverySink>();
+    {
+        induspilot::modules::AuditService deadLetterAudit(
+            std::make_shared<induspilot::data::InMemoryOperationAuditRepository>(),
+            deadLetterSink,
+            deadLetterConfig,
+            deadLetterQueue);
+        deadLetterAudit.record(induspilot::domain::OperationAuditEvent{
+            "audit-siem-dead-letter", "admin", "test.siem.dead", "test", "dead", "success", "trace-siem-dead", ""});
+        for (int attempt = 0; attempt < 50 && deadLetterSink->deliveryCount.load() == 0; ++attempt) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        assert(deadLetterSink->deliveryCount.load() == 1);
+        assert(deadLetterQueue->depths().deadLetter == 1);
+    }
     auditQuery.occurredFrom = auditEvent.occurredAt;
     auditQuery.occurredTo = auditEvent.occurredAt;
     assert(audit.events(auditQuery).size() == 1);

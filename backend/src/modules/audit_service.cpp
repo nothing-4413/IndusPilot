@@ -67,6 +67,24 @@ std::string nextAuditId() {
     return "audit-" + std::to_string(epochMillis) + "-" + std::to_string(sequence.fetch_add(1) + 1);
 }
 
+std::int64_t nowUnixMs() {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+}
+
+std::string deliveryWorkerToken() {
+    static std::atomic<unsigned long long> sequence{0};
+    return "audit-siem-" + std::to_string(nowUnixMs()) + "-" + std::to_string(sequence.fetch_add(1) + 1);
+}
+
+std::string boundedError(const std::string& value) {
+    constexpr std::size_t kMaximumLength = 480;
+    if (value.size() <= kMaximumLength) {
+        return value;
+    }
+    return value.substr(0, kMaximumLength);
+}
+
 std::string canonicalAuditPayload(const domain::OperationAuditEvent& event, const std::string& previousHash) {
     std::ostringstream out;
     out << event.id << '\n'
@@ -272,15 +290,15 @@ class DefaultAuditDeliverySink final : public AuditDeliverySink {
 public:
     explicit DefaultAuditDeliverySink(app::AuditConfig config) : config_(std::move(config)) {}
 
-    void deliver(const domain::OperationAuditEvent& event) const override {
+    AuditDeliveryResult deliver(const domain::OperationAuditEvent& event) const override {
 #ifdef INDUSPILOT_WITH_DROGON
         const auto endpoint = parseWebhookEndpoint(config_.siemWebhookUrl);
         if (!endpoint.valid || !hostAllowed(endpoint.host, config_.siemWebhookAllowedHosts)) {
-            return;
+            return {false, "SIEM webhook target 无效或不在允许列表中"};
         }
         const auto address = resolvePublicAddress(endpoint);
         if (!address.has_value()) {
-            return;
+            return {false, "SIEM webhook target 未解析为公网地址"};
         }
         try {
             Json::Value payload;
@@ -304,12 +322,20 @@ public:
             request->addHeader("Host", hostHeader);
             const auto client = drogon::HttpClient::newHttpClient(*address, endpoint.portNumber, endpoint.https, nullptr, false, true);
             const auto response = client->sendRequest(request, static_cast<double>((std::max)(config_.siemWebhookTimeoutMs, 1)) / 1000.0);
-            (void)response;
-        } catch (const std::exception&) {
-            // SIEM is a best-effort secondary sink; audit persistence is already complete.
+            if (response.first != drogon::ReqResult::Ok || !response.second) {
+                return {false, "SIEM webhook 请求失败"};
+            }
+            const auto statusCode = static_cast<int>(response.second->statusCode());
+            if (statusCode < 200 || statusCode >= 300) {
+                return {false, "SIEM webhook 返回状态码 " + std::to_string(statusCode)};
+            }
+            return {true, {}};
+        } catch (const std::exception& ex) {
+            return {false, "SIEM webhook 异常：" + boundedError(ex.what())};
         }
 #else
         (void)event;
+        return {false, "SIEM webhook 需要启用 Drogon HTTP 传输"};
 #endif
     }
 
@@ -323,10 +349,33 @@ AuditService::AuditService() : AuditService(std::make_shared<data::InMemoryOpera
 
 AuditService::AuditService(std::shared_ptr<data::OperationAuditRepository> repository,
     std::shared_ptr<AuditDeliverySink> deliverySink,
-    app::AuditConfig config)
-    : repository_(std::move(repository)), deliverySink_(std::move(deliverySink)), config_(std::move(config)) {
+    app::AuditConfig config,
+    std::shared_ptr<data::AuditDeliveryQueueRepository> deliveryQueue,
+    std::shared_ptr<MetricsRegistry> metrics)
+    : repository_(std::move(repository)),
+      deliverySink_(std::move(deliverySink)),
+      config_(std::move(config)),
+      deliveryQueue_(std::move(deliveryQueue)),
+      metrics_(std::move(metrics)) {
     if (!repository_) {
         repository_ = std::make_shared<data::InMemoryOperationAuditRepository>();
+    }
+    if (deliverySink_ && !deliveryQueue_) {
+        deliveryQueue_ = std::make_shared<data::InMemoryAuditDeliveryQueueRepository>();
+    }
+    if (deliverySink_ && deliveryQueue_) {
+        deliveryWorker_ = std::thread(&AuditService::deliveryLoop, this);
+    }
+}
+
+AuditService::~AuditService() {
+    {
+        std::lock_guard<std::mutex> lock(deliveryMutex_);
+        stopDeliveryWorker_ = true;
+    }
+    deliveryWakeup_.notify_all();
+    if (deliveryWorker_.joinable()) {
+        deliveryWorker_.join();
     }
 }
 
@@ -352,12 +401,13 @@ domain::OperationAuditEvent AuditService::record(domain::OperationAuditEvent eve
         event.eventHash = calculateAuditHash(event, event.previousHash);
         saved = repository_->save(std::move(event));
     }
-    if (deliverySink_) {
+    if (deliverySink_ && deliveryQueue_) {
         try {
-            const auto sink = deliverySink_;
-            std::thread([sink, saved] { sink->deliver(saved); }).detach();
+            deliveryQueue_->enqueue(saved, config_.siemWebhookMaxAttempts);
+            recordDeliveryQueueDepths();
+            deliveryWakeup_.notify_one();
         } catch (const std::exception&) {
-            // A resource failure in the optional delivery path must not affect the audit record.
+            // Queue failures must not affect the durable audit record.
         }
     }
     return saved;
@@ -401,6 +451,76 @@ OperationAuditIntegrityReport AuditService::integrityReport() const {
     }
     report.latestHash = previousHash;
     return report;
+}
+
+void AuditService::deliveryLoop() {
+    while (true) {
+        processDeliveryQueue();
+        std::unique_lock<std::mutex> lock(deliveryMutex_);
+        const auto pollInterval = std::chrono::milliseconds((std::max)(config_.siemWebhookPollMs, 10));
+        deliveryWakeup_.wait_for(lock, pollInterval, [this] { return stopDeliveryWorker_; });
+        if (stopDeliveryWorker_) {
+            return;
+        }
+    }
+}
+
+void AuditService::processDeliveryQueue() {
+    if (!deliverySink_ || !deliveryQueue_) {
+        return;
+    }
+    try {
+        const auto now = nowUnixMs();
+        auto deliveries = deliveryQueue_->claimDue(now, now + 30000, 100, deliveryWorkerToken());
+        for (auto& delivery : deliveries) {
+            ++delivery.attemptCount;
+            delivery.leaseUntilUnixMs = 0;
+            delivery.leaseToken.clear();
+            AuditDeliveryResult result;
+            try {
+                result = deliverySink_->deliver(delivery.event);
+            } catch (const std::exception& ex) {
+                result = {false, "SIEM webhook 异常：" + boundedError(ex.what())};
+            } catch (...) {
+                result = {false, "SIEM webhook 发生未知异常"};
+            }
+            if (result.delivered) {
+                delivery.status = "sent";
+                delivery.lastError.clear();
+                delivery.deliveredAt = currentTimestamp();
+                delivery.nextAttemptAtUnixMs = 0;
+            } else if (delivery.attemptCount >= delivery.maxAttempts) {
+                delivery.status = "dead_letter";
+                delivery.lastError = boundedError(result.error.empty() ? "SIEM webhook 投递失败" : result.error);
+                delivery.deliveredAt.clear();
+                delivery.nextAttemptAtUnixMs = 0;
+            } else {
+                delivery.status = "retrying";
+                delivery.lastError = boundedError(result.error.empty() ? "SIEM webhook 投递失败" : result.error);
+                delivery.deliveredAt.clear();
+                const auto exponent = (std::min)(delivery.attemptCount - 1, 10);
+                delivery.nextAttemptAtUnixMs = nowUnixMs() + (1LL << exponent) * 1000;
+            }
+            const auto outcome = result.delivered ? "sent" :
+                (delivery.attemptCount >= delivery.maxAttempts ? "dead_letter" : "retrying");
+            deliveryQueue_->save(std::move(delivery));
+            if (metrics_) {
+                metrics_->recordNotificationDelivery("siem", outcome);
+            }
+        }
+        recordDeliveryQueueDepths();
+    } catch (const std::exception&) {
+        // A queue or database failure is isolated from audit event recording and retried on the next poll.
+    }
+}
+
+void AuditService::recordDeliveryQueueDepths() const {
+    if (!deliveryQueue_ || !metrics_) {
+        return;
+    }
+    const auto depths = deliveryQueue_->depths();
+    metrics_->recordAuditSiemDeliveryQueueDepths(
+        AuditSiemDeliveryQueueSnapshot{depths.queued, depths.retrying, depths.deadLetter});
 }
 
 std::shared_ptr<AuditDeliverySink> makeAuditDeliverySink(const app::AuditConfig& config) {

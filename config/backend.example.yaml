@@ -81,6 +81,9 @@ audit:
   siem_webhook_url: ""
   siem_webhook_timeout_ms: 5000
   siem_webhook_allowed_hosts: ""
+  # Durable delivery retries use exponential backoff; keep values modest for predictable shutdown behavior.
+  siem_webhook_max_attempts: 3
+  siem_webhook_poll_ms: 250
 
 readiness:
   # readiness 单次依赖探测超时和结果缓存时间，单位为毫秒。

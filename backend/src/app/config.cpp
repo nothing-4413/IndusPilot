@@ -214,6 +214,10 @@ void applyConfigValue(
         parseInteger(config.audit.siemWebhookTimeoutMs);
     } else if (section == "audit" && (key == "siemWebhookAllowedHosts" || key == "siem_webhook_allowed_hosts")) {
         config.audit.siemWebhookAllowedHosts = value;
+    } else if (section == "audit" && (key == "siemWebhookMaxAttempts" || key == "siem_webhook_max_attempts")) {
+        parseInteger(config.audit.siemWebhookMaxAttempts);
+    } else if (section == "audit" && (key == "siemWebhookPollMs" || key == "siem_webhook_poll_ms")) {
+        parseInteger(config.audit.siemWebhookPollMs);
     } else if (section == "readiness" && (key == "probeTimeoutMs" || key == "probe_timeout_ms")) {
         parseInteger(config.readiness.probeTimeoutMs);
     } else if (section == "readiness" && (key == "probeCacheMs" || key == "probe_cache_ms")) {
@@ -294,6 +298,8 @@ void applyEnvironmentOverrides(AppConfig& config) {
     applyStringEnv("INDUSPILOT_AUDIT_SIEM_WEBHOOK_URL", config.audit.siemWebhookUrl);
     applyIntEnv(config, "INDUSPILOT_AUDIT_SIEM_WEBHOOK_TIMEOUT_MS", "audit.siem_webhook_timeout_ms", config.audit.siemWebhookTimeoutMs);
     applyStringEnv("INDUSPILOT_AUDIT_SIEM_WEBHOOK_ALLOWED_HOSTS", config.audit.siemWebhookAllowedHosts);
+    applyIntEnv(config, "INDUSPILOT_AUDIT_SIEM_WEBHOOK_MAX_ATTEMPTS", "audit.siem_webhook_max_attempts", config.audit.siemWebhookMaxAttempts);
+    applyIntEnv(config, "INDUSPILOT_AUDIT_SIEM_WEBHOOK_POLL_MS", "audit.siem_webhook_poll_ms", config.audit.siemWebhookPollMs);
 
     applyIntEnv(config, "INDUSPILOT_READINESS_PROBE_TIMEOUT_MS", "readiness.probe_timeout_ms", config.readiness.probeTimeoutMs);
     applyIntEnv(config, "INDUSPILOT_READINESS_PROBE_CACHE_MS", "readiness.probe_cache_ms", config.readiness.probeCacheMs);
@@ -425,6 +431,12 @@ ConfigValidation validateConfig(const AppConfig& config) {
     }
     if (config.audit.siemWebhookTimeoutMs < 1) {
         addError("audit.siem_webhook_timeout_ms must be greater than zero");
+    }
+    if (config.audit.siemWebhookMaxAttempts < 1 || config.audit.siemWebhookMaxAttempts > 100) {
+        addError("audit.siem_webhook_max_attempts must be between 1 and 100");
+    }
+    if (config.audit.siemWebhookPollMs < 10 || config.audit.siemWebhookPollMs > 60000) {
+        addError("audit.siem_webhook_poll_ms must be between 10 and 60000");
     }
     if (config.audit.siemWebhookEnabled && config.audit.siemWebhookUrl.empty()) {
         addError("audit.siem_webhook_url must not be empty when SIEM webhook delivery is enabled");

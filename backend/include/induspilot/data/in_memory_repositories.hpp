@@ -100,6 +100,23 @@ private:
     mutable std::mutex mutex_;
     std::vector<domain::OperationAuditEvent> events_;
 };
+
+class InMemoryAuditDeliveryQueueRepository final : public AuditDeliveryQueueRepository {
+public:
+    void enqueue(const domain::OperationAuditEvent& event, int maxAttempts) override;
+    std::vector<domain::AuditSiemDelivery> claimDue(
+        std::int64_t nowUnixMs,
+        std::int64_t leaseUntilUnixMs,
+        int limit,
+        const std::string& leaseToken) override;
+    void save(domain::AuditSiemDelivery delivery) override;
+    AuditDeliveryQueueDepths depths() const override;
+
+private:
+    mutable std::mutex mutex_;
+    std::map<std::string, domain::AuditSiemDelivery> deliveries_;
+};
+
 class InMemoryAiInteractionRepository final : public AiInteractionRepository {
 public:
     domain::AiInteraction save(domain::AiInteraction interaction) override;

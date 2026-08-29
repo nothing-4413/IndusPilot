@@ -102,6 +102,7 @@ $requiredFiles = @(
     "database/mysql/012_seed_account_governance.sql",
     "database/mysql/013_notification_delivery_queue.sql",
     "database/mysql/014_migration_integrity.sql",
+    "database/mysql/015_audit_siem_delivery_queue.sql",
     "database/mysql/migrate.sh",
     "database/mongodb/init_collections.js",
     "database/mongodb/integration/real_crud_smoke.js",
@@ -190,8 +191,9 @@ $schemaScripts = @(
     "database/mysql/010_redact_legacy_login_audit_tokens.sql",
     "database/mysql/011_credential_version.sql",
     "database/mysql/012_seed_account_governance.sql",
-    "database/mysql/013_notification_delivery_queue.sql"
-    ,"database/mysql/014_migration_integrity.sql"
+    "database/mysql/013_notification_delivery_queue.sql",
+    "database/mysql/014_migration_integrity.sql",
+    "database/mysql/015_audit_siem_delivery_queue.sql"
 )
 $expectedMigrations = @(
     "001_foundation_schema",
@@ -206,8 +208,9 @@ $expectedMigrations = @(
     "010_redact_legacy_login_audit_tokens",
     "011_credential_version",
     "012_seed_account_governance",
-    "013_notification_delivery_queue"
-    ,"014_migration_integrity"
+    "013_notification_delivery_queue",
+    "014_migration_integrity",
+    "015_audit_siem_delivery_queue"
 )
 foreach ($migration in $expectedMigrations) {
     $found = $false

@@ -104,6 +104,19 @@ struct OperationAuditEvent {
     std::string previousHash;
     std::string eventHash;
 };
+
+struct AuditSiemDelivery {
+    OperationAuditEvent event;
+    std::string status{"queued"};
+    int attemptCount{0};
+    std::string lastError;
+    std::string deliveredAt;
+    std::int64_t nextAttemptAtUnixMs{0};
+    std::int64_t leaseUntilUnixMs{0};
+    std::string leaseToken;
+    int maxAttempts{3};
+};
+
 struct AiInteraction {
     std::string id;
     std::string relatedType;

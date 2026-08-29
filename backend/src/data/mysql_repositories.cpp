@@ -5,6 +5,7 @@
 #include <drogon/orm/Exception.h>
 #include <drogon/orm/Result.h>
 
+#include <algorithm>
 #include <sstream>
 #include <utility>
 
@@ -258,6 +259,19 @@ domain::OperationAuditEvent operationAuditEventFromRow(const drogon::orm::Row& r
         row["occurred_at"].as<std::string>(),
         nullableString(row, "previous_hash"),
         nullableString(row, "event_hash")};
+}
+
+domain::AuditSiemDelivery auditSiemDeliveryFromRow(const drogon::orm::Row& row) {
+    return domain::AuditSiemDelivery{
+        operationAuditEventFromRow(row),
+        row["status"].as<std::string>(),
+        row["attempt_count"].as<int>(),
+        nullableString(row, "last_error"),
+        nullableString(row, "delivered_at"),
+        row["next_attempt_at_unix_ms"].as<long long>(),
+        row["lease_until_unix_ms"].as<long long>(),
+        nullableString(row, "lease_token"),
+        row["max_attempts"].as<int>()};
 }
 domain::AiInteraction aiInteractionFromRow(const drogon::orm::Row& row) {
     return domain::AiInteraction{
@@ -740,6 +754,84 @@ std::vector<domain::OperationAuditEvent> MySqlOperationAuditRepository::listForI
     }
     return events;
 }
+
+MySqlAuditDeliveryQueueRepository::MySqlAuditDeliveryQueueRepository(drogon::orm::DbClientPtr client)
+    : client_(std::move(client)) {}
+
+void MySqlAuditDeliveryQueueRepository::enqueue(const domain::OperationAuditEvent& event, int maxAttempts) {
+    client_->execSqlSync(
+        "INSERT IGNORE INTO audit_siem_deliveries(event_code, status, attempt_count, last_error, next_attempt_at_unix_ms, lease_until_unix_ms, lease_token, max_attempts) "
+        "VALUES(?, 'queued', 0, '', 0, 0, '', ?)",
+        event.id,
+        (std::max)(maxAttempts, 1));
+}
+
+std::vector<domain::AuditSiemDelivery> MySqlAuditDeliveryQueueRepository::claimDue(
+    std::int64_t nowUnixMs,
+    std::int64_t leaseUntilUnixMs,
+    int limit,
+    const std::string& leaseToken) {
+    if (limit <= 0 || leaseToken.empty()) {
+        return {};
+    }
+    client_->execSqlSync(
+        "UPDATE audit_siem_deliveries SET status = 'delivering', lease_until_unix_ms = ?, lease_token = ? "
+        "WHERE ((status IN ('queued', 'retrying')) OR (status = 'delivering' AND lease_until_unix_ms <= ?)) "
+        "AND next_attempt_at_unix_ms <= ? "
+        "AND (lease_until_unix_ms <= ? OR lease_token = '') "
+        "ORDER BY created_at, id LIMIT ?",
+        leaseUntilUnixMs, leaseToken, nowUnixMs, nowUnixMs, nowUnixMs, limit);
+    const auto result = client_->execSqlSync(
+        "SELECT e.event_code, e.actor, e.action, e.resource_type, e.resource_id, e.result, e.trace_id, "
+        "DATE_FORMAT(e.occurred_at, '%Y-%m-%dT%H:%i:%s') AS occurred_at, e.previous_hash, e.event_hash, "
+        "q.status, q.attempt_count, q.last_error, DATE_FORMAT(q.delivered_at, '%Y-%m-%dT%H:%i:%s') AS delivered_at, "
+        "q.next_attempt_at_unix_ms, q.lease_until_unix_ms, q.lease_token, q.max_attempts "
+        "FROM audit_siem_deliveries q JOIN operation_audit_events e ON e.event_code = q.event_code "
+        "WHERE q.lease_token = ? AND q.lease_until_unix_ms = ? ORDER BY q.created_at, q.id",
+        leaseToken, leaseUntilUnixMs);
+    std::vector<domain::AuditSiemDelivery> deliveries;
+    for (const auto& row : result) {
+        deliveries.push_back(auditSiemDeliveryFromRow(row));
+    }
+    return deliveries;
+}
+
+void MySqlAuditDeliveryQueueRepository::save(domain::AuditSiemDelivery delivery) {
+    client_->execSqlSync(
+        "UPDATE audit_siem_deliveries SET status = ?, attempt_count = ?, last_error = ?, delivered_at = "
+        "IF(? = '', NULL, ?), next_attempt_at_unix_ms = ?, lease_until_unix_ms = ?, lease_token = ?, max_attempts = ? "
+        "WHERE event_code = ?",
+        delivery.status,
+        delivery.attemptCount,
+        delivery.lastError,
+        delivery.deliveredAt,
+        delivery.deliveredAt,
+        delivery.nextAttemptAtUnixMs,
+        delivery.leaseUntilUnixMs,
+        delivery.leaseToken,
+        delivery.maxAttempts,
+        delivery.event.id);
+}
+
+AuditDeliveryQueueDepths MySqlAuditDeliveryQueueRepository::depths() const {
+    const auto result = client_->execSqlSync(
+        "SELECT status, COUNT(*) AS count FROM audit_siem_deliveries "
+        "WHERE status IN ('queued', 'retrying', 'dead_letter') GROUP BY status");
+    AuditDeliveryQueueDepths depths;
+    for (const auto& row : result) {
+        const auto status = row["status"].as<std::string>();
+        const auto count = row["count"].as<int>();
+        if (status == "queued") {
+            depths.queued = count;
+        } else if (status == "retrying") {
+            depths.retrying = count;
+        } else if (status == "dead_letter") {
+            depths.deadLetter = count;
+        }
+    }
+    return depths;
+}
+
 MySqlAiInteractionRepository::MySqlAiInteractionRepository(drogon::orm::DbClientPtr client) : client_(std::move(client)) {}
 
 domain::AiInteraction MySqlAiInteractionRepository::save(domain::AiInteraction interaction) {

@@ -91,7 +91,7 @@ std::string notificationMetricKey(const std::string& channel, const std::string&
 }
 
 std::string boundedChannel(const std::string& channel) {
-    return channel == "console" || channel == "email" || channel == "webhook" ? channel : "unknown";
+    return channel == "console" || channel == "email" || channel == "webhook" || channel == "siem" ? channel : "unknown";
 }
 
 std::string boundedOutcome(const std::string& outcome) {
@@ -157,6 +157,11 @@ void MetricsRegistry::recordAiProviderCall(const std::string& provider, const st
 void MetricsRegistry::recordNotificationDelivery(const std::string& channel, const std::string& outcome) {
     std::lock_guard<std::mutex> lock(mutex_);
     ++notificationDeliveries_[notificationMetricKey(boundedChannel(channel), boundedOutcome(outcome))].count;
+}
+
+void MetricsRegistry::recordAuditSiemDeliveryQueueDepths(const AuditSiemDeliveryQueueSnapshot& snapshot) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auditSiemDeliveryQueue_ = snapshot;
 }
 
 std::string MetricsRegistry::renderPrometheus() const {
@@ -234,6 +239,12 @@ std::string MetricsRegistry::renderPrometheus() const {
         const auto labels = std::string("channel=\"") + escapeLabel(channel) + "\",outcome=\"" + escapeLabel(outcome) + "\"";
         out << "induspilot_notification_deliveries_total{" << labels << "} " << item.second.count << '\n';
     }
+
+    out << "# HELP induspilot_audit_siem_delivery_queue Current SIEM audit delivery tasks by state.\n";
+    out << "# TYPE induspilot_audit_siem_delivery_queue gauge\n";
+    out << "induspilot_audit_siem_delivery_queue{state=\"queued\"} " << auditSiemDeliveryQueue_.queued << '\n';
+    out << "induspilot_audit_siem_delivery_queue{state=\"retrying\"} " << auditSiemDeliveryQueue_.retrying << '\n';
+    out << "induspilot_audit_siem_delivery_queue{state=\"dead_letter\"} " << auditSiemDeliveryQueue_.deadLetter << '\n';
 
     out << "# HELP induspilot_http_route_requests_total HTTP requests grouped by method, normalized path and status.\n";
     out << "# TYPE induspilot_http_route_requests_total counter\n";

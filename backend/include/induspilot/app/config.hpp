@@ -53,6 +53,8 @@ struct AuditConfig {
     std::string siemWebhookUrl;
     int siemWebhookTimeoutMs{5000};
     std::string siemWebhookAllowedHosts;
+    int siemWebhookMaxAttempts{3};
+    int siemWebhookPollMs{250};
 };
 
 struct ReadinessConfig {

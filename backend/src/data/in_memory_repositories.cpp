@@ -254,6 +254,64 @@ std::vector<domain::OperationAuditEvent> InMemoryOperationAuditRepository::listF
     std::lock_guard<std::mutex> lock(mutex_);
     return events_;
 }
+
+void InMemoryAuditDeliveryQueueRepository::enqueue(const domain::OperationAuditEvent& event, int maxAttempts) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (event.id.empty() || deliveries_.find(event.id) != deliveries_.end()) {
+        return;
+    }
+    deliveries_.emplace(event.id, domain::AuditSiemDelivery{
+        event, "queued", 0, {}, {}, 0, 0, {}, (std::max)(maxAttempts, 1)});
+}
+
+std::vector<domain::AuditSiemDelivery> InMemoryAuditDeliveryQueueRepository::claimDue(
+    std::int64_t nowUnixMs,
+    std::int64_t leaseUntilUnixMs,
+    int limit,
+    const std::string& leaseToken) {
+    if (limit <= 0 || leaseToken.empty()) {
+        return {};
+    }
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::vector<domain::AuditSiemDelivery> claimed;
+    for (auto& item : deliveries_) {
+        auto& delivery = item.second;
+        const auto due = delivery.nextAttemptAtUnixMs <= nowUnixMs;
+        const auto retryable = delivery.status == "queued" || delivery.status == "retrying" ||
+            (delivery.status == "delivering" && delivery.leaseUntilUnixMs <= nowUnixMs);
+        if (!due || !retryable || static_cast<int>(claimed.size()) >= limit) {
+            continue;
+        }
+        delivery.status = "delivering";
+        delivery.leaseUntilUnixMs = leaseUntilUnixMs;
+        delivery.leaseToken = leaseToken;
+        claimed.push_back(delivery);
+    }
+    return claimed;
+}
+
+void InMemoryAuditDeliveryQueueRepository::save(domain::AuditSiemDelivery delivery) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!delivery.event.id.empty()) {
+        deliveries_[delivery.event.id] = std::move(delivery);
+    }
+}
+
+AuditDeliveryQueueDepths InMemoryAuditDeliveryQueueRepository::depths() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    AuditDeliveryQueueDepths result;
+    for (const auto& item : deliveries_) {
+        if (item.second.status == "queued") {
+            ++result.queued;
+        } else if (item.second.status == "retrying") {
+            ++result.retrying;
+        } else if (item.second.status == "dead_letter") {
+            ++result.deadLetter;
+        }
+    }
+    return result;
+}
+
 domain::AiInteraction InMemoryAiInteractionRepository::save(domain::AiInteraction interaction) {
     interactions_.push_back(interaction);
     return interaction;
