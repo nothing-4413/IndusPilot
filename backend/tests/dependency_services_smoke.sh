@@ -8,9 +8,15 @@ echo "[integration] check MySQL migration runner"
 bash backend/tests/mysql_migration_runner_smoke.sh
 
 compose=(docker compose --env-file deployment/.env -f deployment/docker-compose.yml)
+expected_mysql_database="${INDUSPILOT_EXPECTED_MYSQL_DATABASE:-}"
 
 echo "[integration] check compose services"
 "${compose[@]}" ps
+
+if [[ -n "$expected_mysql_database" ]]; then
+  echo "[integration] verify configured MySQL database"
+  "${compose[@]}" exec -T mysql sh -c 'test "$MYSQL_DATABASE" = "$1"' _ "$expected_mysql_database"
+fi
 
 echo "[integration] re-run MySQL migrations"
 "${compose[@]}" exec -T mysql sh -c '

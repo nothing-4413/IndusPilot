@@ -160,6 +160,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File deployment/preflight.ps1
 
 MySQL 初始化脚本会登记以下版本到 `schema_migrations`：`001_foundation_schema`、`002_seed_identity`、`003_runtime_persistence_schema`、`004_work_order_attachments_schema`、`005_alert_rules_notifications_schema`、`006_alert_notification_delivery_schema`、`007_operation_audit_events_schema`、`008_operation_audit_export_permission`、`009_operation_audit_integrity_schema`、`010_redact_legacy_login_audit_tokens`、`011_credential_version`、`012_seed_account_governance`、`013_notification_delivery_queue`、`014_migration_integrity`。该版本表用于部署核对；后端不会在启动时自动迁移数据库。
 
+CI 的依赖服务和真实后端运行时 profile 会把 `INDUSPILOT_MYSQL_DATABASE` 覆盖为 `induspilot_ci_custom_db`，并通过迁移、CRUD 与 HTTP smoke 验证整个链路。生产仍应显式设置自身数据库名；该 CI 名称不应直接用于部署环境。
+
 生产或升级环境应使用统一迁移入口。它会按编号应用待执行脚本，拒绝未知版本和版本跳跃，并在每个脚本完成后校验版本登记：
 
 ```bash

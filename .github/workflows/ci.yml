@@ -139,9 +139,12 @@ jobs:
           sed -i 's/change-me-app-password/ci-app-password/g' deployment/.env
           sed -i 's/change-me-redis-password/ci-redis-password/g' deployment/.env
           sed -i 's/change-me-mongodb-password/ci-mongodb-password/g' deployment/.env
+          sed -i 's/^INDUSPILOT_MYSQL_DATABASE=.*/INDUSPILOT_MYSQL_DATABASE=induspilot_ci_custom_db/' deployment/.env
 
       - name: Run real dependency and HTTP profile smoke
         shell: pwsh
+        env:
+          INDUSPILOT_EXPECTED_MYSQL_DATABASE: induspilot_ci_custom_db
         run: >-
           ./backend/tests/http_runtime_profile_smoke.ps1
           -BackendExe build/dev-http/backend/induspilot-backend
@@ -193,6 +196,7 @@ jobs:
           sed -i 's/change-me-app-password/ci-app-password/g' deployment/.env
           sed -i 's/change-me-redis-password/ci-redis-password/g' deployment/.env
           sed -i 's/change-me-mongodb-password/ci-mongodb-password/g' deployment/.env
+          sed -i 's/^INDUSPILOT_MYSQL_DATABASE=.*/INDUSPILOT_MYSQL_DATABASE=induspilot_ci_custom_db/' deployment/.env
 
       - name: Start dependencies
         shell: bash
@@ -200,6 +204,8 @@ jobs:
 
       - name: Run dependency smoke
         shell: bash
+        env:
+          INDUSPILOT_EXPECTED_MYSQL_DATABASE: induspilot_ci_custom_db
         run: bash backend/tests/dependency_services_smoke.sh
 
       - name: Stop dependencies

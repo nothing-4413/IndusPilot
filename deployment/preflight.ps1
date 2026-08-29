@@ -199,6 +199,17 @@ if ($migrationRunner -match "schema_migrations" -and $migrationRunner -match "OR
     Write-CheckFail "MySQL 迁移入口缺少版本、锁或完整性治理检查"
 }
 
+$ciWorkflow = Get-FileText ".github/workflows/ci.yml"
+$runtimeProfileSmoke = Get-FileText "backend/tests/http_runtime_profile_smoke.ps1"
+$customDatabaseOverride = "INDUSPILOT_MYSQL_DATABASE=induspilot_ci_custom_db"
+if (([regex]::Matches($ciWorkflow, [regex]::Escape($customDatabaseOverride))).Count -ge 2 -and
+    ([regex]::Matches($ciWorkflow, "INDUSPILOT_EXPECTED_MYSQL_DATABASE:\s+induspilot_ci_custom_db")).Count -ge 2 -and
+    $runtimeProfileSmoke.Contains('-MySqlDatabase $mysqlDatabase')) {
+    Write-CheckOk "CI 在依赖和运行时 profile 中覆盖并验证自定义 MySQL 数据库名"
+} else {
+    Write-CheckFail "CI 未完整覆盖自定义 MySQL 数据库名契约"
+}
+
 $hardCodedDatabaseSelection = $false
 foreach ($scriptPath in $schemaScripts + @("database/mysql/integration/real_crud_smoke.sql")) {
     if ((Get-FileText $scriptPath) -match "(?im)^\s*USE\s+induspilot\s*;") {

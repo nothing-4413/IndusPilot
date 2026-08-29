@@ -158,6 +158,7 @@ try {
         -RepositoryStore mysql `
         -SessionStore redis `
         -MySqlUri $mysqlUri `
+        -MySqlDatabase $mysqlDatabase `
         -RedisUri $redisUri `
         -MongoDbUri $mongoUri
     if ($LASTEXITCODE -ne 0) {
