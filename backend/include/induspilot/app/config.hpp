@@ -80,6 +80,7 @@ struct SecurityConfig {
 
 struct StorageConfig {
     std::string repositoryStore{"memory"};
+    std::string aiInteractionStore{"memory"};
 };
 
 struct AppConfig {

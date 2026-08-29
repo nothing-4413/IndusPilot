@@ -26,11 +26,13 @@ redis:
   session_store: "memory"
 
 storage:
-  # memory 用于本地演示；mysql 会将身份、资产、告警、工单、运行状态和 AI 审计切换到 MySQL 仓储。
+  # 事务型仓储：memory 用于本地演示，mysql 用于生产持久化。
   repository_store: "memory"
+  # AI 交互记录可独立选择 memory、mysql 或 mongodb；MongoDB 需要启用对应构建 feature。
+  ai_interaction_store: "memory"
 
 mongodb:
-  # 当前仅参与 TCP 健康探测；非结构化日志、知识片段和 AI 上下文仍在后续模块中接入。
+  # 仅在 storage.ai_interaction_store=mongodb 时由 HTTP runtime 使用。
   uri: "mongodb://127.0.0.1:27017"
   database: "induspilot"
 

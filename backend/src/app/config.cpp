@@ -244,6 +244,8 @@ void applyConfigValue(
         parseInteger(config.security.passwordIterations);
     } else if (section == "storage" && key == "repository_store") {
         config.storage.repositoryStore = value;
+    } else if (section == "storage" && key == "ai_interaction_store") {
+        config.storage.aiInteractionStore = value;
     } else {
         addLoadError(config, "line " + std::to_string(lineNumber) + ": unknown configuration field " + field);
     }
@@ -316,6 +318,7 @@ void applyEnvironmentOverrides(AppConfig& config) {
     applyIntEnv(config, "INDUSPILOT_SECURITY_PASSWORD_ITERATIONS", "security.password_iterations", config.security.passwordIterations);
 
     applyStringEnv("INDUSPILOT_REPOSITORY_STORE", config.storage.repositoryStore);
+    applyStringEnv("INDUSPILOT_AI_INTERACTION_STORE", config.storage.aiInteractionStore);
 }
 
 }  // namespace
@@ -391,6 +394,16 @@ ConfigValidation validateConfig(const AppConfig& config) {
     if (config.storage.repositoryStore != "memory" && config.storage.repositoryStore != "mysql") {
         addError("storage.repository_store must be memory or mysql");
     }
+    if (config.storage.aiInteractionStore != "memory" &&
+        config.storage.aiInteractionStore != "mysql" &&
+        config.storage.aiInteractionStore != "mongodb") {
+        addError("storage.ai_interaction_store must be memory, mysql or mongodb");
+    }
+#ifndef INDUSPILOT_WITH_MONGODB
+    if (config.storage.aiInteractionStore == "mongodb") {
+        addError("storage.ai_interaction_store=mongodb requires a backend built with INDUSPILOT_WITH_MONGODB");
+    }
+#endif
     if (config.redis.sessionStore != "memory" && config.redis.sessionStore != "redis") {
         addError("redis.session_store must be memory or redis");
     }

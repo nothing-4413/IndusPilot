@@ -3,6 +3,7 @@
 #include "induspilot/http/http_common.hpp"
 
 #include <algorithm>
+#include <exception>
 #include <optional>
 #include <string>
 #include <vector>
@@ -140,8 +141,12 @@ void registerAiRoutes(drogon::HttpAppFramework& server, const HttpServerContext&
             callback(invalidRequest(error));
             return;
         }
-        const auto suggestion = ai->troubleshoot(*aiRequest);
-        callback(jsonResponse(responseEnvelope(true, "OK", "AI troubleshooting returned", aiSuggestionToJson(suggestion))));
+        try {
+            const auto suggestion = ai->troubleshoot(*aiRequest);
+            callback(jsonResponse(responseEnvelope(true, "OK", "AI troubleshooting returned", aiSuggestionToJson(suggestion))));
+        } catch (const std::exception& exception) {
+            callback(dependencyUnavailable(std::string("AI interaction storage operation failed: ") + exception.what()));
+        }
     }, {drogon::Post});
 
     server.registerHandler("/api/v1/ai/summarize-logs", [identity, ai](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
@@ -161,8 +166,12 @@ void registerAiRoutes(drogon::HttpAppFramework& server, const HttpServerContext&
             callback(invalidRequest(error));
             return;
         }
-        const auto suggestion = ai->summarizeLogs(*aiRequest);
-        callback(jsonResponse(responseEnvelope(true, "OK", "AI log summary returned", aiSuggestionToJson(suggestion))));
+        try {
+            const auto suggestion = ai->summarizeLogs(*aiRequest);
+            callback(jsonResponse(responseEnvelope(true, "OK", "AI log summary returned", aiSuggestionToJson(suggestion))));
+        } catch (const std::exception& exception) {
+            callback(dependencyUnavailable(std::string("AI interaction storage operation failed: ") + exception.what()));
+        }
     }, {drogon::Post});
 
     server.registerHandler("/api/v1/ai/diagnose", [identity, ai](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
@@ -182,8 +191,12 @@ void registerAiRoutes(drogon::HttpAppFramework& server, const HttpServerContext&
             callback(invalidRequest(error));
             return;
         }
-        const auto diagnosis = ai->diagnose(*diagnosisRequest);
-        callback(jsonResponse(responseEnvelope(true, "OK", "AI diagnosis returned", diagnosisResultToJson(diagnosis))));
+        try {
+            const auto diagnosis = ai->diagnose(*diagnosisRequest);
+            callback(jsonResponse(responseEnvelope(true, "OK", "AI diagnosis returned", diagnosisResultToJson(diagnosis))));
+        } catch (const std::exception& exception) {
+            callback(dependencyUnavailable(std::string("AI interaction storage operation failed: ") + exception.what()));
+        }
     }, {drogon::Post});
 
     server.registerHandler("/api/v1/ai/interactions", [identity, ai](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
@@ -211,7 +224,13 @@ void registerAiRoutes(drogon::HttpAppFramework& server, const HttpServerContext&
             return;
         }
 
-        const auto interactions = ai->interactions(query);
+        std::vector<domain::AiInteraction> interactions;
+        try {
+            interactions = ai->interactions(query);
+        } catch (const std::exception& exception) {
+            callback(dependencyUnavailable(std::string("AI interaction storage operation failed: ") + exception.what()));
+            return;
+        }
         Json::Value rows(Json::arrayValue);
         if (!limit && !offset) {
             for (const auto& interaction : interactions) {

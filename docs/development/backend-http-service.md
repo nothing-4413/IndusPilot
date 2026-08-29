@@ -72,7 +72,7 @@ ctest --preset dev-http
 
 ## 后续约束
 
-当前 HTTP 层已经接入会话守卫、权限守卫、统一错误响应和仓储边界。`storage.repository_store` 为 `memory` 时使用内存仓储；设置为 `mysql` 时，身份认证、资产、告警、告警规则、告警通知投递审计、工单、运行状态和 AI 交互审计使用 MySQL 仓储。AI 模块会读取 `ai.enabled`、`ai.provider` 与 `ai.endpoint`，通过 Provider 边界生成结构化 agent 诊断结果并写入审计。`disabled` provider 使用本地规则；启用 Drogon 构建下的 `http` provider 会向配置 endpoint 发起受控 JSON POST，失败时回到本地规则降级。当前风险等级、可能原因、建议动作和人工复核标记仍由本地编排器生成，外部响应只作为 provider 文本输入。
+当前 HTTP 层已经接入会话守卫、权限守卫、统一错误响应和仓储边界。`storage.repository_store` 为 `memory/mysql` 时控制身份认证、资产、告警、告警规则、通知投递审计、工单和运行状态；`storage.ai_interaction_store` 独立支持 `memory/mysql/mongodb`。MongoDB 模式仅写入 `ai_interactions` 集合，需要 `dev-http-mongodb` preset；其不可用时 AI 交互读写返回 `503 DEPENDENCY_UNAVAILABLE`，不会冒充成功。AI 模块会读取 `ai.enabled`、`ai.provider` 与 `ai.endpoint`，通过 Provider 边界生成结构化 agent 诊断结果并写入审计。`disabled` provider 使用本地规则；启用 Drogon 构建下的 `http` provider 会向配置 endpoint 发起受控 JSON POST，失败时回到本地规则降级。当前风险等级、可能原因、建议动作和人工复核标记仍由本地编排器生成，外部响应只作为 provider 文本输入。
 
 密码轮换会在 MySQL 中原子更新密码哈希和 `credential_version`，新会话携带当前版本；身份校验会拒绝版本不一致的旧会话。Redis 会话值使用 `v2` 格式，同时可读取旧 `v1` 值用于清理，但旧值没有有效凭据版本，无法通过身份校验。
 
@@ -148,7 +148,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File backend/tests/http_integ
 
 CI 的 `dependency-services` job 会启动 `deployment/docker-compose.yml` 中的 MySQL、Redis 和 MongoDB，并运行 `backend/tests/dependency_services_smoke.sh`。该脚本会重复执行 MySQL 迁移脚本，随后执行 `database/mysql/integration/real_crud_smoke.sql`，在真实 MySQL 中覆盖默认用户、资产、运行状态、告警规则、告警、通知投递、工单、附件、AI 交互和操作审计事件的可重复 CRUD 断言；Redis 会验证 key/value、TTL、counter 和 hash 读写；MongoDB 会执行 `database/mongodb/integration/real_crud_smoke.js`，验证 collection、索引和文档 upsert/read。
 
-CI 的 `backend-runtime-profile` job 使用 Linux `dev-http` 构建，创建临时依赖密钥，启动同一 Compose 依赖栈，先运行上述 dependency smoke，再使用 `backend/tests/http_runtime_profile_smoke.ps1` 启动后端并执行 `repository_store=mysql`、`session_store=redis` 的完整 HTTP smoke。脚本在成功和失败路径都会清理依赖容器与 volume。
+CI 的 `backend-runtime-profile` job 使用 Linux `dev-http-mongodb` 构建，创建临时依赖密钥，启动同一 Compose 依赖栈，先运行上述 dependency smoke，再使用 `backend/tests/http_runtime_profile_smoke.ps1` 启动后端并执行 `repository_store=mysql`、`ai_interaction_store=mongodb`、`session_store=redis` 的完整 HTTP smoke。脚本会通过 AI API 写入并读取真实 MongoDB 文档，并在成功和失败路径都会清理依赖容器与 volume。
 
 若需要本地一键验收真实运行时 profile，可使用 `backend/tests/http_runtime_profile_smoke.ps1`。脚本读取 `deployment/.env`，拒绝 `change-me-*` 示例密钥，并可选执行 compose 启停、dependency smoke 和 MySQL 仓储 + Redis session HTTP smoke：
 

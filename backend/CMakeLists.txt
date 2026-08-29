@@ -36,6 +36,11 @@ if(INDUSPILOT_WITH_DROGON)
     src/data/mysql_repositories.cpp)
 endif()
 
+if(INDUSPILOT_WITH_MONGODB)
+  list(APPEND INDUSPILOT_BACKEND_CORE_SOURCES
+    src/data/mongodb_repositories.cpp)
+endif()
+
 add_library(induspilot_backend_core ${INDUSPILOT_BACKEND_CORE_SOURCES})
 
 target_include_directories(induspilot_backend_core PUBLIC include)
@@ -59,6 +64,31 @@ if(INDUSPILOT_WITH_DROGON)
   find_package(Drogon CONFIG REQUIRED)
   target_compile_definitions(induspilot_backend_core PRIVATE INDUSPILOT_WITH_DROGON)
   target_link_libraries(induspilot_backend_core PUBLIC Drogon::Drogon)
+endif()
+
+if(INDUSPILOT_WITH_MONGODB)
+  find_package(bsoncxx CONFIG REQUIRED)
+  find_package(mongocxx CONFIG REQUIRED)
+  if(TARGET mongo::mongocxx_static)
+    set(INDUSPILOT_MONGOCXX_TARGET mongo::mongocxx_static)
+  else()
+    set(INDUSPILOT_MONGOCXX_TARGET mongo::mongocxx_shared)
+  endif()
+  if(TARGET mongo::bsoncxx_static)
+    set(INDUSPILOT_BSONCXX_TARGET mongo::bsoncxx_static)
+  else()
+    set(INDUSPILOT_BSONCXX_TARGET mongo::bsoncxx_shared)
+  endif()
+  target_compile_definitions(induspilot_backend_core PUBLIC INDUSPILOT_WITH_MONGODB)
+  if(WIN32)
+    target_compile_definitions(induspilot_backend_core PRIVATE NOMINMAX)
+  endif()
+  target_include_directories(induspilot_backend_core BEFORE PUBLIC
+    $<TARGET_PROPERTY:${INDUSPILOT_MONGOCXX_TARGET},INTERFACE_INCLUDE_DIRECTORIES>
+    $<TARGET_PROPERTY:${INDUSPILOT_BSONCXX_TARGET},INTERFACE_INCLUDE_DIRECTORIES>)
+  target_link_libraries(induspilot_backend_core PUBLIC
+    ${INDUSPILOT_MONGOCXX_TARGET}
+    ${INDUSPILOT_BSONCXX_TARGET})
 endif()
 
 add_executable(induspilot-backend src/main.cpp)

@@ -7,5 +7,11 @@
       "name": "drogon",
       "features": ["mysql", "orm", "redis", "yaml"]
     }
-  ]
+  ],
+  "features": {
+    "mongodb": {
+      "description": "MongoDB AI interaction repository",
+      "dependencies": ["mongo-cxx-driver"]
+    }
+  }
 }

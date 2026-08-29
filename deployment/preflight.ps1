@@ -151,7 +151,7 @@ if ($compose.Contains('../database/mongodb:/docker-entrypoint-initdb.d:ro')) {
 }
 
 $config = Get-FileText "config/backend.example.yaml"
-foreach ($fragment in @('repository_store: "memory"', 'session_store: "memory"', 'provider: "disabled"')) {
+foreach ($fragment in @('repository_store: "memory"', 'ai_interaction_store: "memory"', 'session_store: "memory"', 'provider: "disabled"')) {
     if ($config.Contains($fragment)) {
         Write-CheckOk "示例配置包含：$fragment"
     } else {

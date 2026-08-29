@@ -6,6 +6,9 @@
 #ifdef INDUSPILOT_WITH_DROGON
 #include "induspilot/data/mysql_repositories.hpp"
 #endif
+#ifdef INDUSPILOT_WITH_MONGODB
+#include "induspilot/data/mongodb_repositories.hpp"
+#endif
 #include "induspilot/modules/ai_service.hpp"
 #include "induspilot/modules/alert_service.hpp"
 #include "induspilot/modules/audit_service.hpp"
@@ -63,6 +66,9 @@ static_assert(std::is_base_of_v<induspilot::data::WorkOrderRepository, induspilo
 static_assert(std::is_base_of_v<induspilot::data::RuntimeStateRepository, induspilot::data::MySqlRuntimeStateRepository>);
 static_assert(std::is_base_of_v<induspilot::data::AuditDeliveryQueueRepository, induspilot::data::MySqlAuditDeliveryQueueRepository>);
 static_assert(std::is_base_of_v<induspilot::data::AiInteractionRepository, induspilot::data::MySqlAiInteractionRepository>);
+#endif
+#ifdef INDUSPILOT_WITH_MONGODB
+static_assert(std::is_base_of_v<induspilot::data::AiInteractionRepository, induspilot::data::MongoAiInteractionRepository>);
 #endif
 
 class FailingPasswordUpdateUserRepository final : public induspilot::data::UserRepository {
@@ -282,6 +288,14 @@ int main() {
     assert(!induspilot::app::validateConfig(invalidConfig).valid);
     invalidConfig.mysql.password = "production-test-secret";
     assert(induspilot::app::validateConfig(invalidConfig).valid);
+    invalidConfig.storage.aiInteractionStore = "unknown";
+    assert(!induspilot::app::validateConfig(invalidConfig).valid);
+    invalidConfig.storage.aiInteractionStore = "memory";
+    assert(induspilot::app::validateConfig(invalidConfig).valid);
+#ifndef INDUSPILOT_WITH_MONGODB
+    invalidConfig.storage.aiInteractionStore = "mongodb";
+    assert(!induspilot::app::validateConfig(invalidConfig).valid);
+#endif
 
     const auto memoryRequirements = induspilot::data::DataConnectors{induspilot::app::AppConfig{}}.requirements();
     assert(!memoryRequirements.mysql);
@@ -306,6 +320,10 @@ int main() {
     aiConfig.ai.required = true;
     const auto aiStatus = induspilot::data::DataConnectors{aiConfig}.probe();
     assert(aiStatus.ai.required);
+    auto mongodbConfig = induspilot::app::AppConfig{};
+    mongodbConfig.storage.aiInteractionStore = "mongodb";
+    assert(induspilot::data::DataConnectors{mongodbConfig}.requirements().mongodb);
+    assert(induspilot::data::DataConnectors{mongodbConfig}.probe().mongodb.checked);
 #ifdef _WIN32
     _putenv_s("INDUSPILOT_SERVER_PORT", "");
     _putenv_s("INDUSPILOT_REDIS_SESSION_TTL_SECONDS", "");

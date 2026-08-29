@@ -125,11 +125,11 @@ jobs:
         with:
           vcpkgJsonGlob: vcpkg.json
 
-      - name: Configure HTTP runtime
-        run: cmake --preset dev-http
+      - name: Configure MongoDB HTTP runtime
+        run: cmake --preset dev-http-mongodb
 
-      - name: Build HTTP runtime
-        run: cmake --build --preset dev-http --parallel
+      - name: Build MongoDB HTTP runtime
+        run: cmake --build --preset dev-http-mongodb --parallel
 
       - name: Create CI dependency env
         shell: bash
@@ -147,7 +147,8 @@ jobs:
           INDUSPILOT_EXPECTED_MYSQL_DATABASE: induspilot_ci_custom_db
         run: >-
           ./backend/tests/http_runtime_profile_smoke.ps1
-          -BackendExe build/dev-http/backend/induspilot-backend
+          -BackendExe build/dev-http-mongodb/backend/induspilot-backend
+          -AiInteractionStore mongodb
           -StartDependencies
           -RunDependencySmoke
           -StopDependencies
@@ -158,9 +159,9 @@ jobs:
         with:
           name: backend-runtime-profile-evidence
           path: |
-            build/dev-http/backend/induspilot-backend
-            build/dev-http/Testing/Temporary/LastTest.log
-            build/dev-http/backend/Testing/Temporary/LastTest.log
+            build/dev-http-mongodb/backend/induspilot-backend
+            build/dev-http-mongodb/Testing/Temporary/LastTest.log
+            build/dev-http-mongodb/backend/Testing/Temporary/LastTest.log
           if-no-files-found: warn
           retention-days: 14
 

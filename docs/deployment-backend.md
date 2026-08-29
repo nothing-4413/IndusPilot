@@ -96,7 +96,7 @@ Invoke-WebRequest http://127.0.0.1:8080/health/ready
 Invoke-WebRequest http://127.0.0.1:8080/health/startup
 ```
 
-`deployment/docker-compose.yml` 中的 healthcheck 只表示 MySQL、Redis、MongoDB 容器自身可接受连接；它不能替代后端 `/health/ready`。MongoDB 当前没有业务仓储接入，因此即使 compose 健康，也不会成为核心 readiness 条件。
+`deployment/docker-compose.yml` 中的 healthcheck 只表示 MySQL、Redis、MongoDB 容器自身可接受连接；它不能替代后端 `/health/ready`。MongoDB 仅在 `storage.ai_interaction_store=mongodb` 时成为 readiness required 条件。
 
 ## 优雅停机
 
@@ -111,7 +111,7 @@ HTTP runtime 已将 `SIGTERM` 和 `SIGINT` 绑定到同一个 shutdown coordinat
 
 ## 仓储运行时
 
-`storage.repository_store` 支持 `memory` 和 `mysql`。默认 `memory` 用于离线演示和测试；设置为 `mysql` 后，HTTP 运行时会将身份认证、资产、告警、维护工单、运行状态和 AI 交互审计切换到 MySQL 仓储。
+`storage.repository_store` 支持 `memory` 和 `mysql`，控制身份认证、资产、告警、维护工单、运行状态和操作审计等事务型数据。`storage.ai_interaction_store` 独立支持 `memory`、`mysql` 和 `mongodb`，默认 `memory`；选择 `mongodb` 时需使用 `dev-http-mongodb` preset 或以 `INDUSPILOT_WITH_MONGODB=ON` 和 vcpkg `mongodb` feature 构建。MongoDB 写入 `ai_interactions` 集合，按 `interactionCode` upsert，读取保持按关联对象过滤并按创建时间倒序。
 
 ## 身份口令边界
 
@@ -128,7 +128,7 @@ HTTP runtime 已将 `SIGTERM` 和 `SIGINT` 绑定到同一个 shutdown coordinat
 ## 当前配置边界
 
 - Redis session 已支持通过 `redis.uri` 接入；`redis.password` 和 `redis.database` 会被解析，但当前连接实现不单独消费这两个字段，如需认证或选择 DB，请把信息嵌入 `redis.uri`。
-- MongoDB 当前尚未接入后端业务仓储；运行时只做 TCP 健康探测，CI dependency smoke 会验证初始化集合、索引和文档 CRUD。AI 交互审计在 `repository_store=mysql` 时写入 MySQL。
+- MongoDB 只承载 AI 交互文档；身份、资产、告警、工单、运行状态和操作审计哈希链仍由 MySQL 主存储管理。选择 MongoDB AI 仓储时，连接失败会导致 AI 交互读写返回 `503 DEPENDENCY_UNAVAILABLE`，不会伪造已持久化成功；readiness 同时将 MongoDB 标为 required。
 - `ai.enabled`、`ai.provider`、`ai.endpoint`、`ai.timeoutMs`、`ai.maxContextItems` 和 `ai.storeInteractionRecords` 驱动健康探测、AI 状态接口、agent 诊断编排、HTTP provider 推理传输和交互审计记录策略；非 Drogon 构建或 HTTP 调用失败时仍使用本地规则降级。
 - `/health` 依赖检查当前只验证 TCP 连通性；认证、schema、表结构、Redis 读写和 MongoDB collection/索引由 dependency smoke 与部署预检覆盖。
 
@@ -215,9 +215,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File backend/tests/http_integ
 ## 生产注意事项
 
 - 开发口令和 MySQL 演示哈希仍是骨架数据，生产必须替换为唯一盐哈希，并通过密码轮换接口完成首轮治理；登录失败锁定和审计策略已有基础实现，但仍需结合部署规模验证保留周期和告警策略。
-- MySQL 仓储已经覆盖 identity、asset、alert、work-order、runtime-state、AI interaction 和 operation audit；生产部署前需通过 `database/mysql/migrate.sh` 执行受控迁移，并确认 `schema_migrations` 已登记对应版本。
+- MySQL 仓储已经覆盖 identity、asset、alert、work-order、runtime-state、operation audit，并可选承载 AI interaction；生产部署前需通过 `database/mysql/migrate.sh` 执行受控迁移，并确认 `schema_migrations` 已登记对应版本。
 - Redis session 已支持配置化接入，后续需要补充连接失败降级策略和监控指标。
-- 当前 MongoDB 仅做依赖探测，后续可用于长日志、知识片段或非结构化诊断上下文。
+- MongoDB 已用于 AI interaction 文档；长日志、知识片段和非结构化诊断上下文仍需独立设计，不应绕过现有 MySQL 事务边界和审计链。
 - 当前 HTTP 冒烟测试默认使用内存仓储；`deployment/preflight.ps1` 覆盖离线部署基线，CI dependency smoke 已覆盖 MySQL/Redis/MongoDB 真实启动、认证、MySQL 核心业务 CRUD、Redis 数据结构读写和 MongoDB 文档 CRUD。
 ## 真实依赖冒烟测试
 

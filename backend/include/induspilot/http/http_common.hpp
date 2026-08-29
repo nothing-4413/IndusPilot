@@ -22,6 +22,7 @@ drogon::HttpResponsePtr invalidRequest(const std::string& message);
 drogon::HttpResponsePtr notFound(const std::string& message);
 drogon::HttpResponsePtr unauthorized();
 drogon::HttpResponsePtr forbidden();
+drogon::HttpResponsePtr dependencyUnavailable(const std::string& message);
 
 std::string traceIdFor(const drogon::HttpRequestPtr& request);
 std::string bearerToken(const drogon::HttpRequestPtr& request);

@@ -2,6 +2,9 @@
 
 #include "induspilot/data/in_memory_repositories.hpp"
 #include "induspilot/data/mysql_repositories.hpp"
+#ifdef INDUSPILOT_WITH_MONGODB
+#include "induspilot/data/mongodb_repositories.hpp"
+#endif
 
 #ifdef INDUSPILOT_WITH_DROGON
 #include <drogon/drogon.h>
@@ -139,9 +142,14 @@ std::shared_ptr<data::AuditDeliveryQueueRepository> createAuditDeliveryQueueRepo
 std::shared_ptr<data::AiInteractionRepository> createAiInteractionRepository(
     const app::AppConfig& config,
     const drogon::orm::DbClientPtr& mysqlClient) {
-    if (config.storage.repositoryStore == "mysql") {
+    if (config.storage.aiInteractionStore == "mysql") {
         return std::make_shared<data::MySqlAiInteractionRepository>(mysqlClient);
     }
+#ifdef INDUSPILOT_WITH_MONGODB
+    if (config.storage.aiInteractionStore == "mongodb") {
+        return std::make_shared<data::MongoAiInteractionRepository>(config.mongodb.uri, config.mongodb.database);
+    }
+#endif
     return std::make_shared<data::InMemoryAiInteractionRepository>();
 }
 #endif
@@ -156,7 +164,7 @@ HttpServerContext buildHttpServerContext(const app::AppConfig& config) {
 
 #ifdef INDUSPILOT_WITH_DROGON
     drogon::orm::DbClientPtr mysqlClient;
-    if (config.storage.repositoryStore == "mysql") {
+    if (config.storage.repositoryStore == "mysql" || config.storage.aiInteractionStore == "mysql") {
         mysqlClient = data::makeMysqlClient(config.mysql, 2);
     }
 

@@ -6,7 +6,7 @@
 
 - 模块边界：身份权限、资产、运行监控、告警、工单和 AI 辅助诊断已经拆分为独立服务与仓储接口。
 - HTTP 运行时：Drogon 后端提供统一 JSON 响应、认证守卫、权限守卫、业务路由和可参数化 HTTP 冒烟测试；默认内存模式用于 CTest，真实运行时 profile runner 可读取 `deployment/.env` 并切换 MySQL 仓储和 Redis session；`/health/live`、`/health/ready`、`/health/startup` 已分离进程存活、依赖准入和初始化状态，并支持 SIGTERM/SIGINT、draining gate、在途请求计数和 listener 失败退出码。
-- 持久化边界：`storage.repository_store=memory/mysql` 可以切换内存仓储和 MySQL 仓储；MySQL 已覆盖身份、资产、告警、工单、运行状态和 AI 交互审计。
+- 持久化边界：`storage.repository_store=memory/mysql` 管理事务型仓储；`storage.ai_interaction_store=memory/mysql/mongodb` 独立管理 AI 交互记录。MongoDB 仅承载 `ai_interactions` 文档，选择它时进入 readiness required 判定；MySQL 继续覆盖身份、资产、告警、工单、运行状态和操作审计哈希链。
 - 会话边界：默认内存会话适合本地开发，Redis-backed session 可通过 `redis.session_store=redis` 或环境变量启用。
 - AI 边界：AI 模块保持非阻塞，支持 disabled/http provider 配置、agent 诊断编排、降级结果和交互审计。
 - 工程流程：OpenSpec 变更、任务清单、CMake preset、数据库脚本、schema 版本登记、部署 compose、部署前预检、HTTP 冒烟测试、真实依赖 CRUD smoke、密钥扫描和 GitHub Actions CI 已经进入仓库。

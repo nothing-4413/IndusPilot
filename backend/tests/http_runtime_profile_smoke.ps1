@@ -3,6 +3,8 @@
     [string]$ConfigPath = "config/backend.example.yaml",
     [string]$EnvPath = "deployment/.env",
     [string]$BaseUrl = "http://127.0.0.1:18081",
+    [ValidateSet("memory", "mysql", "mongodb")]
+    [string]$AiInteractionStore = "memory",
     [switch]$StartDependencies,
     [switch]$RunDependencySmoke,
     [switch]$StopDependencies
@@ -156,6 +158,7 @@ try {
         -ConfigPath $configPathValue `
         -BaseUrl $BaseUrl `
         -RepositoryStore mysql `
+        -AiInteractionStore $AiInteractionStore `
         -SessionStore redis `
         -MySqlUri $mysqlUri `
         -MySqlDatabase $mysqlDatabase `

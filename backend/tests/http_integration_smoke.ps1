@@ -8,6 +8,8 @@ param(
     [string]$BaseUrl = "http://127.0.0.1:18081",
     [ValidateSet("memory", "mysql")]
     [string]$RepositoryStore = "memory",
+    [ValidateSet("memory", "mysql", "mongodb")]
+    [string]$AiInteractionStore = "memory",
     [ValidateSet("memory", "redis")]
     [string]$SessionStore = "memory",
     [string]$MySqlUri = "",
@@ -159,6 +161,7 @@ function Invoke-ExpectStatusResponse {
 
 $oldPort = $env:INDUSPILOT_SERVER_PORT
 $oldRepositoryStore = $env:INDUSPILOT_REPOSITORY_STORE
+$oldAiInteractionStore = $env:INDUSPILOT_AI_INTERACTION_STORE
 $oldSessionStore = $env:INDUSPILOT_REDIS_SESSION_STORE
 $oldMySqlUri = $env:INDUSPILOT_MYSQL_URI
 $oldMySqlHost = $env:INDUSPILOT_MYSQL_HOST
@@ -176,6 +179,7 @@ $oldPasswordIterations = $env:INDUSPILOT_SECURITY_PASSWORD_ITERATIONS
 $baseUri = [Uri]$BaseUrl
 $env:INDUSPILOT_SERVER_PORT = [string]$baseUri.Port
 $env:INDUSPILOT_REPOSITORY_STORE = $RepositoryStore
+$env:INDUSPILOT_AI_INTERACTION_STORE = $AiInteractionStore
 $env:INDUSPILOT_REDIS_SESSION_STORE = $SessionStore
 if (-not [string]::IsNullOrWhiteSpace($MySqlUri)) { $env:INDUSPILOT_MYSQL_URI = $MySqlUri }
 if (-not [string]::IsNullOrWhiteSpace($MySqlHost)) { $env:INDUSPILOT_MYSQL_HOST = $MySqlHost }
@@ -185,7 +189,7 @@ if (-not [string]::IsNullOrWhiteSpace($MySqlUser)) { $env:INDUSPILOT_MYSQL_USER 
 if (-not [string]::IsNullOrWhiteSpace($MySqlPassword)) { $env:INDUSPILOT_MYSQL_PASSWORD = $MySqlPassword }
 if (-not [string]::IsNullOrWhiteSpace($RedisUri)) { $env:INDUSPILOT_REDIS_URI = $RedisUri }
 if (-not [string]::IsNullOrWhiteSpace($MongoDbUri)) { $env:INDUSPILOT_MONGODB_URI = $MongoDbUri }
-Write-Host "[http-smoke] repository_store=$RepositoryStore session_store=$SessionStore"
+Write-Host "[http-smoke] repository_store=$RepositoryStore ai_interaction_store=$AiInteractionStore session_store=$SessionStore"
 $env:INDUSPILOT_SECURITY_LOGIN_MAX_FAILURES = "2"
 $env:INDUSPILOT_SECURITY_LOGIN_FAILURE_WINDOW_SECONDS = "60"
 $env:INDUSPILOT_SECURITY_LOGIN_LOCKOUT_SECONDS = "30"
@@ -617,6 +621,7 @@ try {
     }
     $env:INDUSPILOT_SERVER_PORT = $oldPort
     $env:INDUSPILOT_REPOSITORY_STORE = $oldRepositoryStore
+    $env:INDUSPILOT_AI_INTERACTION_STORE = $oldAiInteractionStore
     $env:INDUSPILOT_REDIS_SESSION_STORE = $oldSessionStore
     $env:INDUSPILOT_MYSQL_URI = $oldMySqlUri
     $env:INDUSPILOT_MYSQL_HOST = $oldMySqlHost

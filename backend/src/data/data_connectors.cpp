@@ -318,7 +318,7 @@ DependencyRequirements DataConnectors::requirements() const {
     return DependencyRequirements{
         config_.storage.repositoryStore == "mysql",
         config_.redis.sessionStore == "redis",
-        false,
+        config_.storage.aiInteractionStore == "mongodb",
         config_.ai.enabled && config_.ai.provider == "http",
         config_.ai.required,
     };
@@ -336,6 +336,7 @@ DependencyStatus DataConnectors::probe() const {
     std::future<ProbeResult> mysqlFuture;
     std::future<ProbeResult> redisFuture;
     std::future<ProbeResult> aiFuture;
+    std::future<ProbeResult> mongodbFuture;
     if (required.mysql) {
         mysqlFuture = std::async(std::launch::async, [mysqlEndpoint, deadline] {
             return tcpProbe(mysqlEndpoint, deadline);
@@ -351,10 +352,19 @@ DependencyStatus DataConnectors::probe() const {
             return tcpProbe(aiEndpoint, deadline);
         });
     }
+    if (required.mongodb) {
+        const auto mongodbEndpoint = config_.mongodb.uri.empty()
+            ? endpointFromHostPort(config_.mongodb.host, config_.mongodb.port)
+            : endpointFromUri(config_.mongodb.uri, config_.mongodb.port > 0 ? config_.mongodb.port : 27017);
+        mongodbFuture = std::async(std::launch::async, [mongodbEndpoint, deadline] {
+            return tcpProbe(mongodbEndpoint, deadline);
+        });
+    }
 
     ProbeResult mysqlResult{true, "not required by repository_store"};
     ProbeResult redisResult{true, "not required by session_store"};
     ProbeResult aiResult{true, "disabled"};
+    ProbeResult mongodbResult{true, "not required by ai_interaction_store"};
     if (required.mysql) {
         mysqlResult = mysqlFuture.get();
     }
@@ -364,17 +374,20 @@ DependencyStatus DataConnectors::probe() const {
     if (required.ai) {
         aiResult = aiFuture.get();
     }
+    if (required.mongodb) {
+        mongodbResult = mongodbFuture.get();
+    }
 
     return DependencyStatus{
         {required.mysql, mysqlResult.available, mysqlResult.reason, required.mysql},
         {required.redis, redisResult.available, redisResult.reason, required.redis},
-        {false, true, "optional dependency is not probed", false},
+        {required.mongodb, mongodbResult.available, mongodbResult.reason, required.mongodb},
         {required.aiRequired, aiResult.available, required.ai ? aiResult.reason : "disabled", required.ai},
     };
 }
 
 std::string DataConnectors::describe() const {
-    return "MySQL, Redis and enabled HTTP AI probes use configured TCP endpoints; MongoDB is optional and not probed";
+    return "MySQL, Redis, selected MongoDB AI storage and enabled HTTP AI probes use configured TCP endpoints";
 }
 
 }  // namespace induspilot::data

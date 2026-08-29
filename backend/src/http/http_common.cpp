@@ -74,6 +74,12 @@ drogon::HttpResponsePtr forbidden() {
     return jsonResponse(responseEnvelope(false, "AUTHORIZATION_DENIED", "permission denied"), drogon::k403Forbidden);
 }
 
+drogon::HttpResponsePtr dependencyUnavailable(const std::string& message) {
+    return jsonResponse(
+        responseEnvelope(false, "DEPENDENCY_UNAVAILABLE", message),
+        drogon::k503ServiceUnavailable);
+}
+
 std::string traceIdFor(const drogon::HttpRequestPtr& request) {
     const auto storedTraceId = request->attributes()->get<std::string>(kTraceIdAttribute);
     if (!storedTraceId.empty()) {
