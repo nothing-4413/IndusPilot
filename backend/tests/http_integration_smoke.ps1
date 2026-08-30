@@ -651,6 +651,19 @@ try {
     Assert-True ($metricsText -like "*induspilot_readiness_probes_total*") "Metrics output did not include readiness probe counter."
     Assert-True ($metricsText -like '*path="/api/v1/ai/diagnose"*') "Metrics output did not include normalized AI diagnosis route."
     Assert-True ($metricsText -like '*path="/api/v1/work-orders/{id}/close"*') "Metrics output did not normalize work-order close route."
+
+    $logoutResponse = Invoke-RestMethod -Uri "$BaseUrl/api/v1/auth/logout" -Method Post -Headers $adminHeaders -TimeoutSec 10
+    Assert-True $logoutResponse.success "Admin logout failed."
+    Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/auth/session" -Method Get -Status 401 -Headers $adminHeaders
+    $adminReLogin = Invoke-RestMethod -Uri "$BaseUrl/api/v1/auth/login" -Method Post -ContentType "application/json" -Body '{"username":"admin","password":"admin123"}' -TimeoutSec 10
+    Assert-True $adminReLogin.success "Admin login after logout failed."
+    $adminHeaders = @{ Authorization = "Bearer $($adminReLogin.data.token)"; "X-Trace-Id" = "trace-it-admin-relogin" }
+    $logoutAudit = Invoke-RestMethod -Uri "$BaseUrl/api/v1/audit/events?actor=admin&action=auth.logout" -Method Get -Headers $adminHeaders -TimeoutSec 10
+    Assert-True $logoutAudit.success "Logout audit query failed."
+    $logoutAuditRows = @($logoutAudit.data) | Where-Object { $_.action -eq "auth.logout" }
+    Assert-True (@($logoutAuditRows).Count -ge 1) "Logout audit event was not recorded."
+    $logoutAuditText = $logoutAuditRows | ConvertTo-Json -Compress
+    Assert-True (-not $logoutAuditText.Contains($adminToken)) "Logout audit must not contain the session token."
 } finally {
     if ($proc -and -not $proc.HasExited) {
         Stop-Process -Id $proc.Id -Force

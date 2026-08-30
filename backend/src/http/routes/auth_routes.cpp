@@ -146,12 +146,18 @@ void registerAuthRoutes(drogon::HttpAppFramework& server, const HttpServerContex
         callback(jsonResponse(responseEnvelope(true, "OK", "password changed")));
     }, {drogon::Post});
 
-    server.registerHandler("/api/v1/auth/logout", [identity](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
-        if (!identity->logout(bearerToken(request))) {
+    server.registerHandler("/api/v1/auth/logout", [identity, audit](const drogon::HttpRequestPtr& request, std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+        const auto session = identity->validateSession(bearerToken(request));
+        if (!session) {
             callback(unauthorized());
             return;
         }
-        writeRequestLog(request);
+        if (!identity->logout(session->token)) {
+            callback(dependencyUnavailable("session revocation failed"));
+            return;
+        }
+        writeRequestLog(request, session);
+        recordAuditEvent(audit, session->user.username, "auth.logout", "user", session->user.id, "success", traceIdFor(request));
         callback(jsonResponse(responseEnvelope(true, "OK", "logout succeeded")));
     }, {drogon::Post});
 }

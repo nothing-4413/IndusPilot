@@ -647,12 +647,17 @@ Qt 客户端 SHALL provide an authenticated workflow for operators to submit run
 
 ### Requirement: 关键操作自动审计
 
-系统 SHALL 对登录成功、告警通知派发和告警通知重试写入操作审计事件。
+系统 SHALL 对登录成功、注销成功、告警通知派发和告警通知重试写入操作审计事件。
 
 #### Scenario: 登录成功写入审计
 
 - **WHEN** 用户使用有效凭据登录成功
 - **THEN** 后端 SHALL 写入 `auth.login` 操作审计事件
+
+#### Scenario: 注销成功写入审计
+
+- **WHEN** 已认证用户成功注销
+- **THEN** 后端 SHALL 写入不包含 session token 的 `auth.logout` 操作审计事件
 
 #### Scenario: 告警通知派发写入审计
 
