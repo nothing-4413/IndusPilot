@@ -148,7 +148,11 @@ std::shared_ptr<data::AiInteractionRepository> createAiInteractionRepository(
     }
 #ifdef INDUSPILOT_WITH_MONGODB
     if (config.storage.aiInteractionStore == "mongodb") {
-        return std::make_shared<data::MongoAiInteractionRepository>(config.mongodb.uri, config.mongodb.database, metrics);
+        return std::make_shared<data::MongoAiInteractionRepository>(
+            config.mongodb.uri,
+            config.mongodb.database,
+            config.readiness.probeTimeoutMs,
+            metrics);
     }
 #endif
     return std::make_shared<data::InMemoryAiInteractionRepository>();

@@ -1590,3 +1590,13 @@ The MongoDB-backed HTTP runtime SHALL remain alive when an authenticated MongoDB
 - **WHEN** the MongoDB AI repository coordinates its indexes
 - **THEN** startup SHALL fail with a non-zero result
 - **AND** diagnostics SHALL NOT contain the MongoDB URI, username, or password
+
+### Requirement: MongoDB AI client connection attempts are bounded
+The MongoDB AI repository SHALL use the configured readiness probe timeout as the upper bound for MongoDB server selection and connection attempts.
+
+#### Scenario: Repository starts with a slow or unavailable MongoDB
+
+- **GIVEN** `storage.ai_interaction_store=mongodb` and `readiness.probe_timeout_ms` is configured
+- **WHEN** the repository creates its MongoDB client or retries deferred index reconciliation
+- **THEN** server selection and connection options SHALL use the configured timeout
+- **AND** the runtime SHALL not fall back to the driver's unbounded default timeout

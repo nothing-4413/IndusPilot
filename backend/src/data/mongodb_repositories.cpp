@@ -147,14 +147,15 @@ MongoProbeResult evaluateMongoProbeOk(const double okValue) {
 MongoAiInteractionRepository::MongoAiInteractionRepository(
     const std::string& uri,
     const std::string& database,
+    const int timeoutMs,
     std::shared_ptr<AiInteractionMetricsSink> metrics)
-    : client_((driverInstance(), mongocxx::uri{uri})), database_(database), metrics_(std::move(metrics)) {
+    : client_((driverInstance(), mongocxx::uri{boundedProbeUri(uri, timeoutMs)})), database_(database), metrics_(std::move(metrics)) {
     if (database_.empty()) {
         throw std::invalid_argument("mongodb.database must not be empty for AI interaction storage");
     }
     // Keep the HTTP runtime alive during temporary auth/network failures so readiness can report 503.
     // Structural index errors still fail startup after a successful authenticated probe.
-    if (probeMongoDb(uri, database_, 1000).available) {
+    if (probeMongoDb(uri, database_, timeoutMs).available) {
         ensureIndexes();
     }
 }

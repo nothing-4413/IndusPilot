@@ -26,6 +26,7 @@ public:
     explicit MongoAiInteractionRepository(
         const std::string& uri,
         const std::string& database,
+        int timeoutMs,
         std::shared_ptr<AiInteractionMetricsSink> metrics = nullptr);
 
     domain::AiInteraction save(domain::AiInteraction interaction) override;
