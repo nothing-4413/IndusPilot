@@ -741,6 +741,21 @@ int main() {
     assert(metricsText.find("induspilot_mongodb_ai_interaction_errors_total{operation=\"write\"} 1") != std::string::npos);
     assert(metricsText.find("operation-with-user-data") == std::string::npos);
     assert(metricsText.find("prompt-secret") == std::string::npos);
+#ifdef INDUSPILOT_WITH_MONGODB
+    std::string oversizedMongoDiagnostic(600, 'x');
+    oversizedMongoDiagnostic += " mongodb://probe-user:probe-secret@127.0.0.1:27017/induspilot";
+    oversizedMongoDiagnostic += " mongodb+srv://another-user:another-secret@cluster.example/induspilot";
+    const auto sanitizedMongoFailure = induspilot::data::sanitizeMongoProbeFailure(oversizedMongoDiagnostic);
+    assert(sanitizedMongoFailure.find("MongoDB authenticated ping failed") != std::string::npos);
+    assert(sanitizedMongoFailure.find("probe-secret") == std::string::npos);
+    assert(sanitizedMongoFailure.find("another-secret") == std::string::npos);
+    assert(sanitizedMongoFailure.find("mongodb://") == std::string::npos);
+    assert(sanitizedMongoFailure.find("mongodb+srv://") == std::string::npos);
+    assert(sanitizedMongoFailure.size() <= 512);
+    const auto mongoProbe = induspilot::data::probeMongoDb("mongodb://127.0.0.1:1", "", 25);
+    assert(!mongoProbe.available);
+    assert(mongoProbe.reason.find("database is empty") != std::string::npos);
+#endif
     induspilot::modules::AiService ai;
     assert(ai.status().message.find("AI 未启用") != std::string::npos);
     induspilot::modules::AiService configuredAi(induspilot::app::AiConfig{true, "http", "http://127.0.0.1:9000"});

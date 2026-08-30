@@ -16,6 +16,7 @@ struct MongoProbeResult {
     std::string reason;
 };
 
+std::string sanitizeMongoProbeFailure(const std::string& diagnostic);
 MongoProbeResult probeMongoDb(const std::string& uri, const std::string& database, int timeoutMs);
 
 class MongoAiInteractionRepository final : public AiInteractionRepository {

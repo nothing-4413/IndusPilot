@@ -37,6 +37,37 @@ std::string boundedProbeUri(const std::string& uri, int timeoutMs) {
         "&connectTimeoutMS=" + std::to_string(boundedTimeout);
 }
 
+}  // namespace
+
+std::string sanitizeMongoProbeFailure(const std::string& diagnostic) {
+    constexpr std::size_t kMaxMongoProbeReasonLength = 512;
+    std::string sanitized = diagnostic;
+    for (const std::string scheme : {std::string{"mongodb://"}, std::string{"mongodb+srv://"}}) {
+        std::size_t searchStart = 0;
+        for (;;) {
+            const auto schemePosition = sanitized.find(scheme, searchStart);
+            if (schemePosition == std::string::npos) {
+                break;
+            }
+            const auto uriStart = schemePosition;
+            const auto uriEnd = sanitized.find_first_of(" \t\r\n'\"),;]}", schemePosition + scheme.size());
+            const auto uriLength = uriEnd == std::string::npos ? std::string::npos : uriEnd - uriStart;
+            const std::string replacement = "<mongodb-uri-redacted>";
+            sanitized.replace(uriStart, uriLength, replacement);
+            searchStart = uriStart + replacement.size();
+        }
+    }
+
+    std::string reason = "MongoDB authenticated ping failed: " + sanitized;
+    if (reason.size() > kMaxMongoProbeReasonLength) {
+        reason.resize(kMaxMongoProbeReasonLength - 3);
+        reason += "...";
+    }
+    return reason;
+}
+
+namespace {
+
 void reconcileAiInteractionIndexes(
     mongocxx::client& client,
     const std::string& database,
@@ -103,7 +134,9 @@ MongoProbeResult probeMongoDb(const std::string& uri, const std::string& databas
         }
         return {true, "MongoDB authenticated ping succeeded"};
     } catch (const std::exception& error) {
-        return {false, "MongoDB authenticated ping failed: " + std::string(error.what())};
+        return {false, sanitizeMongoProbeFailure(error.what())};
+    } catch (...) {
+        return {false, "MongoDB authenticated ping failed: unknown driver error"};
     }
 }
 
