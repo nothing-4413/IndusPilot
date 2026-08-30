@@ -292,8 +292,17 @@ int main() {
     assert(!induspilot::app::validateConfig(invalidConfig).valid);
     invalidConfig.storage.aiInteractionStore = "memory";
     assert(induspilot::app::validateConfig(invalidConfig).valid);
-#ifndef INDUSPILOT_WITH_MONGODB
     invalidConfig.storage.aiInteractionStore = "mongodb";
+    invalidConfig.mongodb.database.clear();
+    assert(!induspilot::app::validateConfig(invalidConfig).valid);
+    invalidConfig.mongodb.database = "induspilot";
+    invalidConfig.mongodb.uri.clear();
+    invalidConfig.mongodb.host.clear();
+    assert(!induspilot::app::validateConfig(invalidConfig).valid);
+    invalidConfig.mongodb.host = "127.0.0.1";
+    invalidConfig.mongodb.port = 0;
+    assert(!induspilot::app::validateConfig(invalidConfig).valid);
+#ifndef INDUSPILOT_WITH_MONGODB
     assert(!induspilot::app::validateConfig(invalidConfig).valid);
 #endif
 

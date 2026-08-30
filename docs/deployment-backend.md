@@ -88,7 +88,7 @@ docker compose up -d
 
 readiness 探测使用 `INDUSPILOT_READINESS_PROBE_TIMEOUT_MS` 限制 DNS、TCP connect 以及 MongoDB authenticated `ping` 的单轮 deadline，并在 `INDUSPILOT_READINESS_PROBE_CACHE_MS` 内复用结果。MongoDB AI 仓储 client 也复用该值限制 server selection/connect，避免依赖异常后的首次 AI 操作等待驱动默认长超时。多个并发 readiness 请求会合并为一轮探测；缓存过期后下一次 readiness 请求会重新探测，依赖恢复后可自动回到 `200`。readiness data 还提供 `probeInProgress`、`probeCount`、`failureCount`、`recoveryCount`、`lastProbeDurationMs` 和 `lastProbeAtUnixMs`。
 
-选择 MongoDB AI 仓储时，临时认证失败、网络不可用或 `ping` 返回非正 `ok` 不会阻止 HTTP listener 启动；`/health/live` 仍返回 `200`，`/health/ready` 返回 `503` 并标记 MongoDB required/unavailable。readiness reason 会限制长度并移除 MongoDB URI，响应不得包含 URI、用户名或密码。MongoDB 仓储会在首次 AI 读写前重试尚未完成的索引协调；数据库权限不足、重复 `interactionCode` 或不兼容索引等结构性协调错误仍会阻止正常启动或操作。
+选择 MongoDB AI 仓储时，必须提供非空 `mongodb.database`；若 `mongodb.uri` 为空，则还必须提供合法的 `mongodb.host` 和 `mongodb.port`，HTTP 组合根会使用 `mongodb://host:port` fallback，与 readiness 探测保持一致。临时认证失败、网络不可用或 `ping` 返回非正 `ok` 不会阻止 HTTP listener 启动；`/health/live` 仍返回 `200`，`/health/ready` 返回 `503` 并标记 MongoDB required/unavailable。readiness reason 会限制长度并移除 MongoDB URI，响应不得包含 URI、用户名或密码。MongoDB 仓储会在首次 AI 读写前重试尚未完成的索引协调；数据库权限不足、重复 `interactionCode` 或不兼容索引等结构性协调错误仍会阻止正常启动或操作。
 认证成功但业务库权限不足是结构性配置错误，不等同于临时网络故障：启动期索引协调会 fail closed 并返回非零结果，错误诊断同样不得包含 MongoDB URI、用户名或密码。`ping` 成功只表示认证连接可用，不代表账号拥有 AI 集合的索引/写权限。
 
 本地或反向代理可用以下命令确认状态：

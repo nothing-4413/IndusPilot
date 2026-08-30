@@ -404,6 +404,19 @@ ConfigValidation validateConfig(const AppConfig& config) {
         addError("storage.ai_interaction_store=mongodb requires a backend built with INDUSPILOT_WITH_MONGODB");
     }
 #endif
+    if (config.storage.aiInteractionStore == "mongodb") {
+        if (config.mongodb.database.empty()) {
+            addError("mongodb.database must not be empty when storage.ai_interaction_store=mongodb");
+        }
+        if (config.mongodb.uri.empty()) {
+            if (config.mongodb.host.empty()) {
+                addError("mongodb.host must not be empty when mongodb.uri is empty");
+            }
+            if (config.mongodb.port < 1 || config.mongodb.port > 65535) {
+                addError("mongodb.port must be between 1 and 65535 when mongodb.uri is empty");
+            }
+        }
+    }
     if (config.redis.sessionStore != "memory" && config.redis.sessionStore != "redis") {
         addError("redis.session_store must be memory or redis");
     }
