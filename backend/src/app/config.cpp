@@ -424,6 +424,9 @@ ConfigValidation validateConfig(const AppConfig& config) {
         if (config.redis.uri.empty()) {
             addError("redis.uri must not be empty when redis.session_store=redis");
         }
+#ifndef INDUSPILOT_WITH_REDIS
+        addError("redis.session_store=redis requires a backend built with INDUSPILOT_WITH_REDIS");
+#endif
     }
     if (config.ai.required && (!config.ai.enabled || config.ai.provider != "http")) {
         addError("ai.required requires ai.enabled=true and ai.provider=http");
@@ -494,6 +497,11 @@ ConfigValidation validateConfig(const AppConfig& config) {
     if (config.security.loginRateLimitStore == "redis" && config.redis.uri.empty()) {
         addError("redis.uri must not be empty when security.login_rate_limit_store=redis");
     }
+#ifndef INDUSPILOT_WITH_REDIS
+    if (config.security.loginRateLimitStore == "redis") {
+        addError("security.login_rate_limit_store=redis requires a backend built with INDUSPILOT_WITH_REDIS");
+    }
+#endif
     if (config.security.productionMode && config.security.allowSeedCredentials) {
         addError("security.allow_seed_credentials must be false when security.production_mode=true");
     }

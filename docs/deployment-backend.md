@@ -75,7 +75,7 @@ docker compose up -d
 
 ## 启动与健康检查
 
-后端启动时先校验静态配置。配置错误会返回退出码 `78`，且不会启动 HTTP listener；MySQL、Redis 或 required AI 暂时不可用不会导致进程退出，而会让 readiness 返回 `503`。
+后端启动时先校验静态配置，再构造 HTTP 服务上下文。配置错误会返回退出码 `78`，且不会启动 HTTP listener 或创建服务客户端；MySQL、Redis 或 required AI 暂时不可用不会导致进程退出，而会让 readiness 返回 `503`。选择 `redis.session_store=redis` 或 `security.login_rate_limit_store=redis` 时，二进制必须使用 `INDUSPILOT_WITH_REDIS=ON` 构建；不支持 Redis 的二进制会拒绝启动，不会静默回退内存实现。
 
 配置文件必须存在且可读取。整数和布尔环境变量必须完整匹配合法值；未知 section、字段、错误层级或损坏行也会被拒绝，不会静默回退默认值。启动失败时优先查看 HTTP listener 启动前的进程 stderr。
 

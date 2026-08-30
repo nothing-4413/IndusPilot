@@ -118,6 +118,14 @@ void registerRoutes(const HttpServerContext& context) {
 }  // namespace
 
 int runDrogonServer(const app::AppConfig& config) {
+    const auto validation = app::validateConfig(config);
+    if (!validation.valid) {
+        for (const auto& error : validation.errors) {
+            std::cerr << "invalid configuration: " << error << std::endl;
+        }
+        return 78;
+    }
+
     const auto context = buildHttpServerContext(config);
 
     if (!context.application->start()) {

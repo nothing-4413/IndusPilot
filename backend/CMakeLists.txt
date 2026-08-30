@@ -107,8 +107,25 @@ if(INDUSPILOT_BUILD_TESTS)
   target_compile_options(induspilot-backend-tests PRIVATE
     $<$<CXX_COMPILER_ID:MSVC>:/utf-8 /EHsc>
   )
+  if(INDUSPILOT_WITH_REDIS)
+    target_compile_definitions(induspilot-backend-tests PRIVATE INDUSPILOT_WITH_REDIS)
+  endif()
+  if(INDUSPILOT_WITH_DROGON)
+    target_compile_definitions(induspilot-backend-tests PRIVATE INDUSPILOT_WITH_DROGON)
+  endif()
   add_test(NAME induspilot-backend-tests COMMAND induspilot-backend-tests)
   set_tests_properties(induspilot-backend-tests PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+  add_executable(induspilot-config-capability-tests tests/config_capability_tests.cpp)
+  target_link_libraries(induspilot-config-capability-tests PRIVATE induspilot_backend_core)
+  target_compile_options(induspilot-config-capability-tests PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:/utf-8 /EHsc>
+  )
+  if(INDUSPILOT_WITH_REDIS)
+    target_compile_definitions(induspilot-config-capability-tests PRIVATE INDUSPILOT_WITH_REDIS)
+  endif()
+  add_test(NAME induspilot-config-capability-tests COMMAND induspilot-config-capability-tests)
+  set_tests_properties(induspilot-config-capability-tests PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
   if(WIN32)
     add_test(NAME induspilot-deployment-preflight

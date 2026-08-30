@@ -23,6 +23,7 @@
 #include <cassert>
 #include <atomic>
 #include <chrono>
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <memory>
@@ -226,8 +227,8 @@ int main() {
     setenv("INDUSPILOT_READINESS_PROBE_TIMEOUT_MS", "1200", 1);
 #endif
 
-    const auto invalidConfigPath = std::filesystem::temp_directory_path() /
-        ("induspilot-invalid-config-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".yaml");
+    const auto invalidConfigPath =
+        "induspilot-invalid-config-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".yaml";
     {
         std::ofstream invalidConfigFile(invalidConfigPath);
         invalidConfigFile << "server:\n"
@@ -235,14 +236,14 @@ int main() {
                           << "  unexpected: true\n"
                           << "broken line\n";
     }
-    const auto invalidFileConfig = induspilot::app::loadConfig(invalidConfigPath.string());
+    const auto invalidFileConfig = induspilot::app::loadConfig(invalidConfigPath);
     assert(invalidFileConfig.loadErrors.size() >= 3);
     const auto invalidFileValidation = induspilot::app::validateConfig(invalidFileConfig);
     assert(!invalidFileValidation.valid);
     induspilot::app::Application invalidLoadedApplication(invalidFileConfig);
     assert(!invalidLoadedApplication.start());
     assert(!invalidLoadedApplication.startup().configurationValid);
-    std::filesystem::remove(invalidConfigPath);
+    std::remove(invalidConfigPath.c_str());
 
     const auto missingConfig = induspilot::app::loadConfig("config/does-not-exist.yaml");
     assert(!missingConfig.loadErrors.empty());
@@ -278,6 +279,19 @@ int main() {
     invalidConfig = induspilot::app::AppConfig{};
     invalidConfig.security.loginRateLimitStore = "unknown";
     assert(!induspilot::app::validateConfig(invalidConfig).valid);
+    invalidConfig.security.loginRateLimitStore = "redis";
+#ifdef INDUSPILOT_WITH_REDIS
+    assert(induspilot::app::validateConfig(invalidConfig).valid);
+#else
+    assert(!induspilot::app::validateConfig(invalidConfig).valid);
+#endif
+    invalidConfig = induspilot::app::AppConfig{};
+    invalidConfig.redis.sessionStore = "redis";
+#ifdef INDUSPILOT_WITH_REDIS
+    assert(induspilot::app::validateConfig(invalidConfig).valid);
+#else
+    assert(!induspilot::app::validateConfig(invalidConfig).valid);
+#endif
     invalidConfig = induspilot::app::AppConfig{};
     invalidConfig.security.productionMode = true;
     invalidConfig.security.allowSeedCredentials = true;
@@ -609,7 +623,11 @@ int main() {
     blockedWebhookAlerts.createRule({"rule-blocked-webhook", "blocked webhook", "asset-001", "warning", "webhook", "http://127.0.0.1:1/notify", true});
     blockedWebhookAlerts.create({"alert-blocked-webhook", "asset-001", induspilot::domain::AlertSeverity::Critical, induspilot::domain::AlertState::Open, "blocked webhook test", "", ""});
     blockedWebhookAlerts.dispatchQueuedNotifications();
+#ifdef INDUSPILOT_WITH_DROGON
     assert(blockedWebhookAlerts.notifications().front().lastError.find("不在允许列表") != std::string::npos);
+#else
+    assert(blockedWebhookAlerts.notifications().front().lastError.find("需要启用 Drogon HTTP 传输") != std::string::npos);
+#endif
 #ifdef INDUSPILOT_WITH_DROGON
     auto privateWebhookSender = induspilot::modules::makeAlertNotificationSender(
         induspilot::app::NotificationConfig{true, 1000, "127.0.0.1"});

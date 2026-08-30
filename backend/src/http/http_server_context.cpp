@@ -23,6 +23,10 @@ std::shared_ptr<modules::SessionStore> createSessionStore(const app::AppConfig& 
     if (config.redis.sessionStore == "redis") {
         return modules::makeRedisSessionStore(config.redis.uri, config.redis.sessionKeyPrefix);
     }
+#else
+    if (config.redis.sessionStore == "redis") {
+        throw std::runtime_error("Redis session storage requires INDUSPILOT_WITH_REDIS");
+    }
 #endif
     return std::make_shared<modules::InMemorySessionStore>();
 }
