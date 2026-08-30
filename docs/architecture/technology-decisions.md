@@ -22,4 +22,4 @@ Boost.Beast 保留为后续边缘网关、协议适配器或自研网关层候�
 
 ## AI 边界
 
-AI 只作为辅助诊断能力，不承担最终运维决策。所有建议都必须标记为“辅助建议”，核心告警和工单流程不依赖 AI 成功响应。当前已形成 disabled/http provider 边界和 agent 诊断编排，`provider=http` 暂不执行真实外部推理传输。
+AI 只作为辅助诊断能力，不承担最终运维决策。所有建议都必须标记为“辅助建议”，核心告警和工单流程不依赖 AI 成功响应。当前已形成 disabled/http provider 边界和 agent 诊断编排；Drogon 构建中的 `provider=http` 会执行受总超时、有限重试、响应大小和鉴权约束的真实 JSON POST，失败时回到本地规则。

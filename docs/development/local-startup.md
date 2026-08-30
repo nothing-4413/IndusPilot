@@ -78,7 +78,7 @@ $env:INDUSPILOT_REPOSITORY_STORE="mysql"
 
 收到 SIGTERM 或 SIGINT 后，后端会停止接受新的业务请求，等待在途请求完成，最长等待时间由 `shutdown.drain_timeout_ms` 控制，也可以通过 `INDUSPILOT_SHUTDOWN_DRAIN_TIMEOUT_MS` 覆盖。超过 deadline 后会记录剩余请求数量并退出 HTTP runtime。
 
-生产部署前仍需要替换开发口令和演示盐值、执行真实运行时 profile 验收、接入外部 AI 推理传输，同时补充真实外部通知通道适配器、异步重试队列和更细粒度审计能力。
+生产部署前仍需要替换开发口令和演示盐值、执行真实运行时 profile 验收，并补充真实外部通知通道适配器、异步重试队列和更细粒度审计能力；Drogon 构建下的外部 AI 推理传输已接入，仍需按目标 provider 验证其契约和容量边界。
 
 ## 操作审计本地验证
 

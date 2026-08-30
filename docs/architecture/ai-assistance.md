@@ -22,4 +22,4 @@ HTTP provider 的所有尝试共享 `ai.timeoutMs` 总预算，`ai.max_retries` 
 ## HTTP provider 请求契约
 
 
-启用 Drogon 构建并设置 i.enabled=true、i.provider=http 后，AI provider 会向 i.endpoint 发起 POST 请求。请求体包含 operation、prompt 和受 i.maxContextItems 限制的 contextItems。i.timeoutMs 控制同步请求超时；i.storeInteractionRecords=false 时不写入 AI 交互审计仓储。响应可返回 content、summary、	ext、output_text，也兼容 OpenAI choices[].message.content 和 Responses output[].content[].text。HTTP 调用失败、超时或状态码非 2xx 时，系统保留本地规则诊断并记录降级原因。
+启用 Drogon 构建并设置 `ai.enabled=true`、`ai.provider=http` 后，AI provider 会向 `ai.endpoint` 发起 POST 请求。请求体包含 `operation`、`prompt` 和受 `ai.maxContextItems` 限制的 `contextItems`。`ai.timeoutMs` 控制总请求超时，`ai.max_retries` 只对可重试失败生效；`ai.storeInteractionRecords=false` 时不写入 AI 交互审计仓储。响应可返回 `content`、`summary`、`text`、`output_text`，也兼容 OpenAI `choices[].message.content` 和 Responses `output[].content[].text`。HTTP 调用失败、超时、响应过大或状态码非 2xx 时，系统保留本地规则诊断并记录降级原因。

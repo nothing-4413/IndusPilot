@@ -67,6 +67,19 @@ The system SHALL orchestrate industrial diagnosis requests into structured, audi
 ### Requirement: HTTP AI provider 发起受控推理请求
 系统 SHALL 在启用 `ai.enabled=true` 且 `ai.provider=http` 时，通过配置的 `ai.endpoint` 向外部 AI 服务发起受控 JSON POST 请求，并在失败时保留本地规则降级。
 
+### Requirement: AI provider documentation reflects implemented transport
+
+AI provider documentation SHALL describe the implemented bounded HTTP provider transport and SHALL use valid configuration field names.
+
+#### Scenario: Developer enables the HTTP provider
+- **WHEN** a developer reads the AI architecture or startup guidance
+- **THEN** it SHALL state that Drogon builds POST to the configured `ai.endpoint`
+- **AND** it SHALL identify timeout, retry, response-size, authentication, and local fallback behavior
+
+#### Scenario: Developer reads remaining AI work
+- **WHEN** a developer reviews future AI work
+- **THEN** it SHALL not list the already implemented HTTP transport as pending
+
 #### Scenario: HTTP provider 请求外部服务
 
 - **GIVEN** 后端使用 Drogon 构建，且 `ai.provider=http`

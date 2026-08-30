@@ -29,7 +29,7 @@
 1. 真实依赖集成深化：CI 已在独立的 `backend-runtime-profile` job 中构建 HTTP runtime、启动 MySQL/Redis/MongoDB、执行依赖 CRUD smoke，并运行 MySQL 仓储 + Redis session + MongoDB AI interaction HTTP profile；下一步补充 MongoDB 非结构化数据的独立数据模型和保留策略。
 2. 身份安全深化：在现有密码哈希、登录失败锁定、审计、密码轮换和按用户 session 撤销边界上，补充种子账号替换/首登治理和跨副本登录失败限流。
 3. Qt 客户端联机化深化：在现有 HTTP 登录、资产、运行监控列表与状态写入、告警创建/规则/通知投递/列表与处置、维护工单列表、新建/编辑/附件/从告警生成/分派/基础流转、AI 诊断入口和 AI 交互审计查询、分页与 CSV 导出基础上，继续接入真实外部通知通道适配器、异步重试队列和投递指标。
-4. 外部 AI Provider：在已有 HTTP 传输、有限重试、总超时、响应大小限制、常见凭据键值脱敏和降级审计基础上，继续实现提示词版本、结构化响应协议和 provider 运行指标。
+4. 外部 AI Provider：在已有 HTTP 传输、有限重试、总超时、响应大小限制、常见凭据键值脱敏、降级审计和 provider 运行指标基础上，继续完善提示词版本、结构化响应协议和目标 provider 的容量验收。
 5. 可观测性：在已有结构化请求日志、请求追踪和关键业务指标基础上，补充 readiness 状态变化指标、日志脱敏/保留策略和运行告警。
 6. CI/CD 扩展：基础 CI、质量门禁、安全扫描、配置预检、OpenSpec 校验、真实依赖 smoke、Drogon/vcpkg HTTP 构建矩阵和 14 天 CI 构建证据 artifact 已接入；后续继续增加正式制品发布流水线和部署环境验证。
 
