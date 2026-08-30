@@ -7,14 +7,14 @@
 - 模块边界：身份权限、资产、运行监控、告警、工单和 AI 辅助诊断已经拆分为独立服务与仓储接口。
 - HTTP 运行时：Drogon 后端提供统一 JSON 响应、认证守卫、权限守卫、业务路由和可参数化 HTTP 冒烟测试；默认内存模式用于 CTest，真实运行时 profile runner 可读取 `deployment/.env` 并切换 MySQL 仓储和 Redis session；`/health/live`、`/health/ready`、`/health/startup` 已分离进程存活、依赖准入和初始化状态，并支持 SIGTERM/SIGINT、draining gate、在途请求计数和 listener 失败退出码。
 - 持久化边界：`storage.repository_store=memory/mysql` 管理事务型仓储；`storage.ai_interaction_store=memory/mysql/mongodb` 独立管理 AI 交互记录。MongoDB 仅承载 `ai_interactions` 文档，选择它时进入 readiness required 判定；MySQL 继续覆盖身份、资产、告警、工单、运行状态和操作审计哈希链。
-- 会话边界：默认内存会话适合本地开发，Redis-backed session 可通过 `redis.session_store=redis` 或环境变量启用。
+- 会话边界：默认内存会话适合本地开发，Redis-backed session 可通过 `redis.session_store=redis` 或环境变量启用；Redis 分布式登录限流由 `security.login_rate_limit_store=redis` 启用。任一认证控制选择 Redis 时，Redis 都是 `/health/ready` 的 required 依赖。
 - AI 边界：AI 模块保持非阻塞，支持 disabled/http provider 配置、agent 诊断编排、降级结果和交互审计。
 - 工程流程：OpenSpec 变更、任务清单、CMake preset、数据库脚本、schema 版本登记、部署 compose、部署前预检、HTTP 冒烟测试、真实依赖 CRUD smoke、密钥扫描和 GitHub Actions CI 已经进入仓库。
 
 ## 当前边界
 
 - 身份安全：当前已支持版本化 PBKDF2-SHA256 密码校验、登录失败锁定、可配置密码策略、认证后密码轮换、密码轮换审计、按用户撤销全部 session 和密钥扫描门禁，并保留显式开发兼容格式；启用 `security.production_mode` 后会拒绝种子账号兼容和示例 MySQL 密钥。生产前仍必须替换演示口令、执行首登/种子账号治理、验证分布式限流、最小权限账户和审计保留策略。
-- 依赖健康：`/health` 保持旧客户端的 200 兼容语义；`/health/ready` 按 `repository_store`、`session_store` 和 AI required 配置判断核心依赖，使用 single-flight、并发依赖探测、统一 DNS/connect deadline 和缓存重新评估恢复状态，并暴露探测次数、耗时、失败/恢复计数；部署前预检会检查离线 schema 版本基线，CI dependency smoke 会验证真实 MySQL/Redis/MongoDB 启动、认证、迁移幂等、MySQL 核心业务 CRUD、Redis 数据结构读写和 MongoDB 文档 CRUD。
+- 依赖健康：`/health` 保持旧客户端的 200 兼容语义；`/health/ready` 按 `repository_store`、Redis session 或分布式登录限流、MongoDB AI storage 和 AI required 配置判断核心依赖，使用 single-flight、并发依赖探测、统一 DNS/connect deadline 和缓存重新评估恢复状态，并暴露探测次数、耗时、失败/恢复计数；部署前预检会检查离线 schema 版本基线，CI dependency smoke 会验证真实 MySQL/Redis/MongoDB 启动、认证、迁移幂等、MySQL 核心业务 CRUD、Redis 数据结构读写和 MongoDB 文档 CRUD。
 - 配置边界：配置文件读取失败、未知字段、错误层级和非法整数/布尔值会在 listener 启动前阻止进程启动，并以退出码 `78` 报告；外部依赖暂时不可用仍由 readiness `503` 表达。
 - 停机边界：收到 SIGTERM/SIGINT 后新业务请求返回 `503/SERVER_DRAINING`，readiness 立即为 `503`、liveness 在最终停止前保持 `200`，coordinator 在 `shutdown.drain_timeout_ms` deadline 内等待已接受请求完成，超时记录剩余请求并退出；listener 绑定预检失败返回退出码 `69`。
 - AI 传输：Drogon 构建下的 `provider=http` 已通过配置 endpoint 发起受控 JSON POST，并支持鉴权头、超时、响应文本提取和失败降级；当前结构化诊断字段仍由本地编排器生成。`/metrics` 额外暴露 provider 调用、可用/降级结果和耗时指标，标签不包含 prompt、响应、凭据或业务编号。`backend/tests/ai_provider_http_smoke.ps1` 覆盖成功、非 2xx、非 JSON 和超时场景。

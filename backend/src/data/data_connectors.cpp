@@ -321,7 +321,7 @@ DataConnectors::DataConnectors(app::AppConfig config) : config_(std::move(config
 DependencyRequirements DataConnectors::requirements() const {
     return DependencyRequirements{
         config_.storage.repositoryStore == "mysql",
-        config_.redis.sessionStore == "redis",
+        config_.redis.sessionStore == "redis" || config_.security.loginRateLimitStore == "redis",
         config_.storage.aiInteractionStore == "mongodb",
         config_.ai.enabled && config_.ai.provider == "http",
         config_.ai.required,

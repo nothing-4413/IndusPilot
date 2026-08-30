@@ -322,6 +322,15 @@ int main() {
     auto redisConfig = induspilot::app::AppConfig{};
     redisConfig.redis.sessionStore = "redis";
     assert(induspilot::data::DataConnectors{redisConfig}.requirements().redis);
+    auto redisLimiterConfig = induspilot::app::AppConfig{};
+    redisLimiterConfig.redis.uri = "tcp://127.0.0.1:1";
+    redisLimiterConfig.security.loginRateLimitStore = "redis";
+    const auto redisLimiterRequirements = induspilot::data::DataConnectors{redisLimiterConfig}.requirements();
+    assert(redisLimiterRequirements.redis);
+    const auto redisLimiterStatus = induspilot::data::DataConnectors{redisLimiterConfig}.probe();
+    assert(redisLimiterStatus.redis.required);
+    assert(redisLimiterStatus.redis.checked);
+    assert(!redisLimiterStatus.redis.available);
     auto aiConfig = induspilot::app::AppConfig{};
     aiConfig.ai.enabled = true;
     aiConfig.ai.provider = "http";
