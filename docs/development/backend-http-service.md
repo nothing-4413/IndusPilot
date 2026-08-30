@@ -190,7 +190,7 @@ SIEM 仅在 `audit.siem_webhook_enabled=true` 时启用。配置还必须提供 
 新写入的操作审计事件会自动生成 `previousHash` 和 `eventHash`。首条事件的 `previousHash` 为 `genesis`，后续事件的 `previousHash` 指向上一条事件的 `eventHash`。`GET /api/v1/audit/integrity` 会按写入顺序复算哈希链，若发现内容或链路字段被篡改，返回 `verified=false` 和首个断点事件编号。
 ## 请求追踪
 
-HTTP 服务会读取 `X-Trace-Id` 或 `X-Request-Id`，优先使用 `X-Trace-Id`，未提供时生成 `trace-<timestamp>-<sequence>`。所有响应都会回传 `X-Trace-Id` 与 `X-Request-Id`，结构化请求日志中的 `traceId` 与操作审计 `traceId` 使用同一值，便于从 API 调用追踪到审计记录。
+HTTP 服务会读取 `X-Trace-Id` 或 `X-Request-Id`，优先使用 `X-Trace-Id`。客户端值必须是 1 至 128 个可见 ASCII 非空白字符；缺失或无效值（包括控制字符、空白、非 ASCII 和超长值）会生成 `trace-<timestamp>-<sequence>`，无效的 `X-Trace-Id` 不会再回退使用 `X-Request-Id`。所有响应都会回传 `X-Trace-Id` 与 `X-Request-Id`，结构化请求日志中的 `traceId` 与操作审计 `traceId` 使用同一值，便于从 API 调用追踪到审计记录。
 ## 登录失败锁定
 
 HTTP 登录接口复用身份服务的安全策略。`security.allow_seed_credentials` 默认为 `false`，未轮换的种子凭据会返回 `403 SEED_CREDENTIAL_ROTATION_REQUIRED` 且不会签发 session；本地演示配置显式开启该兼容开关。`security.login_lockout_enabled` 开启后，同一用户名在 `security.login_failure_window_seconds` 窗口内连续失败达到 `security.login_max_failures`，后续登录会返回 `429 Too Many Requests`，并通过 `Retry-After` 告知剩余锁定时间。`security.login_rate_limit_store` 默认为 `memory`；设为 `redis` 后，失败窗口和锁定状态由 Redis 原子共享到多个后端实例。Redis 限流存储不可用时登录 fail-closed，返回 `503 AUTHENTICATION_RATE_LIMITER_UNAVAILABLE`。

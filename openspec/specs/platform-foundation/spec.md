@@ -224,7 +224,7 @@ The system SHALL require valid sessions and permissions before protected industr
 - **AND** MongoDB SHALL 加载初始化脚本并通过 `ping` 命令
 
 ### Requirement: HTTP 响应回传请求追踪编号
-系统 SHALL 为所有 Drogon HTTP 响应回传可用于日志和审计关联的追踪编号。
+系统 SHALL 为所有 Drogon HTTP 响应回传可用于日志和审计关联的追踪编号，并且仅复用 1 至 128 个可见 ASCII 非空白字符构成的客户端编号。
 
 #### Scenario: 客户端传入 X-Request-Id
 
@@ -237,6 +237,19 @@ The system SHALL require valid sessions and permissions before protected industr
 - **GIVEN** HTTP 请求包含 `X-Trace-Id`
 - **WHEN** 后端写入结构化请求日志或操作审计
 - **THEN** 日志与审计 SHALL 使用该追踪编号
+
+#### Scenario: 客户端传入无效追踪编号
+
+- **GIVEN** HTTP 请求包含空白、控制字符、非 ASCII 字节或超过 128 字符的 `X-Trace-Id` 或 `X-Request-Id`
+- **WHEN** 后端处理请求
+- **THEN** 系统 SHALL 生成 `trace-<timestamp>-<sequence>` 格式追踪编号
+- **AND** 响应头、日志和审计 SHALL 使用生成的编号
+
+#### Scenario: 无效 X-Trace-Id 不回退到 X-Request-Id
+
+- **GIVEN** HTTP 请求包含无效的 `X-Trace-Id` 和有效的 `X-Request-Id`
+- **WHEN** 后端处理请求
+- **THEN** 系统 SHALL 生成新的追踪编号而非复用 `X-Request-Id`
 
 #### Scenario: 客户端未传入追踪头
 

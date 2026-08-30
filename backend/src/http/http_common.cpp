@@ -2,6 +2,7 @@
 
 #include "induspilot/domain/domain_types.hpp"
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <exception>
@@ -14,6 +15,7 @@ namespace {
 constexpr const char* kTraceIdAttribute = "induspilot.trace_id";
 constexpr const char* kMetricsStartedAtAttribute = "induspilot.metrics_started_at";
 constexpr const char* kRequestLeaseAttribute = "induspilot.request_lease";
+constexpr std::size_t kMaximumTraceIdLength = 128;
 
 bool isControlPlanePath(const std::string& path) {
     return path == "/health" || path == "/health/live" || path == "/health/ready" ||
@@ -27,13 +29,22 @@ std::string generatedTraceId() {
     return "trace-" + std::to_string(millis) + '-' + std::to_string(++sequence);
 }
 
+bool isSafeTraceId(const std::string& value) {
+    if (value.empty() || value.size() > kMaximumTraceIdLength) {
+        return false;
+    }
+    return std::all_of(value.begin(), value.end(), [](unsigned char character) {
+        return character >= 0x21U && character <= 0x7eU;
+    });
+}
+
 std::string incomingTraceIdFor(const drogon::HttpRequestPtr& request) {
     const auto incomingTrace = request->getHeader("X-Trace-Id");
     if (!incomingTrace.empty()) {
-        return incomingTrace;
+        return isSafeTraceId(incomingTrace) ? incomingTrace : std::string{};
     }
     const auto incomingRequest = request->getHeader("X-Request-Id");
-    if (!incomingRequest.empty()) {
+    if (isSafeTraceId(incomingRequest)) {
         return incomingRequest;
     }
     return {};
