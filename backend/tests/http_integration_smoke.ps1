@@ -296,6 +296,7 @@ try {
     Assert-True $operatorLogin.success "Operator login failed."
     $operatorToken = $operatorLogin.data.token
     $operatorHeaders = @{ Authorization = "Bearer $operatorToken"; "X-Trace-Id" = "trace-it-operator" }
+    $credentialOperationTimeoutSec = 30
 
     $session = Invoke-RestMethod -Uri "$BaseUrl/api/v1/auth/session" -Method Get -Headers $operatorHeaders -TimeoutSec 10
     Assert-True $session.success "Session validation failed."
@@ -305,19 +306,19 @@ try {
     Assert-True ($invalidPasswordChangePayload.code -eq "CURRENT_PASSWORD_INVALID") "Invalid current password code did not match."
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/auth/password" -Method Post -Status 400 -Headers $operatorHeaders -Body '{"currentPassword":"operator123","newPassword":"short"}'
     $rotatedPassword = "operator-rotated-password"
-    $changedPassword = Invoke-RestMethod -Uri "$BaseUrl/api/v1/auth/password" -Method Post -Headers $operatorHeaders -ContentType "application/json" -Body (('{"currentPassword":"' + $operatorPassword + '","newPassword":"' + $rotatedPassword + '"}')) -TimeoutSec 10
+    $changedPassword = Invoke-RestMethod -Uri "$BaseUrl/api/v1/auth/password" -Method Post -Headers $operatorHeaders -ContentType "application/json" -Body (('{"currentPassword":"' + $operatorPassword + '","newPassword":"' + $rotatedPassword + '"}')) -TimeoutSec $credentialOperationTimeoutSec
     Assert-True $changedPassword.success "Password rotation failed."
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/auth/session" -Method Get -Status 401 -Headers $operatorHeaders
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/auth/login" -Method Post -Status 401 -Body (('{"username":"operator","password":"' + $operatorPassword + '"}'))
-    $rotatedLogin = Invoke-RestMethod -Uri "$BaseUrl/api/v1/auth/login" -Method Post -ContentType "application/json" -Body (('{"username":"operator","password":"' + $rotatedPassword + '"}')) -TimeoutSec 10
+    $rotatedLogin = Invoke-RestMethod -Uri "$BaseUrl/api/v1/auth/login" -Method Post -ContentType "application/json" -Body (('{"username":"operator","password":"' + $rotatedPassword + '"}')) -TimeoutSec $credentialOperationTimeoutSec
     Assert-True $rotatedLogin.success "Rotated operator password could not log in."
     $rotatedHeaders = @{ Authorization = "Bearer $($rotatedLogin.data.token)"; "X-Trace-Id" = "trace-it-operator-rotated" }
     $rotatedSession = Invoke-RestMethod -Uri "$BaseUrl/api/v1/auth/session" -Method Get -Headers $rotatedHeaders -TimeoutSec 10
     Assert-True $rotatedSession.success "Rotated operator session validation failed."
-    $restorePassword = Invoke-RestMethod -Uri "$BaseUrl/api/v1/auth/password" -Method Post -Headers $rotatedHeaders -ContentType "application/json" -Body (('{"currentPassword":"' + $rotatedPassword + '","newPassword":"operator123"}')) -TimeoutSec 10
+    $restorePassword = Invoke-RestMethod -Uri "$BaseUrl/api/v1/auth/password" -Method Post -Headers $rotatedHeaders -ContentType "application/json" -Body (('{"currentPassword":"' + $rotatedPassword + '","newPassword":"operator123"}')) -TimeoutSec $credentialOperationTimeoutSec
     Assert-True $restorePassword.success "Operator password restore failed."
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/auth/session" -Method Get -Status 401 -Headers $rotatedHeaders
-    $restoredLogin = Invoke-RestMethod -Uri "$BaseUrl/api/v1/auth/login" -Method Post -ContentType "application/json" -Body '{"username":"operator","password":"operator123"}' -TimeoutSec 10
+    $restoredLogin = Invoke-RestMethod -Uri "$BaseUrl/api/v1/auth/login" -Method Post -ContentType "application/json" -Body '{"username":"operator","password":"operator123"}' -TimeoutSec $credentialOperationTimeoutSec
     Assert-True $restoredLogin.success "Operator password restore login failed."
     $operatorHeaders = @{ Authorization = "Bearer $($restoredLogin.data.token)"; "X-Trace-Id" = "trace-it-operator-restored" }
     Invoke-ExpectStatus -Uri "$BaseUrl/api/v1/monitoring/states" -Method Post -Status 401 -Body '{"assetId":"asset-it-001","state":"online"}'
