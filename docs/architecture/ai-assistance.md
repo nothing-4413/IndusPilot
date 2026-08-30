@@ -9,7 +9,7 @@ AI 模块只提供辅助解释、日志摘要和排查建议，不直接关闭�
 - 日志摘要接口：为后续 MongoDB 日志接入预留
 - 不可用兜底：AI 未启用时返回清晰状态
 - agent 诊断编排：接收结构化上下文，生成风险等级、可能原因、建议动作和人工复核提示
-- 交互记录：保存输入、输出和关联业务对象；`repository_store=mysql` 时写入 MySQL 审计表
+- 交互记录：保存输入、输出和关联业务对象；由独立的 `ai_interaction_store=memory/mysql/mongodb` 选择 AI 交互仓储，`repository_store` 仍只控制事务型业务数据
 
 ## 后续接入
 

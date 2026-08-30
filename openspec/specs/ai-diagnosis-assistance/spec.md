@@ -80,6 +80,15 @@ AI provider documentation SHALL describe the implemented bounded HTTP provider t
 - **WHEN** a developer reviews future AI work
 - **THEN** it SHALL not list the already implemented HTTP transport as pending
 
+### Requirement: AI interaction storage guidance uses the independent setting
+
+AI documentation SHALL identify `ai_interaction_store` as the setting that selects AI interaction persistence, independently of `repository_store`.
+
+#### Scenario: Operator configures AI interaction persistence
+- **WHEN** an operator selects MySQL or MongoDB for AI interaction records
+- **THEN** the documentation SHALL direct the operator to `ai_interaction_store`
+- **AND** SHALL state that `repository_store` controls transactional business data separately
+
 #### Scenario: HTTP provider 请求外部服务
 
 - **GIVEN** 后端使用 Drogon 构建，且 `ai.provider=http`
