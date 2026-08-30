@@ -2,8 +2,8 @@
 
 #include "induspilot/domain/domain_types.hpp"
 
-#include <cstdint>
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <vector>

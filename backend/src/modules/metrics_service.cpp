@@ -98,6 +98,10 @@ std::string boundedOutcome(const std::string& outcome) {
     return outcome == "sent" || outcome == "retrying" || outcome == "dead_letter" ? outcome : "unknown";
 }
 
+std::string boundedAiInteractionOperation(const std::string& operation) {
+    return operation == "reconcile" || operation == "read" || operation == "write" ? operation : "unknown";
+}
+
 }  // namespace
 
 std::string normalizeMetricPath(const std::string& path) {
@@ -164,6 +168,16 @@ void MetricsRegistry::recordAuditSiemDeliveryQueueDepths(const AuditSiemDelivery
     auditSiemDeliveryQueue_ = snapshot;
 }
 
+void MetricsRegistry::recordAiInteractionOperation(const std::string& operation, bool success, double durationMs) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto& metric = aiInteractionOperations_[boundedAiInteractionOperation(operation)];
+    ++metric.count;
+    if (!success) {
+        ++metric.errorCount;
+    }
+    metric.durationMsSum += std::max(0.0, durationMs);
+}
+
 std::string MetricsRegistry::renderPrometheus() const {
     std::lock_guard<std::mutex> lock(mutex_);
     std::ostringstream out;
@@ -226,6 +240,22 @@ std::string MetricsRegistry::renderPrometheus() const {
         out << "induspilot_ai_provider_available_total{" << labels << "} " << item.second.availableCount << '\n';
         out << "induspilot_ai_provider_unavailable_total{" << labels << "} " << item.second.unavailableCount << '\n';
         out << "induspilot_ai_provider_duration_ms_sum{" << labels << "} " << item.second.durationMsSum << '\n';
+    }
+
+    out << "# HELP induspilot_mongodb_ai_interaction_operations_total Total MongoDB AI interaction repository operations.\n";
+    out << "# TYPE induspilot_mongodb_ai_interaction_operations_total counter\n";
+    out << "# HELP induspilot_mongodb_ai_interaction_errors_total Failed MongoDB AI interaction repository operations.\n";
+    out << "# TYPE induspilot_mongodb_ai_interaction_errors_total counter\n";
+    out << "# HELP induspilot_mongodb_ai_interaction_duration_ms_sum Total MongoDB AI interaction operation duration in milliseconds.\n";
+    out << "# TYPE induspilot_mongodb_ai_interaction_duration_ms_sum counter\n";
+    out << "# HELP induspilot_mongodb_ai_interaction_duration_ms_count MongoDB AI interaction operation duration sample count.\n";
+    out << "# TYPE induspilot_mongodb_ai_interaction_duration_ms_count counter\n";
+    for (const auto& item : aiInteractionOperations_) {
+        const auto labels = std::string("operation=\"") + escapeLabel(item.first) + "\"";
+        out << "induspilot_mongodb_ai_interaction_operations_total{" << labels << "} " << item.second.count << '\n';
+        out << "induspilot_mongodb_ai_interaction_errors_total{" << labels << "} " << item.second.errorCount << '\n';
+        out << "induspilot_mongodb_ai_interaction_duration_ms_sum{" << labels << "} " << item.second.durationMsSum << '\n';
+        out << "induspilot_mongodb_ai_interaction_duration_ms_count{" << labels << "} " << item.second.count << '\n';
     }
 
     out << "# HELP induspilot_notification_deliveries_total Total notification delivery attempts by channel and outcome.\n";

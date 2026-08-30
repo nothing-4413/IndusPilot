@@ -30,6 +30,27 @@ The system SHALL reconcile required `ai_interactions` indexes before enabling th
 - **THEN** backend startup SHALL fail
 - **AND** the error SHALL instruct the operator to deduplicate the conflicting interaction records before retrying
 
+### Requirement: MongoDB AI interaction operations are observable
+
+The system SHALL expose bounded metrics for MongoDB AI interaction repository reconciliation, reads, and writes, including operation outcome and elapsed duration.
+
+#### Scenario: MongoDB operation succeeds
+- **GIVEN** MongoDB AI interaction storage is selected
+- **WHEN** the repository reconciles indexes, reads interactions, or writes an interaction
+- **THEN** the metrics endpoint SHALL increment the corresponding operation success count
+- **AND** SHALL record the operation duration
+
+#### Scenario: MongoDB operation fails
+- **GIVEN** a MongoDB AI interaction operation cannot complete
+- **WHEN** the repository propagates the dependency error
+- **THEN** the metrics endpoint SHALL increment the corresponding operation failure count
+- **AND** SHALL record the failed operation duration
+
+#### Scenario: Metrics labels remain bounded
+- **WHEN** MongoDB operation metrics are rendered
+- **THEN** labels SHALL use only fixed operation names and outcomes
+- **AND** SHALL NOT include interaction identifiers, query values, credentials, or exception text
+
 ### Requirement: AI 交互记录可选择 MongoDB 持久化
 
 系统 SHALL 支持独立选择 AI 交互记录的 `memory`、`mysql` 或 `mongodb` 仓储，默认行为保持不变。

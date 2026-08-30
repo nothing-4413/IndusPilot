@@ -115,6 +115,8 @@ HTTP runtime 已将 `SIGTERM` 和 `SIGINT` 绑定到同一个 shutdown coordinat
 
 选择 MongoDB 仓储时，后端会在启动期协调 `ai_interactions` 的 `interactionCode` 唯一索引与关联对象查询索引，因此已有 MongoDB 数据卷不依赖 Docker 首次初始化脚本。若创建唯一索引因历史重复 `interactionCode` 失败，后端会拒绝启动。应先备份受影响文档、为每个重复键保留一个权威记录或合并其内容、删除其余重复记录，再重试启动；不得通过删除唯一索引绕过该失败。
 
+`/metrics` 会输出 `induspilot_mongodb_ai_interaction_operations_total`、`induspilot_mongodb_ai_interaction_errors_total`、`induspilot_mongodb_ai_interaction_duration_ms_sum` 和 `induspilot_mongodb_ai_interaction_duration_ms_count`，按固定的 `reconcile`、`read`、`write` 操作标签统计。指标不包含交互编号、查询条件、凭据或异常文本。
+
 ## 身份口令边界
 
 内存仓储保留 `admin/admin123`、`operator/operator123`、`maintainer/maintainer123` 作为开发演示口令，并通过显式 `plain:` 兼容格式标识。MySQL 初始化脚本写入 PBKDF2-SHA256 演示哈希并由 `012_seed_account_governance` 标记为待轮换；生产模式拒绝这类凭据，登录不会签发 session。只有本地示例配置显式启用 `security.allow_seed_credentials`，生产部署必须保持关闭。

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "induspilot/data/metrics.hpp"
+
 #include <cstdint>
 #include <map>
 #include <mutex>
@@ -41,13 +43,14 @@ struct AuditSiemDeliveryQueueSnapshot {
 
 std::string normalizeMetricPath(const std::string& path);
 
-class MetricsRegistry {
+class MetricsRegistry final : public data::AiInteractionMetricsSink {
 public:
     void recordHttpRequest(const std::string& method, const std::string& path, int statusCode, double durationMs);
     void recordReadiness(const ReadinessMetricSnapshot& snapshot);
     void recordAiProviderCall(const std::string& provider, const std::string& operation, bool available, double durationMs);
     void recordNotificationDelivery(const std::string& channel, const std::string& outcome);
     void recordAuditSiemDeliveryQueueDepths(const AuditSiemDeliveryQueueSnapshot& snapshot);
+    void recordAiInteractionOperation(const std::string& operation, bool success, double durationMs) override;
     std::string renderPrometheus() const;
 
     std::uint64_t totalRequests() const;
@@ -70,6 +73,14 @@ private:
     std::uint64_t alertClosures_{0};
     std::uint64_t workOrderClosures_{0};
     ReadinessMetricSnapshot readiness_;
+
+    struct AiInteractionMetricSnapshot {
+        std::uint64_t count{0};
+        std::uint64_t errorCount{0};
+        double durationMsSum{0.0};
+    };
+
+    std::map<std::string, AiInteractionMetricSnapshot> aiInteractionOperations_;
 };
 
 }  // namespace induspilot::modules

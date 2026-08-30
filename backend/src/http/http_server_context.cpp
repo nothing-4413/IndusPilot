@@ -141,13 +141,14 @@ std::shared_ptr<data::AuditDeliveryQueueRepository> createAuditDeliveryQueueRepo
 
 std::shared_ptr<data::AiInteractionRepository> createAiInteractionRepository(
     const app::AppConfig& config,
-    const drogon::orm::DbClientPtr& mysqlClient) {
+    const drogon::orm::DbClientPtr& mysqlClient,
+    const std::shared_ptr<modules::MetricsRegistry>& metrics) {
     if (config.storage.aiInteractionStore == "mysql") {
         return std::make_shared<data::MySqlAiInteractionRepository>(mysqlClient);
     }
 #ifdef INDUSPILOT_WITH_MONGODB
     if (config.storage.aiInteractionStore == "mongodb") {
-        return std::make_shared<data::MongoAiInteractionRepository>(config.mongodb.uri, config.mongodb.database);
+        return std::make_shared<data::MongoAiInteractionRepository>(config.mongodb.uri, config.mongodb.database, metrics);
     }
 #endif
     return std::make_shared<data::InMemoryAiInteractionRepository>();
@@ -174,7 +175,7 @@ HttpServerContext buildHttpServerContext(const app::AppConfig& config) {
     context.alerts = std::make_shared<modules::AlertService>(
         createAlertRepository(config, mysqlClient), modules::makeAlertNotificationSender(config.notifications), context.metrics);
     context.maintenance = std::make_shared<modules::MaintenanceService>(createWorkOrderRepository(config, mysqlClient));
-    context.ai = std::make_shared<modules::AiService>(config.ai, createAiInteractionRepository(config, mysqlClient), nullptr, context.metrics);
+    context.ai = std::make_shared<modules::AiService>(config.ai, createAiInteractionRepository(config, mysqlClient, context.metrics), nullptr, context.metrics);
     context.audit = std::make_shared<modules::AuditService>(
         createOperationAuditRepository(config, mysqlClient),
         modules::makeAuditDeliverySink(config.audit),

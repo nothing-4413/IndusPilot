@@ -1,6 +1,7 @@
 #pragma once
 
 #include "induspilot/data/repositories.hpp"
+#include "induspilot/data/metrics.hpp"
 
 #ifdef INDUSPILOT_WITH_MONGODB
 #include <mongocxx/client.hpp>
@@ -12,7 +13,10 @@ namespace induspilot::data {
 
 class MongoAiInteractionRepository final : public AiInteractionRepository {
 public:
-    explicit MongoAiInteractionRepository(const std::string& uri, const std::string& database);
+    explicit MongoAiInteractionRepository(
+        const std::string& uri,
+        const std::string& database,
+        std::shared_ptr<AiInteractionMetricsSink> metrics = nullptr);
 
     domain::AiInteraction save(domain::AiInteraction interaction) override;
     std::vector<domain::AiInteraction> list() const override;
@@ -21,6 +25,7 @@ public:
 private:
     mutable mongocxx::client client_;
     std::string database_;
+    std::shared_ptr<AiInteractionMetricsSink> metrics_;
 };
 
 }  // namespace induspilot::data

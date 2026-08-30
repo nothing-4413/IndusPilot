@@ -712,6 +712,9 @@ int main() {
     metrics.recordHttpRequest("GET", "/api/v1/assets/not-exist", 404, 1.0);
     metrics.recordAiProviderCall("http", "diagnose", true, 12.5);
     metrics.recordAiProviderCall("provider-with-user-data", "prompt-secret", false, 2.0);
+    metrics.recordAiInteractionOperation("read", true, 4.5);
+    metrics.recordAiInteractionOperation("write", false, 1.5);
+    metrics.recordAiInteractionOperation("operation-with-user-data", true, 3.0);
     metrics.recordNotificationDelivery("webhook", "retrying");
     metrics.recordNotificationDelivery("channel-with-user-data", "message-secret");
     metrics.recordReadiness({true, 4, 1, 2, 18, 1700000000000});
@@ -734,6 +737,10 @@ int main() {
     assert(metricsText.find("induspilot_readiness_probes_total 4") != std::string::npos);
     assert(metricsText.find("induspilot_readiness_failures_total 1") != std::string::npos);
     assert(metricsText.find("induspilot_readiness_recoveries_total 2") != std::string::npos);
+    assert(metricsText.find("induspilot_mongodb_ai_interaction_operations_total{operation=\"read\"} 1") != std::string::npos);
+    assert(metricsText.find("induspilot_mongodb_ai_interaction_errors_total{operation=\"write\"} 1") != std::string::npos);
+    assert(metricsText.find("operation-with-user-data") == std::string::npos);
+    assert(metricsText.find("prompt-secret") == std::string::npos);
     induspilot::modules::AiService ai;
     assert(ai.status().message.find("AI 未启用") != std::string::npos);
     induspilot::modules::AiService configuredAi(induspilot::app::AiConfig{true, "http", "http://127.0.0.1:9000"});
