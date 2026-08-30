@@ -1,5 +1,9 @@
 #include "induspilot/data/data_connectors.hpp"
 
+#ifdef INDUSPILOT_WITH_MONGODB
+#include "induspilot/data/mongodb_repositories.hpp"
+#endif
+
 #include <algorithm>
 #include <chrono>
 #include <condition_variable>
@@ -356,9 +360,21 @@ DependencyStatus DataConnectors::probe() const {
         const auto mongodbEndpoint = config_.mongodb.uri.empty()
             ? endpointFromHostPort(config_.mongodb.host, config_.mongodb.port)
             : endpointFromUri(config_.mongodb.uri, config_.mongodb.port > 0 ? config_.mongodb.port : 27017);
+#ifdef INDUSPILOT_WITH_MONGODB
+        const auto mongodbUri = config_.mongodb.uri.empty()
+            ? "mongodb://" + config_.mongodb.host + ":" + std::to_string(config_.mongodb.port)
+            : config_.mongodb.uri;
+        const auto mongodbDatabase = config_.mongodb.database;
+        const auto probeTimeoutMs = config_.readiness.probeTimeoutMs;
+        mongodbFuture = std::async(std::launch::async, [mongodbUri, mongodbDatabase, probeTimeoutMs] {
+            const auto result = probeMongoDb(mongodbUri, mongodbDatabase, probeTimeoutMs);
+            return ProbeResult{result.available, result.reason};
+        });
+#else
         mongodbFuture = std::async(std::launch::async, [mongodbEndpoint, deadline] {
             return tcpProbe(mongodbEndpoint, deadline);
         });
+#endif
     }
 
     ProbeResult mysqlResult{true, "not required by repository_store"};
@@ -387,7 +403,7 @@ DependencyStatus DataConnectors::probe() const {
 }
 
 std::string DataConnectors::describe() const {
-    return "MySQL, Redis, selected MongoDB AI storage and enabled HTTP AI probes use configured TCP endpoints";
+    return "MySQL, Redis, selected MongoDB AI storage and enabled HTTP AI probes use configured dependency probes";
 }
 
 }  // namespace induspilot::data

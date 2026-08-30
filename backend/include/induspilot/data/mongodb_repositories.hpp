@@ -11,6 +11,13 @@
 
 namespace induspilot::data {
 
+struct MongoProbeResult {
+    bool available{false};
+    std::string reason;
+};
+
+MongoProbeResult probeMongoDb(const std::string& uri, const std::string& database, int timeoutMs);
+
 class MongoAiInteractionRepository final : public AiInteractionRepository {
 public:
     explicit MongoAiInteractionRepository(

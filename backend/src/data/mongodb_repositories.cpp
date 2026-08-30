@@ -9,6 +9,7 @@
 #include <mongocxx/options/index.hpp>
 #include <mongocxx/options/update.hpp>
 
+#include <algorithm>
 #include <chrono>
 #include <stdexcept>
 
@@ -27,6 +28,13 @@ std::string stringField(const bsoncxx::document::view& document, const char* nam
     }
     const auto value = element.get_string().value;
     return {value.data(), value.length()};
+}
+
+std::string boundedProbeUri(const std::string& uri, int timeoutMs) {
+    const auto boundedTimeout = std::max(1, timeoutMs);
+    const auto separator = uri.find('?') == std::string::npos ? '?' : '&';
+    return uri + separator + "serverSelectionTimeoutMS=" + std::to_string(boundedTimeout) +
+        "&connectTimeoutMS=" + std::to_string(boundedTimeout);
 }
 
 void reconcileAiInteractionIndexes(
@@ -68,6 +76,36 @@ void reconcileAiInteractionIndexes(
 }
 
 }  // namespace
+
+MongoProbeResult probeMongoDb(const std::string& uri, const std::string& database, int timeoutMs) {
+    using bsoncxx::builder::stream::document;
+    using bsoncxx::builder::stream::finalize;
+
+    if (database.empty()) {
+        return {false, "MongoDB authenticated ping failed: database is empty"};
+    }
+
+    try {
+        mongocxx::client client((driverInstance(), mongocxx::uri{boundedProbeUri(uri, timeoutMs)}));
+        const auto response = client[database].run_command(document{} << "ping" << 1 << finalize);
+        const auto ok = response["ok"];
+        if (!ok || (ok.type() != bsoncxx::type::k_int32 && ok.type() != bsoncxx::type::k_int64 &&
+                    ok.type() != bsoncxx::type::k_double)) {
+            return {false, "MongoDB authenticated ping returned an invalid response"};
+        }
+        const auto okValue = ok.type() == bsoncxx::type::k_int32
+            ? static_cast<double>(ok.get_int32().value)
+            : ok.type() == bsoncxx::type::k_int64
+                ? static_cast<double>(ok.get_int64().value)
+                : ok.get_double().value;
+        if (!(okValue > 0.0)) {
+            return {false, "MongoDB authenticated ping returned ok <= 0"};
+        }
+        return {true, "MongoDB authenticated ping succeeded"};
+    } catch (const std::exception& error) {
+        return {false, "MongoDB authenticated ping failed: " + std::string(error.what())};
+    }
+}
 
 MongoAiInteractionRepository::MongoAiInteractionRepository(
     const std::string& uri,

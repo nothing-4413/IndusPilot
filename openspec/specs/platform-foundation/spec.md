@@ -51,6 +51,27 @@ The system SHALL expose bounded metrics for MongoDB AI interaction repository re
 - **THEN** labels SHALL use only fixed operation names and outcomes
 - **AND** SHALL NOT include interaction identifiers, query values, credentials, or exception text
 
+### Requirement: MongoDB readiness verifies authenticated command access
+
+When MongoDB is required by the selected AI interaction store, readiness SHALL verify authenticated command-level access instead of relying only on TCP reachability.
+
+#### Scenario: MongoDB credentials and database access are valid
+- **GIVEN** `storage.ai_interaction_store=mongodb` and valid MongoDB credentials
+- **WHEN** readiness probes dependencies
+- **THEN** the MongoDB check SHALL execute an authenticated `ping` command
+- **AND** SHALL report MongoDB available when the command succeeds
+
+#### Scenario: MongoDB credentials or command access are invalid
+- **GIVEN** MongoDB's TCP endpoint is reachable but authentication or database command access fails
+- **WHEN** readiness probes dependencies
+- **THEN** MongoDB SHALL be reported unavailable
+- **AND** the readiness reason SHALL identify an authenticated MongoDB probe failure
+
+#### Scenario: MongoDB probe is unavailable in the build
+- **GIVEN** the backend was built without the MongoDB adapter
+- **WHEN** configuration selects MongoDB AI storage
+- **THEN** configuration validation SHALL reject startup before readiness probing
+
 ### Requirement: AI 交互记录可选择 MongoDB 持久化
 
 系统 SHALL 支持独立选择 AI 交互记录的 `memory`、`mysql` 或 `mongodb` 仓储，默认行为保持不变。

@@ -86,7 +86,7 @@ docker compose up -d
 - `/health/startup`：判断配置校验和初始化是否完成；有效启动后返回 `200`。
 - `/health`：兼容旧客户端，继续返回 `200` 以及 `service`、`dependencies`、`warnings` 字段。
 
-readiness 探测使用 `INDUSPILOT_READINESS_PROBE_TIMEOUT_MS` 限制 DNS 和 TCP connect 的单轮 deadline，并在 `INDUSPILOT_READINESS_PROBE_CACHE_MS` 内复用结果。多个并发 readiness 请求会合并为一轮探测；缓存过期后下一次 readiness 请求会重新探测，依赖恢复后可自动回到 `200`。readiness data 还提供 `probeInProgress`、`probeCount`、`failureCount`、`recoveryCount`、`lastProbeDurationMs` 和 `lastProbeAtUnixMs`。
+readiness 探测使用 `INDUSPILOT_READINESS_PROBE_TIMEOUT_MS` 限制 DNS、TCP connect 以及 MongoDB authenticated `ping` 的单轮 deadline，并在 `INDUSPILOT_READINESS_PROBE_CACHE_MS` 内复用结果。多个并发 readiness 请求会合并为一轮探测；缓存过期后下一次 readiness 请求会重新探测，依赖恢复后可自动回到 `200`。readiness data 还提供 `probeInProgress`、`probeCount`、`failureCount`、`recoveryCount`、`lastProbeDurationMs` 和 `lastProbeAtUnixMs`。
 
 本地或反向代理可用以下命令确认状态：
 
@@ -134,7 +134,7 @@ HTTP runtime 已将 `SIGTERM` 和 `SIGINT` 绑定到同一个 shutdown coordinat
 - Redis session 已支持通过 `redis.uri` 接入；`redis.password` 和 `redis.database` 会被解析，但当前连接实现不单独消费这两个字段，如需认证或选择 DB，请把信息嵌入 `redis.uri`。
 - MongoDB 只承载 AI 交互文档；身份、资产、告警、工单、运行状态和操作审计哈希链仍由 MySQL 主存储管理。选择 MongoDB AI 仓储时，连接失败会导致 AI 交互读写返回 `503 DEPENDENCY_UNAVAILABLE`，不会伪造已持久化成功；readiness 同时将 MongoDB 标为 required。
 - `ai.enabled`、`ai.provider`、`ai.endpoint`、`ai.timeoutMs`、`ai.maxContextItems` 和 `ai.storeInteractionRecords` 驱动健康探测、AI 状态接口、agent 诊断编排、HTTP provider 推理传输和交互审计记录策略；非 Drogon 构建或 HTTP 调用失败时仍使用本地规则降级。
-- `/health` 依赖检查当前只验证 TCP 连通性；认证、schema、表结构、Redis 读写和 MongoDB collection/索引由 dependency smoke 与部署预检覆盖。
+- `/health` 依赖检查会对 MySQL、Redis 和 HTTP AI 使用 TCP 探测；选择 MongoDB AI 仓储时会执行带认证和超时边界的 MongoDB `ping` 命令。MongoDB collection/索引由启动期协调和 dependency smoke 覆盖。
 
 ## Session Store
 
