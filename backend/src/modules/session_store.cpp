@@ -128,6 +128,10 @@ std::optional<SessionInfo> deserializeSession(const std::string& value) {
 
 bool InMemorySessionStore::save(const SessionInfo& session, std::chrono::seconds ttl) {
     std::lock_guard<std::mutex> lock(mutex_);
+    if (ttl.count() <= 0) {
+        sessions_.erase(session.token);
+        return true;
+    }
     sessions_[session.token] = StoredSession{session, std::chrono::system_clock::now() + ttl};
     return true;
 }
@@ -139,6 +143,7 @@ std::optional<SessionInfo> InMemorySessionStore::find(const std::string& token) 
         return std::nullopt;
     }
     if (std::chrono::system_clock::now() >= it->second.expiresAt || !it->second.session.active) {
+        sessions_.erase(it);
         return std::nullopt;
     }
     return it->second.session;

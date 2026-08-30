@@ -563,6 +563,16 @@ int main() {
     assert(expiringLogin.session.has_value());
     assert(!expiringIdentity.validateSession(expiringLogin.session->token).has_value());
 
+    induspilot::modules::InMemorySessionStore expiringSessionStore;
+    const induspilot::modules::SessionInfo expiredSession{
+        "expired-session-token",
+        {"expired-user", "expired-user", {"operator"}},
+        true,
+        1};
+    assert(expiringSessionStore.save(expiredSession, std::chrono::seconds(0)));
+    assert(!expiringSessionStore.find(expiredSession.token).has_value());
+    assert(!expiringSessionStore.remove(expiredSession.token));
+
     induspilot::data::InMemoryUserRepository users;
     assert(users.findByUsername("admin").has_value());
     const auto originalAdminHash = users.findByUsername("admin")->passwordHash;

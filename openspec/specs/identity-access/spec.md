@@ -18,7 +18,7 @@ The system SHALL restrict operations by user role and permission.
 - **THEN** the system denies the operation and records the denial reason
 
 ### Requirement: Session management
-The system SHALL support session creation, validation, expiration, and logout. Successful logout SHALL produce an `auth.logout` audit event without the session token; storage failures after validation SHALL be reported as unavailable rather than unauthorized.
+The system SHALL support session creation, validation, expiration, and logout. Expired or inactive in-memory session entries SHALL be removed when read, and non-positive session TTL saves SHALL remove the entry. Successful logout SHALL produce an `auth.logout` audit event without the session token; storage failures after validation SHALL be reported as unavailable rather than unauthorized.
 
 #### Scenario: Expired session is rejected
 - **WHEN** a user sends a request with an expired session
@@ -35,6 +35,12 @@ The system SHALL support session creation, validation, expiration, and logout. S
 - **AND** the session store cannot revoke the session
 - **WHEN** the user logs out
 - **THEN** the endpoint returns HTTP 503
+
+#### Scenario: Expired in-memory session is reclaimed
+- **GIVEN** an in-memory session expires or is saved with a non-positive TTL
+- **WHEN** the session is read
+- **THEN** no session is returned
+- **AND** the expired entry is not retained by the session store
 
 ### Requirement: Versioned password verification
 The system SHALL verify user credentials through a versioned password verification boundary instead of direct plaintext comparison.
