@@ -16,6 +16,7 @@ public:
 
     domain::AiInteraction save(domain::AiInteraction interaction) override;
     std::vector<domain::AiInteraction> list() const override;
+    Page list(const Query& query) const override;
 
 private:
     mutable mongocxx::client client_;

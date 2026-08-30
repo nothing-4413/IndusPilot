@@ -91,21 +91,39 @@ domain::AiInteraction MongoAiInteractionRepository::save(domain::AiInteraction i
 }
 
 std::vector<domain::AiInteraction> MongoAiInteractionRepository::list() const {
+    return list(Query{}).interactions;
+}
+
+MongoAiInteractionRepository::Page MongoAiInteractionRepository::list(const Query& query) const {
     using bsoncxx::builder::stream::document;
     using bsoncxx::builder::stream::finalize;
 
+    document filter;
+    if (query.relatedType) {
+        filter << "relatedType" << *query.relatedType;
+    }
+    if (query.relatedId) {
+        filter << "relatedId" << *query.relatedId;
+    }
+    const auto filterDocument = filter << finalize;
     auto options = mongocxx::options::find{};
     options.sort(document{} << "createdAt" << -1 << finalize);
-    std::vector<domain::AiInteraction> interactions;
-    for (const auto& item : client_[database_]["ai_interactions"].find({}, options)) {
-        interactions.push_back({
+    if (query.limit) {
+        options.limit(static_cast<std::int64_t>(*query.limit));
+    }
+    options.skip(static_cast<std::int64_t>(query.offset));
+    auto collection = client_[database_]["ai_interactions"];
+    Page page;
+    page.total = static_cast<std::size_t>(collection.count_documents(filterDocument.view()));
+    for (const auto& item : collection.find(filterDocument.view(), options)) {
+        page.interactions.push_back({
             stringField(item, "interactionCode"),
             stringField(item, "relatedType"),
             stringField(item, "relatedId"),
             stringField(item, "prompt"),
             stringField(item, "response")});
     }
-    return interactions;
+    return page;
 }
 
 }  // namespace induspilot::data

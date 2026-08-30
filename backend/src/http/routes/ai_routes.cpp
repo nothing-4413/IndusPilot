@@ -224,35 +224,36 @@ void registerAiRoutes(drogon::HttpAppFramework& server, const HttpServerContext&
             return;
         }
 
-        std::vector<domain::AiInteraction> interactions;
+        const auto paged = limit.has_value() || offset.has_value();
+        if (paged) {
+            query.limit = static_cast<std::size_t>(limit.value_or(20));
+            query.offset = static_cast<std::size_t>(offset.value_or(0));
+        }
+        modules::AiInteractionPage interactions;
         try {
-            interactions = ai->interactions(query);
+            interactions = ai->interactionsPage(query);
         } catch (const std::exception& exception) {
             callback(dependencyUnavailable(std::string("AI interaction storage operation failed: ") + exception.what()));
             return;
         }
         Json::Value rows(Json::arrayValue);
-        if (!limit && !offset) {
-            for (const auto& interaction : interactions) {
+        if (!paged) {
+            for (const auto& interaction : interactions.interactions) {
                 rows.append(aiInteractionToJson(interaction));
             }
             callback(jsonResponse(responseEnvelope(true, "OK", "AI interactions returned", rows)));
             return;
         }
 
-        const auto effectiveLimit = limit.value_or(20);
-        const auto effectiveOffset = offset.value_or(0);
-        const auto start = std::min<std::size_t>(static_cast<std::size_t>(effectiveOffset), interactions.size());
-        const auto end = std::min<std::size_t>(start + static_cast<std::size_t>(effectiveLimit), interactions.size());
-        for (auto index = start; index < end; ++index) {
-            rows.append(aiInteractionToJson(interactions[index]));
+        for (const auto& interaction : interactions.interactions) {
+            rows.append(aiInteractionToJson(interaction));
         }
 
         Json::Value page(Json::objectValue);
         page["items"] = rows;
-        page["total"] = static_cast<Json::UInt64>(interactions.size());
-        page["limit"] = effectiveLimit;
-        page["offset"] = effectiveOffset;
+        page["total"] = static_cast<Json::UInt64>(interactions.total);
+        page["limit"] = static_cast<Json::UInt64>(*query.limit);
+        page["offset"] = static_cast<Json::UInt64>(query.offset);
         callback(jsonResponse(responseEnvelope(true, "OK", "AI interactions returned", page)));
     }, {drogon::Get});
 }

@@ -29,7 +29,11 @@ struct AiSuggestion {
 struct AiInteractionQuery {
     std::optional<std::string> relatedType;
     std::optional<std::string> relatedId;
+    std::optional<std::size_t> limit;
+    std::size_t offset{0};
 };
+
+using AiInteractionPage = data::AiInteractionRepository::Page;
 
 struct DiagnosisContext {
     std::string assetId;
@@ -98,6 +102,7 @@ public:
     AiSuggestion summarizeLogs(const AiRequest& request);
     DiagnosisResult diagnose(const DiagnosisRequest& request);
     std::vector<domain::AiInteraction> interactions(const AiInteractionQuery& query = {}) const;
+    AiInteractionPage interactionsPage(const AiInteractionQuery& query) const;
 
 private:
     AiSuggestion unavailableSuggestion(const AiRequest& request, const std::string& operation);

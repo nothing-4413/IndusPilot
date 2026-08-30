@@ -3,6 +3,7 @@
 #include "induspilot/domain/domain_types.hpp"
 
 #include <cstdint>
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <vector>
@@ -115,6 +116,34 @@ public:
 
     virtual domain::AiInteraction save(domain::AiInteraction interaction) = 0;
     virtual std::vector<domain::AiInteraction> list() const = 0;
+
+    struct Query {
+        std::optional<std::string> relatedType;
+        std::optional<std::string> relatedId;
+        std::optional<std::size_t> limit;
+        std::size_t offset{0};
+    };
+
+    struct Page {
+        std::vector<domain::AiInteraction> interactions;
+        std::size_t total{0};
+    };
+
+    virtual Page list(const Query& query) const {
+        Page page;
+        for (const auto& interaction : list()) {
+            if ((query.relatedType && interaction.relatedType != *query.relatedType) ||
+                (query.relatedId && interaction.relatedId != *query.relatedId)) {
+                continue;
+            }
+            ++page.total;
+            if (page.total <= query.offset || (query.limit && page.interactions.size() >= *query.limit)) {
+                continue;
+            }
+            page.interactions.push_back(interaction);
+        }
+        return page;
+    }
 };
 
 }  // namespace induspilot::data

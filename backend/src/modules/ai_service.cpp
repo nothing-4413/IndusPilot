@@ -18,16 +18,6 @@
 namespace induspilot::modules {
 namespace {
 
-bool matches(const domain::AiInteraction& interaction, const AiInteractionQuery& query) {
-    if (query.relatedType && interaction.relatedType != *query.relatedType) {
-        return false;
-    }
-    if (query.relatedId && interaction.relatedId != *query.relatedId) {
-        return false;
-    }
-    return true;
-}
-
 bool containsText(const std::string& text, const std::string& keyword) {
     return text.find(keyword) != std::string::npos;
 }
@@ -488,13 +478,15 @@ DiagnosisResult AiService::diagnose(const DiagnosisRequest& request) {
 }
 
 std::vector<domain::AiInteraction> AiService::interactions(const AiInteractionQuery& query) const {
-    std::vector<domain::AiInteraction> result;
-    for (const auto& interaction : repository_->list()) {
-        if (matches(interaction, query)) {
-            result.push_back(interaction);
-        }
-    }
-    return result;
+    return interactionsPage(query).interactions;
+}
+
+AiInteractionPage AiService::interactionsPage(const AiInteractionQuery& query) const {
+    return repository_->list(data::AiInteractionRepository::Query{
+        query.relatedType,
+        query.relatedId,
+        query.limit,
+        query.offset});
 }
 
 AiSuggestion AiService::unavailableSuggestion(const AiRequest& request, const std::string& operation) {
