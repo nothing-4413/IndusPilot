@@ -755,6 +755,11 @@ int main() {
     const auto mongoProbe = induspilot::data::probeMongoDb("mongodb://127.0.0.1:1", "", 25);
     assert(!mongoProbe.available);
     assert(mongoProbe.reason.find("database is empty") != std::string::npos);
+    const auto zeroMongoPing = induspilot::data::evaluateMongoProbeOk(0.0);
+    assert(!zeroMongoPing.available);
+    assert(zeroMongoPing.reason.find("ok <= 0") != std::string::npos);
+    const auto negativeMongoPing = induspilot::data::evaluateMongoProbeOk(-1.0);
+    assert(!negativeMongoPing.available);
 #endif
     induspilot::modules::AiService ai;
     assert(ai.status().message.find("AI 未启用") != std::string::npos);

@@ -88,6 +88,9 @@ docker compose up -d
 
 readiness 探测使用 `INDUSPILOT_READINESS_PROBE_TIMEOUT_MS` 限制 DNS、TCP connect 以及 MongoDB authenticated `ping` 的单轮 deadline，并在 `INDUSPILOT_READINESS_PROBE_CACHE_MS` 内复用结果。多个并发 readiness 请求会合并为一轮探测；缓存过期后下一次 readiness 请求会重新探测，依赖恢复后可自动回到 `200`。readiness data 还提供 `probeInProgress`、`probeCount`、`failureCount`、`recoveryCount`、`lastProbeDurationMs` 和 `lastProbeAtUnixMs`。
 
+选择 MongoDB AI 仓储时，临时认证失败、网络不可用或 `ping` 返回非正 `ok` 不会阻止 HTTP listener 启动；`/health/live` 仍返回 `200`，`/health/ready` 返回 `503` 并标记 MongoDB required/unavailable。readiness reason 会限制长度并移除 MongoDB URI，响应不得包含 URI、用户名或密码。MongoDB 仓储会在首次 AI 读写前重试尚未完成的索引协调；数据库权限不足、重复 `interactionCode` 或不兼容索引等结构性协调错误仍会阻止正常启动或操作。
+认证成功但业务库权限不足是结构性配置错误，不等同于临时网络故障：启动期索引协调会 fail closed 并返回非零结果，错误诊断同样不得包含 MongoDB URI、用户名或密码。`ping` 成功只表示认证连接可用，不代表账号拥有 AI 集合的索引/写权限。
+
 本地或反向代理可用以下命令确认状态：
 
 ```powershell
@@ -113,7 +116,7 @@ HTTP runtime 已将 `SIGTERM` 和 `SIGINT` 绑定到同一个 shutdown coordinat
 
 `storage.repository_store` 支持 `memory` 和 `mysql`，控制身份认证、资产、告警、维护工单、运行状态和操作审计等事务型数据。`storage.ai_interaction_store` 独立支持 `memory`、`mysql` 和 `mongodb`，默认 `memory`；选择 `mongodb` 时需使用 `dev-http-mongodb` preset 或以 `INDUSPILOT_WITH_MONGODB=ON` 和 vcpkg `mongodb` feature 构建。MongoDB 写入 `ai_interactions` 集合，按 `interactionCode` upsert，读取保持按关联对象过滤并按创建时间倒序。
 
-选择 MongoDB 仓储时，后端会在启动期协调 `ai_interactions` 的 `interactionCode` 唯一索引与关联对象查询索引，因此已有 MongoDB 数据卷不依赖 Docker 首次初始化脚本。若创建唯一索引因历史重复 `interactionCode` 失败，后端会拒绝启动。应先备份受影响文档、为每个重复键保留一个权威记录或合并其内容、删除其余重复记录，再重试启动；不得通过删除唯一索引绕过该失败。
+选择 MongoDB 仓储时，后端在认证探测成功后会协调 `ai_interactions` 的 `interactionCode` 唯一索引与关联对象查询索引，因此已有 MongoDB 数据卷不依赖 Docker 首次初始化脚本。若认证/网络暂不可用，协调会延迟到首次 AI 读写并重试；若创建唯一索引因历史重复 `interactionCode` 失败，后端会拒绝启动。应先备份受影响文档、为每个重复键保留一个权威记录或合并其内容、删除其余重复记录，再重试启动；不得通过删除唯一索引绕过该失败。
 
 `/metrics` 会输出 `induspilot_mongodb_ai_interaction_operations_total`、`induspilot_mongodb_ai_interaction_errors_total`、`induspilot_mongodb_ai_interaction_duration_ms_sum` 和 `induspilot_mongodb_ai_interaction_duration_ms_count`，按固定的 `reconcile`、`read`、`write` 操作标签统计。指标不包含交互编号、查询条件、凭据或异常文本。
 
@@ -134,7 +137,7 @@ HTTP runtime 已将 `SIGTERM` 和 `SIGINT` 绑定到同一个 shutdown coordinat
 - Redis session 已支持通过 `redis.uri` 接入；`redis.password` 和 `redis.database` 会被解析，但当前连接实现不单独消费这两个字段，如需认证或选择 DB，请把信息嵌入 `redis.uri`。
 - MongoDB 只承载 AI 交互文档；身份、资产、告警、工单、运行状态和操作审计哈希链仍由 MySQL 主存储管理。选择 MongoDB AI 仓储时，连接失败会导致 AI 交互读写返回 `503 DEPENDENCY_UNAVAILABLE`，不会伪造已持久化成功；readiness 同时将 MongoDB 标为 required。
 - `ai.enabled`、`ai.provider`、`ai.endpoint`、`ai.timeoutMs`、`ai.maxContextItems` 和 `ai.storeInteractionRecords` 驱动健康探测、AI 状态接口、agent 诊断编排、HTTP provider 推理传输和交互审计记录策略；非 Drogon 构建或 HTTP 调用失败时仍使用本地规则降级。
-- `/health` 依赖检查会对 MySQL、Redis 和 HTTP AI 使用 TCP 探测；选择 MongoDB AI 仓储时会执行带认证和超时边界的 MongoDB `ping` 命令。MongoDB collection/索引由启动期协调和 dependency smoke 覆盖。
+- `/health` 依赖检查会对 MySQL、Redis 和 HTTP AI 使用 TCP 探测；选择 MongoDB AI 仓储时会执行带认证和超时边界的 MongoDB `ping` 命令。MongoDB collection/索引由启动期协调、首次操作重试和 dependency/runtime profile smoke 覆盖。
 
 ## Session Store
 

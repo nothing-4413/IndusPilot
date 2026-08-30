@@ -20,9 +20,9 @@
 - AI 传输：Drogon 构建下的 `provider=http` 已通过配置 endpoint 发起受控 JSON POST，并支持鉴权头、超时、响应文本提取和失败降级；当前结构化诊断字段仍由本地编排器生成。`/metrics` 额外暴露 provider 调用、可用/降级结果和耗时指标，标签不包含 prompt、响应、凭据或业务编号。`backend/tests/ai_provider_http_smoke.ps1` 覆盖成功、非 2xx、非 JSON 和超时场景。
 - 通知通道：`console` 具备本地投递；`email` 明确保持未实现；`webhook` 为显式开关控制且受请求超时约束，失败不会伪造 sent 状态，而是进入通知队列的重试/死信流程。
 - Webhook 出站安全：启用 webhook 必须提供精确 host allowlist；发送前会解析并拒绝回环、私有、链路本地、共享、组播、文档和保留地址，并使用已校验的 IP 地址建立连接；原始 Host 保持用于 HTTP 虚拟主机，TLS 证书校验始终开启。需要独立域名 SNI 的 HTTPS webhook 仍需接入支持显式 SNI 的底层 connector，不能通过关闭证书校验规避。
-- MongoDB：已接入独立的 AI 交互仓储，写入 `ai_interactions` 集合并支持分页查询；启动期协调唯一索引和关联查询索引，仓储操作提供 bounded metrics，选择该模式时 readiness 使用带认证和超时边界的 `ping`。非结构化日志、知识片段和长上下文仍待正式落库。
+- MongoDB：已接入独立的 AI 交互仓储，写入 `ai_interactions` 集合并支持分页查询；认证可用时启动期协调唯一索引和关联查询索引，临时认证/网络失败会由 readiness 返回 `503` 并在首次 AI 操作重试协调，认证成功但业务库权限不足会 fail closed，仓储操作提供 bounded metrics，选择该模式时 readiness 使用带认证和超时边界的 `ping`。非结构化日志、知识片段和长上下文仍待正式落库。
 - 客户端：Qt 客户端已接入 HTTP 登录、资产列表与状态更新、运行监控列表与状态写入、告警创建/规则/通知投递/列表与处置、维护工单列表、新建/编辑/附件/从告警生成/分派/基础流转、AI 结构化诊断入口和 AI 交互审计查询、分页与 CSV 导出，并接入告警规则/通知联动。
-- 集成测试：默认 HTTP 冒烟测试覆盖内存仓储；CI dependency smoke 已覆盖 MySQL、Redis、MongoDB 的真实依赖启动、MySQL 核心业务 CRUD、Redis 数据结构读写和 MongoDB 文档 CRUD。
+- 集成测试：默认 HTTP 冒烟测试覆盖内存仓储；CI dependency smoke 已覆盖 MySQL、Redis、MongoDB 的真实依赖启动、MySQL 核心业务 CRUD、Redis 数据结构读写和 MongoDB 文档 CRUD；真实 MongoDB HTTP profile 还覆盖错误认证 readiness `503`、诊断脱敏和凭据恢复。
 
 ## 下一阶段优先级
 

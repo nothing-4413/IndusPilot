@@ -8,6 +8,7 @@
     [switch]$StartDependencies,
     [switch]$RunDependencySmoke,
     [switch]$ExerciseMongoIndexUpgrade,
+    [switch]$ExerciseMongoReadinessFailures,
     [switch]$StopDependencies
 )
 
@@ -137,11 +138,11 @@ $mysqlUri = "host=$mysqlHost port=$mysqlPort dbname=$mysqlDatabase user=$mysqlUs
 $redisUri = "tcp://:$redisPassword@$redisHost`:$redisPort/0"
 $mongoUri = "mongodb://$mongoUser`:$mongoPassword@$mongoHost`:$mongoPort/admin"
 
-if (($StartDependencies -or $RunDependencySmoke -or $ExerciseMongoIndexUpgrade) -and -not (Get-Command docker -ErrorAction SilentlyContinue)) {
+if (($StartDependencies -or $RunDependencySmoke -or $ExerciseMongoIndexUpgrade -or $ExerciseMongoReadinessFailures) -and -not (Get-Command docker -ErrorAction SilentlyContinue)) {
     throw "未找到 docker 命令，无法启动或验证真实依赖。"
 }
-if ($ExerciseMongoIndexUpgrade -and $AiInteractionStore -ne 'mongodb') {
-    throw "ExerciseMongoIndexUpgrade requires AiInteractionStore=mongodb."
+if (($ExerciseMongoIndexUpgrade -or $ExerciseMongoReadinessFailures) -and $AiInteractionStore -ne 'mongodb') {
+    throw "MongoDB runtime exercises require AiInteractionStore=mongodb."
 }
 
 try {
@@ -189,6 +190,72 @@ try {
 
     if ($ExerciseMongoIndexUpgrade) {
         Invoke-MongoCommand 'const index = db.getSiblingDB("induspilot").ai_interactions.getIndexes().find(item => item.name === "interactionCode_1"); if (!index || index.unique !== true) { throw new Error("backend did not reconcile the unique interactionCode index"); } print("mongodb_index_upgrade_smoke_passed");'
+    }
+
+    if ($ExerciseMongoReadinessFailures) {
+        $wrongMongoPassword = $mongoPassword + '-invalid'
+        $wrongMongoUri = "mongodb://$mongoUser`:$wrongMongoPassword@$mongoHost`:$mongoPort/admin"
+        Write-Host "[runtime-smoke] 验证 MongoDB 错误凭据 readiness 失败和诊断脱敏"
+        & $powerShellCommand -NoProfile -ExecutionPolicy Bypass -File (Resolve-RepoPath 'backend/tests/http_integration_smoke.ps1') `
+            -BackendExe $backendExePath `
+            -ConfigPath $configPathValue `
+            -BaseUrl $BaseUrl `
+            -RepositoryStore mysql `
+            -AiInteractionStore mongodb `
+            -SessionStore redis `
+            -MySqlUri $mysqlUri `
+            -MySqlDatabase $mysqlDatabase `
+            -RedisUri $redisUri `
+            -MongoDbUri $wrongMongoUri `
+            -ReadinessOnly `
+            -ExpectNotReady `
+            -ExpectedUnavailableDependency mongodb `
+            -ExpectMongoReadinessFailure
+        if ($LASTEXITCODE -ne 0) {
+            throw "MongoDB readiness failure smoke 执行失败"
+        }
+
+        Write-Host "[runtime-smoke] 验证 MongoDB 凭据恢复后 readiness 成功"
+        & $powerShellCommand -NoProfile -ExecutionPolicy Bypass -File (Resolve-RepoPath 'backend/tests/http_integration_smoke.ps1') `
+            -BackendExe $backendExePath `
+            -ConfigPath $configPathValue `
+            -BaseUrl $BaseUrl `
+            -RepositoryStore mysql `
+            -AiInteractionStore mongodb `
+            -SessionStore redis `
+            -MySqlUri $mysqlUri `
+            -MySqlDatabase $mysqlDatabase `
+            -RedisUri $redisUri `
+            -MongoDbUri $mongoUri `
+            -ReadinessOnly
+        if ($LASTEXITCODE -ne 0) {
+            throw "MongoDB readiness recovery smoke 执行失败"
+        }
+
+        $restrictedMongoUser = $mongoUser + '-readonly'
+        $restrictedMongoPassword = $mongoPassword + '-readonly'
+        $restrictedUserLiteral = $restrictedMongoUser | ConvertTo-Json -Compress
+        $restrictedPasswordLiteral = $restrictedMongoPassword | ConvertTo-Json -Compress
+        Write-Host "[runtime-smoke] 验证 MongoDB 业务库权限不足时 fail closed"
+        Invoke-MongoCommand "const database = db.getSiblingDB('induspilot'); if (database.getUser($restrictedUserLiteral)) { database.dropUser($restrictedUserLiteral); } database.createUser({user: $restrictedUserLiteral, pwd: $restrictedPasswordLiteral, roles: [{role: 'read', db: 'induspilot'}]});"
+        $restrictedMongoUri = "mongodb://$restrictedMongoUser`:$restrictedMongoPassword@$mongoHost`:$mongoPort/induspilot"
+        & $powerShellCommand -NoProfile -ExecutionPolicy Bypass -File (Resolve-RepoPath 'backend/tests/http_integration_smoke.ps1') `
+            -BackendExe $backendExePath `
+            -ConfigPath $configPathValue `
+            -BaseUrl $BaseUrl `
+            -RepositoryStore mysql `
+            -AiInteractionStore mongodb `
+            -SessionStore redis `
+            -MySqlUri $mysqlUri `
+            -MySqlDatabase $mysqlDatabase `
+            -RedisUri $redisUri `
+            -MongoDbUri $restrictedMongoUri `
+            -ExpectStartupFailure `
+            -ExpectMongoCredentialRedaction
+        if ($LASTEXITCODE -ne 0) {
+            throw "MongoDB permission failure smoke 执行失败"
+        }
+        Invoke-MongoCommand "db.getSiblingDB('induspilot').dropUser($restrictedUserLiteral);"
     }
 
     Write-Host "[runtime-smoke] HTTP runtime profile smoke passed"

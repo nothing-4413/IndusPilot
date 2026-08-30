@@ -148,7 +148,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File backend/tests/http_integ
 
 CI 的 `dependency-services` job 会启动 `deployment/docker-compose.yml` 中的 MySQL、Redis 和 MongoDB，并运行 `backend/tests/dependency_services_smoke.sh`。该脚本会重复执行 MySQL 迁移脚本，随后执行 `database/mysql/integration/real_crud_smoke.sql`，在真实 MySQL 中覆盖默认用户、资产、运行状态、告警规则、告警、通知投递、工单、附件、AI 交互和操作审计事件的可重复 CRUD 断言；Redis 会验证 key/value、TTL、counter 和 hash 读写；MongoDB 会执行 `database/mongodb/integration/real_crud_smoke.js`，验证 collection、索引和文档 upsert/read。
 
-CI 的 `backend-runtime-profile` job 使用 Linux `dev-http-mongodb` 构建，创建临时依赖密钥，启动同一 Compose 依赖栈，先运行上述 dependency smoke，再使用 `backend/tests/http_runtime_profile_smoke.ps1` 启动后端并执行 `repository_store=mysql`、`ai_interaction_store=mongodb`、`session_store=redis` 的完整 HTTP smoke。脚本会通过 AI API 写入并读取真实 MongoDB 文档，并在成功和失败路径都会清理依赖容器与 volume。
+CI 的 `backend-runtime-profile` job 使用 Linux `dev-http-mongodb` 构建，创建临时依赖密钥，启动同一 Compose 依赖栈，先运行上述 dependency smoke，再使用 `backend/tests/http_runtime_profile_smoke.ps1` 启动后端并执行 `repository_store=mysql`、`ai_interaction_store=mongodb`、`session_store=redis` 的完整 HTTP smoke。脚本会通过 AI API 写入并读取真实 MongoDB 文档，随后使用错误 MongoDB 密码验证 live 保持 `200`、readiness 返回 `503` 和诊断脱敏，再使用正确密码验证 readiness 恢复 `200`，最后使用只读 MongoDB 账号验证索引权限不足时进程 fail closed 且 stderr 脱敏；成功和失败路径都会清理依赖容器与 volume。
 
 若需要本地一键验收真实运行时 profile，可使用 `backend/tests/http_runtime_profile_smoke.ps1`。脚本读取 `deployment/.env`，拒绝 `change-me-*` 示例密钥，并可选执行 compose 启停、dependency smoke 和 MySQL 仓储 + Redis session HTTP smoke：
 
@@ -156,6 +156,8 @@ CI 的 `backend-runtime-profile` job 使用 Linux `dev-http-mongodb` 构建，�
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File backend/tests/http_runtime_profile_smoke.ps1 `
   -StartDependencies `
   -RunDependencySmoke `
+  -ExerciseMongoIndexUpgrade `
+  -ExerciseMongoReadinessFailures `
   -StopDependencies
 ```
 

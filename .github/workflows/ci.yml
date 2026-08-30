@@ -152,6 +152,7 @@ jobs:
           -StartDependencies
           -RunDependencySmoke
           -ExerciseMongoIndexUpgrade
+          -ExerciseMongoReadinessFailures
           -StopDependencies
 
       - name: Upload runtime profile build evidence

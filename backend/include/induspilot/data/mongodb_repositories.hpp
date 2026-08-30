@@ -7,6 +7,7 @@
 #include <mongocxx/client.hpp>
 
 #include <memory>
+#include <mutex>
 #include <string>
 
 namespace induspilot::data {
@@ -17,6 +18,7 @@ struct MongoProbeResult {
 };
 
 std::string sanitizeMongoProbeFailure(const std::string& diagnostic);
+MongoProbeResult evaluateMongoProbeOk(double okValue);
 MongoProbeResult probeMongoDb(const std::string& uri, const std::string& database, int timeoutMs);
 
 class MongoAiInteractionRepository final : public AiInteractionRepository {
@@ -31,7 +33,11 @@ public:
     Page list(const Query& query) const override;
 
 private:
+    void ensureIndexes() const;
+
     mutable mongocxx::client client_;
+    mutable std::mutex indexMutex_;
+    mutable bool indexesReconciled_{false};
     std::string database_;
     std::shared_ptr<AiInteractionMetricsSink> metrics_;
 };

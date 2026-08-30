@@ -129,15 +129,19 @@ MongoProbeResult probeMongoDb(const std::string& uri, const std::string& databas
             : ok.type() == bsoncxx::type::k_int64
                 ? static_cast<double>(ok.get_int64().value)
                 : ok.get_double().value;
-        if (!(okValue > 0.0)) {
-            return {false, "MongoDB authenticated ping returned ok <= 0"};
-        }
-        return {true, "MongoDB authenticated ping succeeded"};
+        return evaluateMongoProbeOk(okValue);
     } catch (const std::exception& error) {
         return {false, sanitizeMongoProbeFailure(error.what())};
     } catch (...) {
         return {false, "MongoDB authenticated ping failed: unknown driver error"};
     }
+}
+
+MongoProbeResult evaluateMongoProbeOk(const double okValue) {
+    if (!(okValue > 0.0)) {
+        return {false, "MongoDB authenticated ping returned ok <= 0"};
+    }
+    return {true, "MongoDB authenticated ping succeeded"};
 }
 
 MongoAiInteractionRepository::MongoAiInteractionRepository(
@@ -148,7 +152,20 @@ MongoAiInteractionRepository::MongoAiInteractionRepository(
     if (database_.empty()) {
         throw std::invalid_argument("mongodb.database must not be empty for AI interaction storage");
     }
+    // Keep the HTTP runtime alive during temporary auth/network failures so readiness can report 503.
+    // Structural index errors still fail startup after a successful authenticated probe.
+    if (probeMongoDb(uri, database_, 1000).available) {
+        ensureIndexes();
+    }
+}
+
+void MongoAiInteractionRepository::ensureIndexes() const {
+    std::lock_guard lock(indexMutex_);
+    if (indexesReconciled_) {
+        return;
+    }
     reconcileAiInteractionIndexes(client_, database_, metrics_);
+    indexesReconciled_ = true;
 }
 
 domain::AiInteraction MongoAiInteractionRepository::save(domain::AiInteraction interaction) {
@@ -159,6 +176,7 @@ domain::AiInteraction MongoAiInteractionRepository::save(domain::AiInteraction i
 
     const auto startedAt = std::chrono::steady_clock::now();
     try {
+        ensureIndexes();
         const auto now = bsoncxx::types::b_date{std::chrono::system_clock::now()};
         const auto filter = document{}
             << "interactionCode" << interaction.id
@@ -207,6 +225,7 @@ MongoAiInteractionRepository::Page MongoAiInteractionRepository::list(const Quer
 
     const auto startedAt = std::chrono::steady_clock::now();
     try {
+        ensureIndexes();
         document filter;
         if (query.relatedType) {
             filter << "relatedType" << *query.relatedType;

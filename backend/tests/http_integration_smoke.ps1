@@ -21,7 +21,12 @@ param(
     [string]$RedisUri = "",
     [string]$MongoDbUri = "",
     [switch]$ReadinessOnly,
-    [switch]$ExpectNotReady
+    [switch]$ExpectNotReady,
+    [ValidateSet("mysql", "redis", "mongodb")]
+    [string]$ExpectedUnavailableDependency = "mysql",
+    [switch]$ExpectMongoReadinessFailure,
+    [switch]$ExpectStartupFailure,
+    [switch]$ExpectMongoCredentialRedaction
 )
 
 $ErrorActionPreference = "Stop"
@@ -216,6 +221,24 @@ $stdoutReaderTask = $proc.StandardOutput.ReadToEndAsync()
 $stderrReaderTask = $proc.StandardError.ReadToEndAsync()
 
 try {
+    if ($ExpectStartupFailure) {
+        Assert-True $proc.WaitForExit(10000) "Backend unexpectedly remained running for the expected startup failure."
+        Assert-True ($proc.ExitCode -ne 0) "Backend unexpectedly started with invalid MongoDB permissions."
+        if ($ExpectMongoCredentialRedaction) {
+            $startupError = [string]$stderrReaderTask.Result
+            Assert-True ($startupError -notmatch "mongodb://|mongodb\+srv://") "MongoDB startup error exposed a URI scheme."
+            $credentialMatch = [regex]::Match($MongoDbUri, '^[^:]+://([^@]+)@')
+            if ($credentialMatch.Success) {
+                foreach ($credential in $credentialMatch.Groups[1].Value.Split(':', 2)) {
+                    if (-not [string]::IsNullOrWhiteSpace($credential)) {
+                        Assert-True ($startupError -notlike "*$credential*") "MongoDB startup error exposed a credential component."
+                    }
+                }
+            }
+        }
+        return
+    }
+
     $health = $null
     for ($attempt = 0; $attempt -lt 20; $attempt++) {
         try {
@@ -252,9 +275,22 @@ try {
     if ($ExpectNotReady) {
         Assert-True (-not $readyPayload.success) "Unavailable dependency readiness unexpectedly succeeded."
         Assert-True (-not $readyPayload.data.ready) "Readiness payload did not report not ready."
-        Assert-True $readyPayload.data.dependencies.mysql.required "Unavailable MySQL dependency was not marked required."
-        Assert-True (-not $readyPayload.data.dependencies.mysql.available) "Unavailable MySQL dependency was marked available."
-        Assert-True (-not [string]::IsNullOrWhiteSpace($readyPayload.data.dependencies.mysql.reason)) "Readiness failure reason was empty."
+        $failedDependency = $readyPayload.data.dependencies.$ExpectedUnavailableDependency
+        Assert-True $failedDependency.required "Unavailable $ExpectedUnavailableDependency dependency was not marked required."
+        Assert-True (-not $failedDependency.available) "Unavailable $ExpectedUnavailableDependency dependency was marked available."
+        Assert-True (-not [string]::IsNullOrWhiteSpace($failedDependency.reason)) "Readiness failure reason was empty."
+        if ($ExpectMongoReadinessFailure) {
+            Assert-True ($ExpectedUnavailableDependency -eq "mongodb") "MongoDB readiness failure expectation requires ExpectedUnavailableDependency=mongodb."
+            Assert-True ($ready.Content -notmatch "mongodb://|mongodb\+srv://") "MongoDB readiness response exposed a URI scheme."
+            $credentialMatch = [regex]::Match($MongoDbUri, '^[^:]+://([^@]+)@')
+            if ($credentialMatch.Success) {
+                foreach ($credential in $credentialMatch.Groups[1].Value.Split(':', 2)) {
+                    if (-not [string]::IsNullOrWhiteSpace($credential)) {
+                        Assert-True ($ready.Content -notlike "*$credential*") "MongoDB readiness response exposed a credential component."
+                    }
+                }
+            }
+        }
     } else {
         Assert-True $readyPayload.success "Ready dependency profile did not return success."
         Assert-True $readyPayload.data.ready "Readiness payload did not report ready."
