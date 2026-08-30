@@ -20,13 +20,13 @@
 - AI 传输：Drogon 构建下的 `provider=http` 已通过配置 endpoint 发起受控 JSON POST，并支持鉴权头、超时、响应文本提取和失败降级；当前结构化诊断字段仍由本地编排器生成。`/metrics` 额外暴露 provider 调用、可用/降级结果和耗时指标，标签不包含 prompt、响应、凭据或业务编号。`backend/tests/ai_provider_http_smoke.ps1` 覆盖成功、非 2xx、非 JSON 和超时场景。
 - 通知通道：`console` 具备本地投递；`email` 明确保持未实现；`webhook` 为显式开关控制且受请求超时约束，失败不会伪造 sent 状态，而是进入通知队列的重试/死信流程。
 - Webhook 出站安全：启用 webhook 必须提供精确 host allowlist；发送前会解析并拒绝回环、私有、链路本地、共享、组播、文档和保留地址，并使用已校验的 IP 地址建立连接；原始 Host 保持用于 HTTP 虚拟主机，TLS 证书校验始终开启。需要独立域名 SNI 的 HTTPS webhook 仍需接入支持显式 SNI 的底层 connector，不能通过关闭证书校验规避。
-- MongoDB：当前尚未接入后端业务仓储；CI 已验证初始化集合、索引和文档 CRUD，非结构化日志、知识片段和长上下文仍待正式落库。
+- MongoDB：已接入独立的 AI 交互仓储，写入 `ai_interactions` 集合并支持分页查询；启动期协调唯一索引和关联查询索引，仓储操作提供 bounded metrics，选择该模式时 readiness 使用带认证和超时边界的 `ping`。非结构化日志、知识片段和长上下文仍待正式落库。
 - 客户端：Qt 客户端已接入 HTTP 登录、资产列表与状态更新、运行监控列表与状态写入、告警创建/规则/通知投递/列表与处置、维护工单列表、新建/编辑/附件/从告警生成/分派/基础流转、AI 结构化诊断入口和 AI 交互审计查询、分页与 CSV 导出，并接入告警规则/通知联动。
 - 集成测试：默认 HTTP 冒烟测试覆盖内存仓储；CI dependency smoke 已覆盖 MySQL、Redis、MongoDB 的真实依赖启动、MySQL 核心业务 CRUD、Redis 数据结构读写和 MongoDB 文档 CRUD。
 
 ## 下一阶段优先级
 
-1. 真实依赖集成深化：CI 已在独立的 `backend-runtime-profile` job 中构建 HTTP runtime、启动 MySQL/Redis/MongoDB、执行依赖 CRUD smoke，并运行 MySQL 仓储 + Redis session HTTP profile；下一步推进 MongoDB 业务仓储接入。
+1. 真实依赖集成深化：CI 已在独立的 `backend-runtime-profile` job 中构建 HTTP runtime、启动 MySQL/Redis/MongoDB、执行依赖 CRUD smoke，并运行 MySQL 仓储 + Redis session + MongoDB AI interaction HTTP profile；下一步补充 MongoDB 非结构化数据的独立数据模型和保留策略。
 2. 身份安全深化：在现有密码哈希、登录失败锁定、审计、密码轮换和按用户 session 撤销边界上，补充种子账号替换/首登治理和跨副本登录失败限流。
 3. Qt 客户端联机化深化：在现有 HTTP 登录、资产、运行监控列表与状态写入、告警创建/规则/通知投递/列表与处置、维护工单列表、新建/编辑/附件/从告警生成/分派/基础流转、AI 诊断入口和 AI 交互审计查询、分页与 CSV 导出基础上，继续接入真实外部通知通道适配器、异步重试队列和投递指标。
 4. 外部 AI Provider：在已有 HTTP 传输、有限重试、总超时、响应大小限制、常见凭据键值脱敏和降级审计基础上，继续实现提示词版本、结构化响应协议和 provider 运行指标。

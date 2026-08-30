@@ -18,7 +18,7 @@ Boost.Beast 保留为后续边缘网关、协议适配器或自研网关层候�
 
 - MySQL：用户、角色、资产、告警、工单、运行状态、AI 交互审计等强关系数据。
 - Redis：会话、缓存、限流、短期运行态和队列；当前已接入 Redis-backed session。
-- MongoDB：日志、知识片段、非结构化诊断资料和长上下文；当前运行时仅做 TCP 健康探测，CI dependency smoke 已覆盖初始化集合、索引和文档 CRUD。
+- MongoDB：当前运行时承载 AI 交互文档，按 `interactionCode` upsert 并支持关联对象分页查询；启动期协调唯一索引和关联查询索引，选择 MongoDB AI 仓储时 readiness 执行带认证和超时边界的 `ping`。日志、知识片段、非结构化诊断资料和长上下文仍需独立数据模型，CI dependency smoke 与 HTTP runtime profile 覆盖当前集合、索引和文档 CRUD。
 
 ## AI 边界
 
