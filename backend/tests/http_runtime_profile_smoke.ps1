@@ -7,6 +7,7 @@
     [string]$AiInteractionStore = "memory",
     [switch]$StartDependencies,
     [switch]$RunDependencySmoke,
+    [switch]$ExerciseMongoIndexUpgrade,
     [switch]$StopDependencies
 )
 
@@ -85,6 +86,16 @@ function Invoke-Compose {
     }
 }
 
+function Invoke-MongoCommand {
+    param([string]$Script)
+    $envFile = Resolve-RepoPath $EnvPath
+    & docker compose --env-file $envFile -f (Resolve-RepoPath 'deployment/docker-compose.yml') exec -T mongodb `
+        mongosh --quiet --username $mongoUser --password $mongoPassword --authenticationDatabase admin --eval $Script
+    if ($LASTEXITCODE -ne 0) {
+        throw "MongoDB command failed while exercising the runtime profile."
+    }
+}
+
 function Resolve-PowerShellCommand {
     $pwsh = Get-Command pwsh -ErrorAction SilentlyContinue
     if ($null -ne $pwsh) {
@@ -126,8 +137,11 @@ $mysqlUri = "host=$mysqlHost port=$mysqlPort dbname=$mysqlDatabase user=$mysqlUs
 $redisUri = "tcp://:$redisPassword@$redisHost`:$redisPort/0"
 $mongoUri = "mongodb://$mongoUser`:$mongoPassword@$mongoHost`:$mongoPort/admin"
 
-if (($StartDependencies -or $RunDependencySmoke) -and -not (Get-Command docker -ErrorAction SilentlyContinue)) {
+if (($StartDependencies -or $RunDependencySmoke -or $ExerciseMongoIndexUpgrade) -and -not (Get-Command docker -ErrorAction SilentlyContinue)) {
     throw "未找到 docker 命令，无法启动或验证真实依赖。"
+}
+if ($ExerciseMongoIndexUpgrade -and $AiInteractionStore -ne 'mongodb') {
+    throw "ExerciseMongoIndexUpgrade requires AiInteractionStore=mongodb."
 }
 
 try {
@@ -152,6 +166,11 @@ try {
         }
     }
 
+    if ($ExerciseMongoIndexUpgrade) {
+        Write-Host "[runtime-smoke] 模拟旧 MongoDB 集合缺少 interactionCode 唯一索引"
+        Invoke-MongoCommand 'const collection = db.getSiblingDB("induspilot").ai_interactions; try { collection.dropIndex("interactionCode_1"); } catch (error) { if (error.codeName !== "IndexNotFound") { throw error; } }'
+    }
+
     Write-Host "[runtime-smoke] 运行 HTTP smoke：repository_store=mysql session_store=redis"
     & $powerShellCommand -NoProfile -ExecutionPolicy Bypass -File (Resolve-RepoPath 'backend/tests/http_integration_smoke.ps1') `
         -BackendExe $backendExePath `
@@ -166,6 +185,10 @@ try {
         -MongoDbUri $mongoUri
     if ($LASTEXITCODE -ne 0) {
         throw "HTTP runtime profile smoke 执行失败"
+    }
+
+    if ($ExerciseMongoIndexUpgrade) {
+        Invoke-MongoCommand 'const index = db.getSiblingDB("induspilot").ai_interactions.getIndexes().find(item => item.name === "interactionCode_1"); if (!index || index.unique !== true) { throw new Error("backend did not reconcile the unique interactionCode index"); } print("mongodb_index_upgrade_smoke_passed");'
     }
 
     Write-Host "[runtime-smoke] HTTP runtime profile smoke passed"

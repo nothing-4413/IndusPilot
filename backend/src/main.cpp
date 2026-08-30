@@ -6,6 +6,7 @@
 #include "induspilot/http/drogon_server.hpp"
 #endif
 
+#include <exception>
 #include <iostream>
 
 int main(int argc, char** argv) {
@@ -13,7 +14,12 @@ int main(int argc, char** argv) {
     auto config = induspilot::app::loadConfig(configPath);
 
 #ifdef INDUSPILOT_WITH_DROGON
-    return induspilot::http::runDrogonServer(config);
+    try {
+        return induspilot::http::runDrogonServer(config);
+    } catch (const std::exception& error) {
+        std::cerr << "backend startup failed: " << error.what() << std::endl;
+        return 78;
+    }
 #else
     induspilot::app::Application app(config);
     if (!app.start()) {

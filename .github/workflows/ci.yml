@@ -151,6 +151,7 @@ jobs:
           -AiInteractionStore mongodb
           -StartDependencies
           -RunDependencySmoke
+          -ExerciseMongoIndexUpgrade
           -StopDependencies
 
       - name: Upload runtime profile build evidence

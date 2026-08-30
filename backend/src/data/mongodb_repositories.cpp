@@ -6,6 +6,7 @@
 #include <bsoncxx/types.hpp>
 #include <mongocxx/instance.hpp>
 #include <mongocxx/options/find.hpp>
+#include <mongocxx/options/index.hpp>
 #include <mongocxx/options/update.hpp>
 
 #include <chrono>
@@ -28,6 +29,28 @@ std::string stringField(const bsoncxx::document::view& document, const char* nam
     return {value.data(), value.length()};
 }
 
+void reconcileAiInteractionIndexes(mongocxx::client& client, const std::string& database) {
+    using bsoncxx::builder::stream::document;
+    using bsoncxx::builder::stream::finalize;
+
+    try {
+        auto collection = client[database]["ai_interactions"];
+        auto identityOptions = mongocxx::options::index{};
+        identityOptions.unique(true);
+        collection.create_index(document{} << "interactionCode" << 1 << finalize, identityOptions);
+        collection.create_index(document{}
+                                << "relatedType" << 1
+                                << "relatedId" << 1
+                                << "createdAt" << -1
+                                << finalize);
+    } catch (const std::exception& error) {
+        throw std::runtime_error(
+            "MongoDB AI interaction index reconciliation failed for " + database +
+            ".ai_interactions. Resolve duplicate interactionCode values or incompatible existing indexes, then retry: " +
+            error.what());
+    }
+}
+
 }  // namespace
 
 MongoAiInteractionRepository::MongoAiInteractionRepository(const std::string& uri, const std::string& database)
@@ -35,6 +58,7 @@ MongoAiInteractionRepository::MongoAiInteractionRepository(const std::string& ur
     if (database_.empty()) {
         throw std::invalid_argument("mongodb.database must not be empty for AI interaction storage");
     }
+    reconcileAiInteractionIndexes(client_, database_);
 }
 
 domain::AiInteraction MongoAiInteractionRepository::save(domain::AiInteraction interaction) {

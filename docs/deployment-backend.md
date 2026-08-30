@@ -113,6 +113,8 @@ HTTP runtime 已将 `SIGTERM` 和 `SIGINT` 绑定到同一个 shutdown coordinat
 
 `storage.repository_store` 支持 `memory` 和 `mysql`，控制身份认证、资产、告警、维护工单、运行状态和操作审计等事务型数据。`storage.ai_interaction_store` 独立支持 `memory`、`mysql` 和 `mongodb`，默认 `memory`；选择 `mongodb` 时需使用 `dev-http-mongodb` preset 或以 `INDUSPILOT_WITH_MONGODB=ON` 和 vcpkg `mongodb` feature 构建。MongoDB 写入 `ai_interactions` 集合，按 `interactionCode` upsert，读取保持按关联对象过滤并按创建时间倒序。
 
+选择 MongoDB 仓储时，后端会在启动期协调 `ai_interactions` 的 `interactionCode` 唯一索引与关联对象查询索引，因此已有 MongoDB 数据卷不依赖 Docker 首次初始化脚本。若创建唯一索引因历史重复 `interactionCode` 失败，后端会拒绝启动。应先备份受影响文档、为每个重复键保留一个权威记录或合并其内容、删除其余重复记录，再重试启动；不得通过删除唯一索引绕过该失败。
+
 ## 身份口令边界
 
 内存仓储保留 `admin/admin123`、`operator/operator123`、`maintainer/maintainer123` 作为开发演示口令，并通过显式 `plain:` 兼容格式标识。MySQL 初始化脚本写入 PBKDF2-SHA256 演示哈希并由 `012_seed_account_governance` 标记为待轮换；生产模式拒绝这类凭据，登录不会签发 session。只有本地示例配置显式启用 `security.allow_seed_credentials`，生产部署必须保持关闭。
